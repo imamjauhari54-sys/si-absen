@@ -1,0 +1,70 @@
+@page {
+  size: A4 portrait;
+  margin: 10mm;
+}
+
+.cetak-body {
+  background: #e2e8f0;
+}
+
+.action-bar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  background: #1e293b;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-family: var(--font-jakarta), sans-serif;
+}
+.action-bar .info { font-size: 13px; color: #94a3b8; }
+.action-bar .info strong { color: white; }
+.action-bar .btns { display: flex; gap: 8px; }
+
+.btn-print {
+  background: #6366f1; color: white; border: none; padding: 8px 20px; border-radius: 8px;
+  font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-jakarta), sans-serif; transition: background 0.15s;
+}
+.btn-print:hover { background: #4f46e5; }
+.btn-back {
+  background: rgba(255, 255, 255, 0.08); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+  text-decoration: none; display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-jakarta), sans-serif; transition: background 0.15s;
+}
+.btn-back:hover { background: rgba(255, 255, 255, 0.14); color: white; }
+
+.spacer { height: 52px; }
+
+.print-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 60mm);
+  grid-auto-rows: 88mm;
+  gap: 4mm;
+  padding: 12mm;
+  justify-content: center;
+  background: white;
+}
+
+.id-card-wrap { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15); border-radius: 3.5mm; }
+
+.page-break-indicator {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; gap: 8px;
+  padding: 6mm 0 2mm;
+  font-size: 11px; color: #94a3b8; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  font-family: var(--font-jakarta), sans-serif;
+}
+.page-break-indicator::before, .page-break-indicator::after { content: ""; flex: 1; height: 1px; background: #cbd5e1; }
+
+@media print {
+  .action-bar, .spacer, .page-break-indicator { display: none !important; }
+  .cetak-body { background: white !important; }
+  .print-grid { padding: 0 !important; width: 190mm; }
+  .id-card-wrap { box-shadow: none !important; }
+  .page-break-before { page-break-before: always !important; }
+}

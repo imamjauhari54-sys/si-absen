@@ -1,0 +1,37 @@
+.sk-card {
+  transition: all .35s cubic-bezier(.2,.8,.2,1);
+  position: relative; overflow: hidden; border: 1.5px solid transparent;
+  background: white;
+}
+.dark .sk-card { background: #1e2535; }
+.sk-card::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.08) 50%, transparent 100%);
+  transform: translateX(-100%); transition: transform .5s ease; pointer-events: none;
+}
+.sk-card:hover::after { transform: translateX(100%); }
+
+.sk-indigo  { border-color: rgba(99,102,241,.45); }
+.sk-blue    { border-color: rgba(59,130,246,.45); }
+.sk-pink    { border-color: rgba(236,72,153,.45); }
+.sk-emerald { border-color: rgba(16,185,129,.45); }
+.dark .sk-indigo  { border-color: rgba(99,102,241,.30); }
+.dark .sk-blue    { border-color: rgba(59,130,246,.30); }
+.dark .sk-pink    { border-color: rgba(236,72,153,.30); }
+.dark .sk-emerald { border-color: rgba(16,185,129,.30); }
+
+.sk-indigo:hover  { background: linear-gradient(135deg,#6366f1,#4f46e5) !important; border-color:#6366f1; transform: translateY(-5px); box-shadow: 0 20px 35px -8px rgba(99,102,241,.45); }
+.sk-blue:hover    { background: linear-gradient(135deg,#3b82f6,#2563eb) !important; border-color:#3b82f6; transform: translateY(-5px); box-shadow: 0 20px 35px -8px rgba(59,130,246,.45); }
+.sk-pink:hover    { background: linear-gradient(135deg,#ec4899,#db2777) !important; border-color:#ec4899; transform: translateY(-5px); box-shadow: 0 20px 35px -8px rgba(236,72,153,.45); }
+.sk-emerald:hover { background: linear-gradient(135deg,#10b981,#059669) !important; border-color:#10b981; transform: translateY(-5px); box-shadow: 0 20px 35px -8px rgba(16,185,129,.45); }
+
+.sk-card:hover .sk-label, .sk-card:hover .sk-number, .sk-card:hover .sk-sub, .sk-card:hover .sk-pct { color: white !important; }
+.sk-card:hover .sk-pct { background: rgba(255,255,255,.22) !important; }
+.sk-card:hover .sk-icon { background: white !important; box-shadow: 0 4px 15px rgba(0,0,0,.15); }
+.sk-card:hover .sk-track { background: rgba(255,255,255,.25) !important; }
+.sk-card:hover .sk-fill { background: white !important; }
+
+.sk-indigo:hover  .sk-icon i { color:#6366f1 !important; }
+.sk-blue:hover    .sk-icon i { color:#3b82f6 !important; }
+.sk-pink:hover    .sk-icon i { color:#ec4899 !important; }
+.sk-emerald:hover .sk-icon i { color:#10b981 !important; }

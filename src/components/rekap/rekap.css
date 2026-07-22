@@ -1,0 +1,104 @@
+/* ── TABEL BULANAN ── */
+.tbl-bulanan th,
+.tbl-bulanan td {
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 6px 8px;
+}
+.dark .tbl-bulanan th,
+.dark .tbl-bulanan td {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.cs-hadir     { background: rgba(16,185,129,.12);  color: #10b981; font-weight: 800; text-align: center; }
+.cs-terlambat { background: rgba(245,158,11,.12);  color: #f59e0b; font-weight: 800; text-align: center; }
+.cs-izin      { background: rgba(99,102,241,.12);  color: #6366f1; font-weight: 800; text-align: center; }
+.cs-sakit     { background: rgba(168,85,247,.12);  color: #a855f7; font-weight: 800; text-align: center; }
+.cs-alpha     { background: rgba(239,68,68,.12);   color: #ef4444; font-weight: 800; text-align: center; }
+.cs-libur     { background: rgba(100,116,139,.10); color: #94a3b8; font-weight: 600; text-align: center; }
+.cs-kosong    { color: #cbd5e1; font-weight: 700; text-align: center; }
+
+.sum-h { background: rgba(16,185,129,.06); color: #10b981; font-weight: 800; text-align: center; }
+.sum-t { background: rgba(245,158,11,.06); color: #f59e0b; font-weight: 800; text-align: center; }
+.sum-i { background: rgba(99,102,241,.06); color: #6366f1; font-weight: 800; text-align: center; }
+.sum-s { background: rgba(168,85,247,.06); color: #a855f7; font-weight: 800; text-align: center; }
+.sum-a { background: rgba(239,68,68,.06);  color: #ef4444; font-weight: 800; text-align: center; }
+
+.sticky-no   { position: sticky; left: 0;    z-index: 10; }
+.sticky-nama { position: sticky; left: 40px; z-index: 10; min-width: 160px; }
+
+/* ── MODAL EDIT STATUS ── */
+.st-btn {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: 12px; border: 2px solid transparent;
+  font-weight: 700; font-size: 12px; transition: all .2s;
+  background: #f3f4f6; color: #374151; cursor: pointer; width: 100%; text-align: left;
+}
+.dark .st-btn { background: rgba(255,255,255,.06); color: #d1d5db; }
+.st-btn:hover { filter: brightness(.95); }
+
+.st-btn.active-hadir     { background: rgba(16,185,129,.12); border-color: #10b981; color: #059669; }
+.st-btn.active-terlambat { background: rgba(245,158,11,.12); border-color: #f59e0b; color: #d97706; }
+.st-btn.active-izin      { background: rgba(99,102,241,.12); border-color: #6366f1; color: #4f46e5; }
+.st-btn.active-sakit     { background: rgba(168,85,247,.12); border-color: #a855f7; color: #7e22ce; }
+.st-btn.active-alpha     { background: rgba(239,68,68,.12);  border-color: #ef4444; color: #b91c1c; }
+.dark .st-btn.active-hadir     { color: #10b981; }
+.dark .st-btn.active-terlambat { color: #f59e0b; }
+.dark .st-btn.active-izin      { color: #818cf8; }
+.dark .st-btn.active-sakit     { color: #c084fc; }
+.dark .st-btn.active-alpha     { color: #f87171; }
+
+/* ── MOBILE BULANAN: CARD VIEW ── */
+.bulanan-card {
+  background: white; border: 1px solid #e5e7eb; border-radius: .875rem;
+  padding: 1rem; transition: all .2s; cursor: pointer;
+}
+.dark .bulanan-card { background: #1e2535; border-color: rgba(255,255,255,.07); }
+.bulanan-card:active { transform: scale(.98); }
+
+.sum-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 50px; font-size: 11px; font-weight: 800;
+}
+
+.detail-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
+  gap: 4px; margin-top: .75rem; padding-top: .75rem; border-top: 1px solid rgba(0,0,0,.06);
+}
+.dark .detail-grid { border-color: rgba(255,255,255,.06); }
+
+.detail-cell {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 4px 2px; border-radius: 6px; font-size: 10px; font-weight: 800;
+}
+.detail-cell span { font-size: 9px; font-weight: 500; opacity: .6; margin-top: 1px; }
+
+/* ── PRINT ── */
+@media print {
+  @page { margin: 10mm 8mm; }
+  *, html, body {
+    background-color: white !important; color: #111 !important;
+    -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+    box-shadow: none !important; text-shadow: none !important; opacity: 1 !important;
+  }
+  .no-print, aside, nav, header, footer, form, button,
+  [class*="sidebar"], [class*="footer"], .widget-card, .hw-card,
+  .modal-inner, [id^="modal-"] { display: none !important; }
+
+  #main-content, main, .container, .section-card {
+    display: block !important; width: 100% !important; max-width: 100% !important;
+    margin: 0 !important; padding: 0 !important; position: static !important;
+    border: none !important; overflow: visible !important;
+  }
+  table { width: 100% !important; border-collapse: collapse !important; border: 1.5px solid #000 !important; margin-top: 10px !important; }
+  th { background: #efefef !important; font-size: 8.5pt !important; font-weight: 700 !important; text-align: center !important; padding: 5px 4px !important; border: 1px solid #333 !important; }
+  td { font-size: 9pt !important; padding: 5px 6px !important; border: 1px solid #555 !important; }
+  thead { display: table-header-group !important; }
+  tr { page-break-inside: avoid !important; }
+
+  .sticky-no, .sticky-nama { position: static !important; background: white !important; z-index: auto !important; }
+  table.tbl-bulanan { table-layout: fixed !important; width: 100% !important; }
+  table.tbl-bulanan th div, table.tbl-bulanan td.sticky-nama div { display: none !important; }
+  .bulanan-mobile { display: none !important; }
+  .bulanan-desktop { display: block !important; }
+  .bulanan-desktop .overflow-x-auto { overflow: visible !important; width: 100% !important; }
+}
