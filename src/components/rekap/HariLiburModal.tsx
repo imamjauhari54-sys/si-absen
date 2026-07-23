@@ -4,6 +4,7 @@ import { useState } from "react";
 import "./rekap.css";
 import type { HariLiburRow } from "@/lib/data/hari-libur";
 import Portal from "@/components/ui/Portal";
+import NotifModal from "@/components/ui/NotifModal";
 
 const BULAN_NAMA = ["", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
@@ -19,6 +20,7 @@ export default function HariLiburModal() {
   const [tgl, setTgl] = useState("");
   const [ket, setKet] = useState("");
   const [saving, setSaving] = useState(false);
+  const [notif, setNotif] = useState<{ status: "ok" | "error"; message: string } | null>(null);
 
   async function muatLibur() {
     setLoading(true);
@@ -40,7 +42,7 @@ export default function HariLiburModal() {
 
   async function tambahLibur() {
     if (!tgl || !ket.trim()) {
-      alert("Tanggal dan keterangan wajib diisi.");
+      setNotif({ status: "error", message: "Tanggal dan keterangan wajib diisi." });
       return;
     }
     setSaving(true);
@@ -54,9 +56,12 @@ export default function HariLiburModal() {
         setTgl("");
         setKet("");
         muatLibur();
+        setNotif({ status: "ok", message: "Hari libur berhasil ditambahkan." });
       } else {
-        alert("Gagal: " + (data.message || "Terjadi kesalahan."));
+        setNotif({ status: "error", message: data.message || "Terjadi kesalahan." });
       }
+    } catch {
+      setNotif({ status: "error", message: "Terjadi kesalahan jaringan." });
     } finally {
       setSaving(false);
     }
@@ -64,9 +69,18 @@ export default function HariLiburModal() {
 
   async function hapusLibur(id: number) {
     if (!confirm("Hapus hari libur ini?")) return;
-    const res = await fetch(`/api/hari-libur/${id}`, { method: "DELETE" });
-    const data = await res.json();
-    if (data.status === "ok") muatLibur();
+    try {
+      const res = await fetch(`/api/hari-libur/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.status === "ok") {
+        muatLibur();
+        setNotif({ status: "ok", message: "Hari libur berhasil dihapus." });
+      } else {
+        setNotif({ status: "error", message: data.message || "Gagal menghapus hari libur." });
+      }
+    } catch {
+      setNotif({ status: "error", message: "Terjadi kesalahan jaringan." });
+    }
   }
 
   return (
@@ -180,6 +194,8 @@ export default function HariLiburModal() {
         </div>
         </Portal>
       )}
+
+      <NotifModal open={!!notif} status={notif?.status ?? "ok"} message={notif?.message ?? ""} onClose={() => setNotif(null)} />
     </>
   );
 }

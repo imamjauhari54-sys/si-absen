@@ -7,6 +7,13 @@ export async function getSemuaKelasRekap(): Promise<string[]> {
   return Array.from(new Set((data ?? []).map((r) => r.class))).sort();
 }
 
+/** Daftar bulan (YYYY-MM) unik yang punya data absensi, terbaru dulu. Dipakai dropdown periode reset di halaman Pengaturan. */
+export async function getDistinctBulanAbsensi(): Promise<string[]> {
+  const { data } = await supabaseAdmin.from("absensi").select("tanggal").order("tanggal", { ascending: false });
+  const bulanSet = new Set((data ?? []).map((r) => r.tanggal.slice(0, 7)));
+  return Array.from(bulanSet).sort((a, b) => (a < b ? 1 : -1));
+}
+
 // ── HARIAN ──────────────────────────────────────────────────────────────
 
 export type StatusHarian = StatusAbsen | "kosong";

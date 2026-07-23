@@ -8,9 +8,13 @@ const UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 export default function FotoUploader({
   value,
   onChange,
+  folder = "si-absen/siswa",
+  label = "Foto Siswa",
 }: {
   value: string;
   onChange: (url: string) => void;
+  folder?: string;
+  label?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -40,7 +44,7 @@ export default function FotoUploader({
       const fd = new FormData();
       fd.append("file", file);
       fd.append("upload_preset", UPLOAD_PRESET);
-      fd.append("folder", "si-absen/siswa");
+      fd.append("folder", folder);
 
       const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
         method: "POST",
@@ -60,7 +64,7 @@ export default function FotoUploader({
   return (
     <div>
       <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">
-        Foto Siswa <span className="normal-case font-normal">(opsional)</span>
+        {label} <span className="normal-case font-normal">(opsional)</span>
       </label>
 
       <div className="flex items-center gap-3">
@@ -68,7 +72,7 @@ export default function FotoUploader({
           {uploading ? (
             <i className="fas fa-spinner fa-spin text-gray-400" />
           ) : value ? (
-            <img src={value} alt="Foto siswa" className="w-full h-full object-cover" />
+            <img src={value} alt={label} className="w-full h-full object-cover" />
           ) : (
             <i className="fas fa-user text-gray-300 dark:text-gray-600 text-xl" />
           )}

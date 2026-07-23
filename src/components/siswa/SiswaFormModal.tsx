@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { StudentFull } from "@/types";
 import Portal from "@/components/ui/Portal";
+import NotifModal from "@/components/ui/NotifModal";
 import FotoUploader from "./FotoUploader";
 
 export default function SiswaFormModal({
@@ -23,6 +24,7 @@ export default function SiswaFormModal({
   const [foto, setFoto] = useState(initialData?.foto ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notif, setNotif] = useState<{ status: "ok" | "error"; message: string } | null>(null);
 
   async function simpan() {
     if (!name.trim() || !kelas.trim()) {
@@ -44,8 +46,10 @@ export default function SiswaFormModal({
       const data = await res.json();
 
       if (data.status === "ok") {
-        router.refresh();
-        onClose();
+        setNotif({
+          status: "ok",
+          message: mode === "create" ? "Data siswa baru berhasil ditambahkan." : "Perubahan data siswa berhasil disimpan.",
+        });
       } else {
         setError(data.message || "Terjadi kesalahan.");
       }
@@ -54,6 +58,12 @@ export default function SiswaFormModal({
     } finally {
       setSaving(false);
     }
+  }
+
+  function tutupNotif() {
+    setNotif(null);
+    router.refresh();
+    onClose();
   }
 
   return (
@@ -160,6 +170,8 @@ export default function SiswaFormModal({
           </div>
         </div>
       </div>
+
+      <NotifModal open={!!notif} status={notif?.status ?? "ok"} message={notif?.message ?? ""} onClose={tutupNotif} />
     </Portal>
   );
 }

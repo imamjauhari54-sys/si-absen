@@ -13,6 +13,15 @@ export interface SessionPayload {
   foto: string | null;
 }
 
+export interface UserRow {
+  id: number;
+  name: string;
+  username: string;
+  role: Role;
+  foto: string | null;
+  kelas: string | null; // hanya untuk role guru (wali kelas)
+}
+
 export interface Student {
   id: number;
   name: string;

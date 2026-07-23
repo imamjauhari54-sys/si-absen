@@ -1,0 +1,126 @@
+"use server";
+
+import { getSession } from "@/lib/auth/session";
+import { supabaseAdmin } from "@/lib/supabase/server";
+import { setSettingValue } from "@/lib/data/settings";
+import type { SettingActionState } from "./setting-types";
+
+export async function simpanInfoSekolahAction(_prev: SettingActionState, formData: FormData): Promise<SettingActionState> {
+  const session = await getSession();
+  if (!session) return { status: "error", message: "Sesi berakhir, silakan login ulang." };
+  if (session.role !== "admin") return { status: "error", message: "Akses ditolak! Hanya admin yang dapat mengubah info sekolah." };
+
+  const namaSekolah = String(formData.get("nama_sekolah") || "").trim();
+  const alamat = String(formData.get("alamat_sekolah") || "").trim();
+
+  if (!namaSekolah) return { status: "error", message: "Nama sekolah wajib diisi." };
+
+  const [r1, r2] = await Promise.all([
+    setSettingValue("nama_sekolah", namaSekolah),
+    setSettingValue("alamat_sekolah", alamat),
+  ]);
+
+  if (r1.error || r2.error) {
+    return { status: "error", message: r1.error || r2.error || "Gagal menyimpan info sekolah." };
+  }
+
+  return { status: "ok", message: "Info sekolah berhasil diperbarui." };
+}
+
+export async function simpanJadwalAction(_prev: SettingActionState, formData: FormData): Promise<SettingActionState> {
+  const session = await getSession();
+  if (!session) return { status: "error", message: "Sesi berakhir, silakan login ulang." };
+
+  const jm = String(formData.get("jam_masuk") || "07:00");
+  const bt = String(formData.get("batas_terlambat") || "07:15");
+  const jp = String(formData.get("jam_pulang") || "11:30");
+  const tp = String(formData.get("tapel") || "2025/2026").trim();
+  const smRaw = String(formData.get("semester") || "genap");
+  const sm = smRaw === "ganjil" ? "ganjil" : "genap";
+
+  const { data: existing } = await supabaseAdmin.from("absensi_setting").select("id").limit(1).maybeSingle();
+
+  const payload = {
+    jam_masuk: `${jm}:00`,
+    batas_terlambat: `${bt}:00`,
+    jam_pulang_mulai: `${jp}:00`,
+    tapel: tp,
+    semester: sm,
+  };
+
+  const { error } = existing
+    ? await supabaseAdmin.from("absensi_setting").update(payload).eq("id", existing.id)
+    : await supabaseAdmin.from("absensi_setting").insert(payload);
+
+  if (error) return { status: "error", message: error.message };
+  return { status: "ok", message: "Pengaturan sistem berhasil disimpan dan diperbarui." };
+}
+
+const BULAN_ID: Record<number, string> = {
+  1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei", 6: "Juni",
+  7: "Juli", 8: "Agustus", 9: "September", 10: "Oktober", 11: "November", 12: "Desember",
+};
+function formatBulan(yyyymm: string): string {
+  const [y, m] = yyyymm.split("-").map(Number);
+  return `${BULAN_ID[m]} ${y}`;
+}
+
+export async function resetDataAction(_prev: SettingActionState, formData: FormData): Promise<SettingActionState> {
+  const session = await getSession();
+  if (!session || session.role !== "admin") {
+    return { status: "error", message: "Akses ditolak!" };
+  }
+
+  const konfirmasi = String(formData.get("konfirmasi_teks") || "");
+  const periode = String(formData.get("periode_reset") || "");
+  const kelasFilter = String(formData.get("kelas_filter") || "");
+
+  if (!periode) return { status: "error", message: "Pilih periode terlebih dahulu!" };
+  if (konfirmasi !== "HAPUS") return { status: "error", message: "Gagal: Kata konfirmasi 'HAPUS' tidak cocok." };
+
+  // Cari siswa_id yang match filter kelas (opsional)
+  let studentsQuery = supabaseAdmin.from("students").select("id");
+  if (kelasFilter) studentsQuery = studentsQuery.eq("class", kelasFilter);
+  const { data: students } = await studentsQuery;
+  const studentIds = (students ?? []).map((s) => s.id);
+  if (studentIds.length === 0) {
+    return { status: "error", message: "Tidak ada data untuk dihapus di periode/kelas yang dipilih." };
+  }
+
+  let absensiQuery = supabaseAdmin.from("absensi").select("siswa_id").in("siswa_id", studentIds);
+  if (periode !== "all") {
+    absensiQuery = absensiQuery.gte("tanggal", `${periode}-01`).lte("tanggal", `${periode}-31`);
+  }
+  const { data: absenRows } = await absensiQuery;
+  const siswaIds = Array.from(new Set((absenRows ?? []).map((r) => r.siswa_id)));
+
+  if (siswaIds.length === 0) {
+    return { status: "error", message: "Tidak ada data untuk dihapus di periode/kelas yang dipilih." };
+  }
+
+  // Hapus log dulu, baru absensi (pola sama seperti PHP aslinya)
+  let logQuery = supabaseAdmin.from("absensi_log").delete().in("siswa_id", siswaIds);
+  if (periode !== "all") logQuery = logQuery.gte("tanggal_absen", `${periode}-01`).lte("tanggal_absen", `${periode}-31`);
+  const { error: err1 } = await logQuery;
+
+  let absDelQuery = supabaseAdmin.from("absensi").delete().in("siswa_id", siswaIds);
+  if (periode !== "all") absDelQuery = absDelQuery.gte("tanggal", `${periode}-01`).lte("tanggal", `${periode}-31`);
+  const { error: err2 } = await absDelQuery;
+
+  if (err1 || err2) {
+    return { status: "error", message: "Gagal menghapus data: " + (err1?.message || err2?.message) };
+  }
+
+  let message: string;
+  if (kelasFilter && periode !== "all") {
+    message = `Data absensi kelas ${kelasFilter} bulan ${formatBulan(periode)} berhasil dihapus.`;
+  } else if (kelasFilter) {
+    message = `Semua data absensi kelas ${kelasFilter} berhasil dihapus.`;
+  } else if (periode === "all") {
+    message = "Semua data absensi di database berhasil dihapus.";
+  } else {
+    message = `Data absensi bulan ${formatBulan(periode)} berhasil dihapus.`;
+  }
+
+  return { status: "ok", message };
+}

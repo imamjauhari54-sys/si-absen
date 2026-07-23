@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import "./rekap.css";
 import type { RekapHarianRow, StatusHarian } from "@/lib/data/rekap";
 import Portal from "@/components/ui/Portal";
+import NotifModal from "@/components/ui/NotifModal";
 
 const BADGE_MAP: Record<string, string> = {
   hadir: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400",
@@ -26,6 +27,7 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
   const [selSt, setSelSt] = useState<StatusHarian | "">("");
   const [ket, setKet] = useState("");
   const [saving, setSaving] = useState(false);
+  const [notif, setNotif] = useState<{ status: "ok" | "error"; message: string } | null>(null);
 
   useEffect(() => {
     function onEsc(e: KeyboardEvent) {
@@ -60,11 +62,12 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
           prev.map((r) => (r.id === editing.id ? { ...r, status: selSt, keterangan: ket || null } : r))
         );
         setEditing(null);
+        setNotif({ status: "ok", message: "Status kehadiran berhasil diperbarui." });
       } else {
-        alert("Gagal: " + (data.message || "Terjadi kesalahan."));
+        setNotif({ status: "error", message: data.message || "Terjadi kesalahan." });
       }
     } catch {
-      alert("Terjadi kesalahan jaringan. Silakan coba lagi.");
+      setNotif({ status: "error", message: "Terjadi kesalahan jaringan. Silakan coba lagi." });
     } finally {
       setSaving(false);
     }
@@ -223,6 +226,8 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
         </div>
         </Portal>
       )}
+
+      <NotifModal open={!!notif} status={notif?.status ?? "ok"} message={notif?.message ?? ""} onClose={() => setNotif(null)} />
     </>
   );
 }

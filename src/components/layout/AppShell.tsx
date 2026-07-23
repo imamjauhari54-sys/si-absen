@@ -45,7 +45,10 @@ export default function AppShell({
     { href: "/siswa", icon: "fa-users", label: "Data Siswa" },
     { href: "/rekap", icon: "fa-calendar-days", label: "Rekap Absensi" },
     ...(isAdmin
-      ? [{ href: "/scan-absen", icon: "fa-qrcode", label: "Scan QR", badge: "SCAN" }]
+      ? [
+          { href: "/scan-absen", icon: "fa-qrcode", label: "Scan QR", badge: "SCAN" },
+          { href: "/users", icon: "fa-user-shield", label: "Manajemen Pengguna" },
+        ]
       : []),
     { href: "/setting", icon: "fa-gear", label: "Pengaturan" },
   ];
