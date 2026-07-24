@@ -18,8 +18,8 @@ export default function GantiPasswordForm({ wajib }: { wajib: boolean }) {
       setError("Konfirmasi password baru tidak cocok.");
       return;
     }
-    if (passwordBaru.length < 6) {
-      setError("Password baru minimal 6 karakter.");
+    if (passwordBaru.length < 8) {
+      setError("Password baru minimal 8 karakter.");
       return;
     }
 
@@ -93,7 +93,7 @@ export default function GantiPasswordForm({ wajib }: { wajib: boolean }) {
           onChange={(e) => setPasswordBaru(e.target.value)}
           required
           autoComplete="new-password"
-          placeholder="Min. 6 karakter"
+          placeholder="Min. 8 karakter"
           className="w-full px-3 py-2.5 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none"
         />
       </div>

@@ -16,8 +16,8 @@ export async function POST(req: NextRequest) {
   if (!passwordLama || !passwordBaru) {
     return NextResponse.json({ status: "error", message: "Password lama dan baru wajib diisi." });
   }
-  if (passwordBaru.length < 6) {
-    return NextResponse.json({ status: "error", message: "Password baru minimal 6 karakter." });
+  if (passwordBaru.length < 8) {
+    return NextResponse.json({ status: "error", message: "Password baru minimal 8 karakter." });
   }
 
   const { data: user } = await supabaseAdmin.from("users").select("password").eq("id", session.userId).maybeSingle();

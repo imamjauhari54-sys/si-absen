@@ -63,8 +63,8 @@ export default function UserFormModal({
       setError("Password wajib diisi untuk pengguna baru.");
       return;
     }
-    if (password && password.length < 6) {
-      setError("Password minimal 6 karakter.");
+    if (password && password.length < 8) {
+      setError("Password minimal 8 karakter.");
       return;
     }
     const kelasBersih = normalizeKelas(kelas);
@@ -187,7 +187,7 @@ export default function UserFormModal({
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={mode === "edit" ? "Biarkan kosong jika tetap" : "Min. 6 karakter"}
+                  placeholder={mode === "edit" ? "Biarkan kosong jika tetap" : "Min. 8 karakter"}
                   autoComplete="new-password"
                   className="w-full px-3 py-2.5 pr-10 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
                 />

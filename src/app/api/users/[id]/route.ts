@@ -31,8 +31,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (role !== "admin" && role !== "guru") {
     return NextResponse.json({ status: "error", message: "Role tidak valid." });
   }
-  if (password && password.length < 6) {
-    return NextResponse.json({ status: "error", message: "Password minimal 6 karakter." });
+  if (password && password.length < 8) {
+    return NextResponse.json({ status: "error", message: "Password minimal 8 karakter." });
   }
   if (role === "guru" && !kelas) {
     return NextResponse.json({ status: "error", message: "Guru wajib memilih kelas yang diampu (wali kelas)." });
