@@ -33,6 +33,7 @@ export interface StudentFull extends Student {
   nisn: string | null;
   jenis_kelamin: string | null; // 'L' | 'P'
   token: string | null;
+  no_hp_ortu: string | null;
 }
 
 export interface AbsensiSetting {

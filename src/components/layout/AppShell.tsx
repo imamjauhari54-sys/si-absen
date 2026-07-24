@@ -14,6 +14,18 @@ interface NavItem {
   badge?: string;
 }
 
+interface NavGroup {
+  label: string;
+  icon: string;
+  children: NavItem[];
+}
+
+type NavEntry = NavItem | NavGroup;
+
+function isNavGroup(entry: NavEntry): entry is NavGroup {
+  return "children" in entry;
+}
+
 export default function AppShell({
   namaSekolah,
   isAdmin,
@@ -40,20 +52,35 @@ export default function AppShell({
     setDesktopOpen((v) => !v);
   }
 
-  const navItems: NavItem[] = [
+  const navItems: NavEntry[] = [
     { href: "/dashboard", icon: "fa-house", label: "Dashboard" },
     { href: "/siswa", icon: "fa-users", label: "Data Siswa" },
     { href: "/rekap", icon: "fa-calendar-days", label: "Rekap Absensi" },
     ...(isAdmin
       ? [
           { href: "/scan-absen", icon: "fa-qrcode", label: "Scan QR", badge: "SCAN" },
-          { href: "/users", icon: "fa-user-shield", label: "Manajemen Pengguna" },
+          {
+            label: "Administrasi",
+            icon: "fa-toolbox",
+            children: [
+              { href: "/users", icon: "fa-user-shield", label: "Manajemen Pengguna" },
+              { href: "/kelas", icon: "fa-chalkboard", label: "Kelola Kelas" },
+              { href: "/log-aktivitas", icon: "fa-clock-rotate-left", label: "Log Aktivitas" },
+            ],
+          },
         ]
       : []),
     { href: "/setting", icon: "fa-gear", label: "Pengaturan" },
   ];
 
-  const pageTitle = navItems.find((i) => pathname === i.href || pathname?.startsWith(i.href + "/"))?.label ?? "SI-ABSEN";
+  const semuaHalaman = navItems.flatMap((item) => (isNavGroup(item) ? item.children : [item]));
+  const pageTitle =
+    semuaHalaman.find((i) => pathname === i.href || pathname?.startsWith(i.href + "/"))?.label ?? "SI-ABSEN";
+
+  const [manualOpenGroups, setManualOpenGroups] = useState<Record<string, boolean>>({});
+  function toggleGroup(label: string) {
+    setManualOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+  }
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
@@ -84,6 +111,44 @@ export default function AppShell({
 
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
           {navItems.map((item) => {
+            if (isNavGroup(item)) {
+              const groupActive = item.children.some(
+                (c) => pathname === c.href || pathname?.startsWith(c.href + "/")
+              );
+              const expanded = groupActive || !!manualOpenGroups[item.label];
+              return (
+                <div key={item.label}>
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(item.label)}
+                    className={`nav-item w-full ${groupActive ? "active" : ""}`}
+                  >
+                    <i className={`fas ${item.icon} nav-icon`} />
+                    <span className="flex-1 text-left">{item.label}</span>
+                    <i className={`fas fa-chevron-down text-[10px] transition-transform ${expanded ? "rotate-180" : ""}`} />
+                  </button>
+                  {expanded && (
+                    <div className="ml-3 pl-3 border-l border-gray-200 dark:border-white/10 mt-1 space-y-1">
+                      {item.children.map((child) => {
+                        const active = pathname === child.href || pathname?.startsWith(child.href + "/");
+                        return (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            className={`nav-item ${active ? "active" : ""}`}
+                            onClick={() => setSidebarOpen(false)}
+                          >
+                            <i className={`fas ${child.icon} nav-icon`} />
+                            <span className="flex-1">{child.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             const active = pathname === item.href || pathname?.startsWith(item.href + "/");
             return (
               <Link

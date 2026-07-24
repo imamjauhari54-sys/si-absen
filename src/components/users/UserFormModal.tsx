@@ -6,7 +6,18 @@ import type { UserRow } from "@/types";
 import Portal from "@/components/ui/Portal";
 import NotifModal from "@/components/ui/NotifModal";
 import FotoUploader from "@/components/siswa/FotoUploader";
+import KelasPicker from "@/components/ui/KelasPicker";
+import GuruMengajarManager from "./GuruMengajarManager";
 import { normalizeKelas } from "@/lib/utils/kelas";
+
+function generatePassword(): string {
+  const huruf = "abcdefghjkmnpqrstuvwxyz";
+  const angka = "23456789";
+  let hasil = "";
+  for (let i = 0; i < 5; i++) hasil += huruf[Math.floor(Math.random() * huruf.length)];
+  for (let i = 0; i < 3; i++) hasil += angka[Math.floor(Math.random() * angka.length)];
+  return hasil;
+}
 
 export default function UserFormModal({
   mode,
@@ -27,15 +38,21 @@ export default function UserFormModal({
   const [name, setName] = useState(initialData?.name ?? "");
   const [username, setUsername] = useState(initialData?.username ?? "");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [wajibGanti, setWajibGanti] = useState(mode === "create");
   const [role, setRole] = useState<"admin" | "guru">(initialData?.role ?? "guru");
   const [kelas, setKelas] = useState(initialData?.kelas ?? "");
-  const [kelasMode, setKelasMode] = useState<"pilih" | "baru">(
-    initialData?.kelas && !semuaKelas.includes(initialData.kelas) ? "baru" : "pilih"
-  );
   const [foto, setFoto] = useState(initialData?.foto ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notif, setNotif] = useState<{ status: "ok" | "error"; message: string } | null>(null);
+
+  function pakaiPasswordAcak() {
+    const pw = generatePassword();
+    setPassword(pw);
+    setShowPassword(true);
+    setWajibGanti(true);
+  }
 
   async function simpan() {
     if (!name.trim() || !username.trim()) {
@@ -64,6 +81,7 @@ export default function UserFormModal({
       fd.append("name", name.trim());
       fd.append("username", username.trim());
       fd.append("password", password);
+      fd.append("wajib_ganti_password", wajibGanti ? "1" : "0");
       fd.append("role", role);
       fd.append("kelas", role === "guru" ? kelasBersih : "");
       fd.append("foto", foto.trim());
@@ -136,34 +154,65 @@ export default function UserFormModal({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="cth: budi.guru"
-                  autoComplete="off"
-                  className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">
+            <div>
+              <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">
+                Username
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="cth: budi.guru"
+                autoComplete="off"
+                className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
                   {mode === "create" ? "Password" : "Password Baru"}{" "}
                   {mode === "edit" && <span className="normal-case font-normal">(opsional)</span>}
                 </label>
+                <button
+                  type="button"
+                  onClick={pakaiPasswordAcak}
+                  className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+                >
+                  <i className="fas fa-dice" /> Buat Acak
+                </button>
+              </div>
+              <div className="relative">
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={mode === "edit" ? "Biarkan kosong jika tetap" : "Min. 6 karakter"}
                   autoComplete="new-password"
-                  className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                  className="w-full px-3 py-2.5 pr-10 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-0 top-0 h-full px-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  tabIndex={-1}
+                >
+                  <i className={`fas ${showPassword ? "fa-eye-slash" : "fa-eye"} text-xs`} />
+                </button>
               </div>
+              {password && (
+                <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={wajibGanti}
+                    onChange={(e) => setWajibGanti(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded accent-indigo-600"
+                  />
+                  <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">
+                    Wajib ganti password saat login pertama
+                  </span>
+                </label>
+              )}
             </div>
 
             <div>
@@ -204,64 +253,17 @@ export default function UserFormModal({
                 <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">
                   Wali Kelas
                 </label>
-                {kelasMode === "pilih" ? (
-                  <div className="flex gap-2">
-                    <select
-                      value={kelas}
-                      onChange={(e) => setKelas(e.target.value)}
-                      className="flex-1 px-3 py-2.5 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                    >
-                      <option value="">-- Pilih Kelas --</option>
-                      {semuaKelas.map((k) => (
-                        <option key={k} value={k}>
-                          Kelas {k}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setKelasMode("baru");
-                        setKelas("");
-                      }}
-                      title="Tambah kelas baru"
-                      className="px-3.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-xl text-sm font-bold transition flex items-center gap-1.5 flex-shrink-0"
-                    >
-                      <i className="fas fa-plus text-xs" /> Baru
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={kelas}
-                      onChange={(e) => setKelas(e.target.value)}
-                      onBlur={(e) => setKelas(normalizeKelas(e.target.value))}
-                      placeholder="cth: 7 atau 7A (tanpa kata &quot;Kelas&quot;)"
-                      autoFocus
-                      className="flex-1 px-3 py-2.5 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
-                    />
-                    {semuaKelas.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setKelasMode("pilih");
-                          setKelas("");
-                        }}
-                        title="Pilih dari kelas yang sudah ada"
-                        className="px-3.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 rounded-xl text-sm font-bold transition flex items-center gap-1.5 flex-shrink-0"
-                      >
-                        <i className="fas fa-list text-xs" /> Daftar
-                      </button>
-                    )}
-                  </div>
-                )}
-                <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5 ml-1">
-                  {kelasMode === "baru"
-                    ? 'Cukup isi angka/kode kelasnya saja (mis. "5" atau "5A") — kata "Kelas" di depannya sudah otomatis ditambahkan saat ditampilkan.'
-                    : "Guru hanya bisa login sebagai wali kelas dari kelas yang dipilih di sini."}
-                </p>
+                <KelasPicker
+                  value={kelas}
+                  onChange={setKelas}
+                  options={semuaKelas}
+                  helperPilih="Guru hanya bisa login sebagai wali kelas dari kelas yang dipilih di sini."
+                />
               </div>
+            )}
+
+            {mode === "edit" && role === "guru" && initialData && (
+              <GuruMengajarManager guruId={initialData.id} semuaKelas={semuaKelas} />
             )}
           </div>
 

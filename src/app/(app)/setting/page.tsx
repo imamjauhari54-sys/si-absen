@@ -7,6 +7,7 @@ import { getDistinctBulanAbsensi } from "@/lib/data/rekap";
 import JadwalForm from "@/components/setting/JadwalForm";
 import ResetDataModal from "@/components/setting/ResetDataModal";
 import InfoSekolahForm from "@/components/setting/InfoSekolahForm";
+import WaSettingForm from "@/components/setting/WaSettingForm";
 
 export const metadata: Metadata = { title: "Pengaturan" };
 export const dynamic = "force-dynamic";
@@ -27,15 +28,38 @@ const QUICK_LINK_ADMIN = {
   blank: false,
 };
 
+const QUICK_LINKS_ADMIN_EXTRA = [
+  QUICK_LINK_ADMIN,
+  {
+    href: "/kelas",
+    icon: "fa-chalkboard",
+    label: "Kelola Kelas",
+    txt: "text-teal-500",
+    bg: "bg-teal-100 dark:bg-teal-900/30",
+    blank: false,
+  },
+  {
+    href: "/log-aktivitas",
+    icon: "fa-clock-rotate-left",
+    label: "Log Aktivitas",
+    txt: "text-rose-500",
+    bg: "bg-rose-100 dark:bg-rose-900/30",
+    blank: false,
+  },
+];
+
 export default async function SettingPage() {
   const session = await requireSession();
   const isAdmin = session.role === "admin";
 
-  const [setting, namaSekolah, alamat, daftarBulan] = await Promise.all([
+  const [setting, namaSekolah, alamat, daftarBulan, waEnabled, waGatewayUrl, waApiKey] = await Promise.all([
     getAbsensiSetting(),
     getSettingValue("nama_sekolah", "SI-ABSEN"),
     getSettingValue("alamat_sekolah", ""),
     isAdmin ? getDistinctBulanAbsensi() : Promise.resolve([]),
+    getSettingValue("wa_enabled", "false"),
+    getSettingValue("wa_gateway_url", ""),
+    getSettingValue("wa_api_key", ""),
   ]);
 
   const jamMasuk = (setting.jam_masuk ?? "07:00:00").slice(0, 5);
@@ -64,12 +88,14 @@ export default async function SettingPage() {
         <div className="space-y-6">
           <InfoSekolahForm namaSekolah={namaSekolah} alamat={alamat} tapel={tapel} semester={semester} isAdmin={isAdmin} />
 
+          {isAdmin && <WaSettingForm enabled={waEnabled === "true"} gatewayUrl={waGatewayUrl} apiKey={waApiKey} />}
+
           <div className="section-card p-5 shadow-sm reveal">
             <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
               <i className="fas fa-bolt text-amber-500" /> Akses Cepat
             </h3>
             <div className="space-y-2">
-              {(isAdmin ? [...QUICK_LINKS, QUICK_LINK_ADMIN] : QUICK_LINKS).map((l) => (
+              {(isAdmin ? [...QUICK_LINKS, ...QUICK_LINKS_ADMIN_EXTRA] : QUICK_LINKS).map((l) => (
                 <Link
                   key={l.href}
                   href={l.href}

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import SiswaFormModal from "./SiswaFormModal";
 
-export default function TambahSiswaButton() {
+export default function TambahSiswaButton({ semuaKelas }: { semuaKelas: string[] }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -16,7 +16,7 @@ export default function TambahSiswaButton() {
         Tambah Siswa
       </button>
 
-      {open && <SiswaFormModal mode="create" onClose={() => setOpen(false)} />}
+      {open && <SiswaFormModal mode="create" semuaKelas={semuaKelas} onClose={() => setOpen(false)} />}
     </>
   );
 }

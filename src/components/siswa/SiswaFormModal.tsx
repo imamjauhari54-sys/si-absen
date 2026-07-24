@@ -6,20 +6,24 @@ import type { StudentFull } from "@/types";
 import Portal from "@/components/ui/Portal";
 import NotifModal from "@/components/ui/NotifModal";
 import FotoUploader from "./FotoUploader";
+import KelasPicker from "@/components/ui/KelasPicker";
 
 export default function SiswaFormModal({
   mode,
   initialData,
+  semuaKelas,
   onClose,
 }: {
   mode: "create" | "edit";
   initialData?: StudentFull;
+  semuaKelas: string[];
   onClose: () => void;
 }) {
   const router = useRouter();
   const [name, setName] = useState(initialData?.name ?? "");
   const [kelas, setKelas] = useState(initialData?.class ?? "");
   const [nisn, setNisn] = useState(initialData?.nisn ?? "");
+  const [noHpOrtu, setNoHpOrtu] = useState(initialData?.no_hp_ortu ?? "");
   const [jk, setJk] = useState(initialData?.jenis_kelamin ?? "");
   const [foto, setFoto] = useState(initialData?.foto ?? "");
   const [saving, setSaving] = useState(false);
@@ -38,6 +42,7 @@ export default function SiswaFormModal({
       fd.append("name", name.trim());
       fd.append("class", kelas.trim());
       fd.append("nisn", nisn.trim());
+      fd.append("no_hp_ortu", noHpOrtu.trim());
       fd.append("jenis_kelamin", jk);
       fd.append("foto", foto.trim());
 
@@ -109,19 +114,14 @@ export default function SiswaFormModal({
               />
             </div>
 
+            <div>
+              <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">
+                Kelas
+              </label>
+              <KelasPicker value={kelas} onChange={setKelas} options={semuaKelas} />
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">
-                  Kelas
-                </label>
-                <input
-                  type="text"
-                  value={kelas}
-                  onChange={(e) => setKelas(e.target.value)}
-                  placeholder="cth: 5"
-                  className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                />
-              </div>
               <div>
                 <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">
                   Jenis Kelamin
@@ -136,17 +136,29 @@ export default function SiswaFormModal({
                   <option value="P">Perempuan</option>
                 </select>
               </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">
+                  NISN <span className="normal-case font-normal">(opsional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={nisn}
+                  onChange={(e) => setNisn(e.target.value)}
+                  placeholder="cth: 0091234501"
+                  className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
+                />
+              </div>
             </div>
 
             <div>
               <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">
-                NISN <span className="normal-case font-normal">(opsional)</span>
+                No. HP Orang Tua/Wali <span className="normal-case font-normal">(opsional, untuk notifikasi WA)</span>
               </label>
               <input
                 type="text"
-                value={nisn}
-                onChange={(e) => setNisn(e.target.value)}
-                placeholder="cth: 0091234501"
+                value={noHpOrtu}
+                onChange={(e) => setNoHpOrtu(e.target.value)}
+                placeholder="cth: 08123456789"
                 className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
               />
             </div>

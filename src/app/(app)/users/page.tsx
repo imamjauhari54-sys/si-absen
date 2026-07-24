@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
-import { getUsersList, getSemuaKelasGuru } from "@/lib/data/users";
-import { getSemuaKelasRekap } from "@/lib/data/rekap";
-import { normalizeKelas } from "@/lib/utils/kelas";
+import { getUsersList } from "@/lib/data/users";
+import { getKelasMasterList } from "@/lib/data/kelas";
 import UserTable from "@/components/users/UserTable";
 import TambahUserButton from "@/components/users/TambahUserButton";
 
@@ -16,8 +15,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
   const params = await searchParams;
   const search = (params.q ?? "").trim();
 
-  const [list, kelasSiswa, kelasGuru] = await Promise.all([getUsersList(search), getSemuaKelasRekap(), getSemuaKelasGuru()]);
-  const semuaKelas = Array.from(new Set([...kelasSiswa, ...kelasGuru].map(normalizeKelas).filter(Boolean))).sort();
+  const [list, semuaKelas] = await Promise.all([getUsersList(search), getKelasMasterList()]);
 
   const jumlahAdmin = list.filter((u) => u.role === "admin").length;
   const jumlahGuru = list.filter((u) => u.role === "guru").length;

@@ -26,7 +26,7 @@ export async function getStudentsList(
   const { data: kelasRows } = await supabaseAdmin.from("students").select("class");
   const semuaKelas = Array.from(new Set((kelasRows ?? []).map((r) => r.class))).sort();
 
-  let query = supabaseAdmin.from("students").select("id, name, class, nisn, foto, jenis_kelamin");
+  let query = supabaseAdmin.from("students").select("id, name, class, nisn, foto, jenis_kelamin, no_hp_ortu");
   if (kelasFilter) query = query.eq("class", kelasFilter);
   if (search) query = query.or(`name.ilike.%${search}%,nisn.ilike.%${search}%`);
   const { data: students } = await query.order("class").order("name");
@@ -63,6 +63,7 @@ export async function getStudentsList(
     foto: s.foto,
     nisn: s.nisn,
     jenis_kelamin: s.jenis_kelamin,
+    no_hp_ortu: s.no_hp_ortu ?? null,
     token: tokenMap.get(s.id) ?? null,
   }));
 
@@ -82,7 +83,7 @@ export async function getStudentsForPrint(opts: {
   if (opts.id) {
     const query = supabaseAdmin
       .from("students")
-      .select("id, name, class, nisn, foto, jenis_kelamin")
+      .select("id, name, class, nisn, foto, jenis_kelamin, no_hp_ortu")
       .eq("id", opts.id);
     const { data: students } = await query;
     const baseList = students ?? [];
@@ -102,7 +103,18 @@ export async function getStudentsForPrint(opts: {
     }
 
     const s = baseList[0];
-    return [{ id: s.id, name: s.name, class: s.class, foto: s.foto, nisn: s.nisn, jenis_kelamin: s.jenis_kelamin, token }];
+    return [
+      {
+        id: s.id,
+        name: s.name,
+        class: s.class,
+        foto: s.foto,
+        nisn: s.nisn,
+        jenis_kelamin: s.jenis_kelamin,
+        no_hp_ortu: s.no_hp_ortu ?? null,
+        token,
+      },
+    ];
   }
 
   const { list } = await getStudentsList(opts.kelas ?? "", opts.search ?? "");

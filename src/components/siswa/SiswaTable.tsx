@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { StudentFull } from "@/types";
 import IdCardVisual from "./IdCardVisual";
 import SiswaFormModal from "./SiswaFormModal";
 import Portal from "@/components/ui/Portal";
+import NotifModal from "@/components/ui/NotifModal";
 
 const AV_COLORS = [
   "from-indigo-500 to-purple-600",
@@ -21,15 +23,47 @@ export default function SiswaTable({
   namaSekolah,
   alamat,
   isAdmin,
+  semuaKelas,
 }: {
   list: StudentFull[];
   search: string;
   namaSekolah: string;
   alamat: string;
   isAdmin: boolean;
+  semuaKelas: string[];
 }) {
+  const router = useRouter();
   const [preview, setPreview] = useState<StudentFull | null>(null);
   const [editing, setEditing] = useState<StudentFull | null>(null);
+  const [confirmHapus, setConfirmHapus] = useState<StudentFull | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [notif, setNotif] = useState<{ status: "ok" | "error"; message: string } | null>(null);
+
+  async function hapusSiswa() {
+    if (!confirmHapus) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/siswa/${confirmHapus.id}`, { method: "DELETE" });
+      const data = await res.json();
+      setConfirmHapus(null);
+      if (data.status === "ok") {
+        setNotif({ status: "ok", message: `Data siswa "${confirmHapus.name}" berhasil dihapus.` });
+      } else {
+        setNotif({ status: "error", message: data.message || "Gagal menghapus siswa." });
+      }
+    } catch {
+      setConfirmHapus(null);
+      setNotif({ status: "error", message: "Terjadi kesalahan jaringan." });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function tutupNotif() {
+    const wasSuccess = notif?.status === "ok";
+    setNotif(null);
+    if (wasSuccess) router.refresh();
+  }
 
   useEffect(() => {
     function onEsc(e: KeyboardEvent) {
@@ -129,13 +163,22 @@ export default function SiswaTable({
                       <td className="px-5 py-3 text-center">
                         <div className="flex justify-center items-center gap-2">
                           {isAdmin && (
-                            <button
-                              onClick={() => setEditing(s)}
-                              title="Edit Siswa"
-                              className="w-8 h-8 rounded-lg flex items-center justify-center bg-violet-50 hover:bg-violet-100 dark:bg-violet-900/20 dark:hover:bg-violet-900/40 text-violet-600 dark:text-violet-400 transition"
-                            >
-                              <i className="fas fa-user-pen text-xs" />
-                            </button>
+                            <>
+                              <button
+                                onClick={() => setEditing(s)}
+                                title="Edit Siswa"
+                                className="w-8 h-8 rounded-lg flex items-center justify-center bg-violet-50 hover:bg-violet-100 dark:bg-violet-900/20 dark:hover:bg-violet-900/40 text-violet-600 dark:text-violet-400 transition"
+                              >
+                                <i className="fas fa-user-pen text-xs" />
+                              </button>
+                              <button
+                                onClick={() => setConfirmHapus(s)}
+                                title="Hapus Siswa"
+                                className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-500 transition"
+                              >
+                                <i className="fas fa-trash text-xs" />
+                              </button>
+                            </>
                           )}
                           <Link
                             href={`/siswa/${s.id}/history?from=siswa`}
@@ -229,7 +272,52 @@ export default function SiswaTable({
         </Portal>
       )}
 
-      {editing && <SiswaFormModal mode="edit" initialData={editing} onClose={() => setEditing(null)} />}
+      {editing && <SiswaFormModal mode="edit" initialData={editing} semuaKelas={semuaKelas} onClose={() => setEditing(null)} />}
+
+      {confirmHapus && (
+        <Portal>
+          <div
+            className="fixed inset-0 z-[999] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md"
+            onClick={() => !deleting && setConfirmHapus(null)}
+          >
+            <div
+              className="bg-white dark:bg-[#1e2235] w-full max-w-[320px] rounded-[2.5rem] p-8 border border-gray-200 dark:border-white/10 shadow-2xl relative text-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-center -mt-16 mb-6">
+                <div className="w-16 h-16 bg-white dark:bg-[#1e2235] border-4 border-gray-100 dark:border-[#282d45] rounded-full flex items-center justify-center shadow-xl">
+                  <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-red-500/40">
+                    <i className="fas fa-trash text-sm" />
+                  </div>
+                </div>
+              </div>
+              <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-2 tracking-tight">Hapus Siswa?</h3>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed px-2 mb-8">
+                Data <strong className="text-gray-700 dark:text-gray-300">{confirmHapus.name}</strong> (Kelas {confirmHapus.class})
+                beserta seluruh riwayat absensinya akan dihapus permanen dan tidak bisa dikembalikan.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmHapus(null)}
+                  disabled={deleting}
+                  className="flex-1 py-3.5 bg-gray-200 dark:bg-[#282d45] hover:bg-gray-300 dark:hover:bg-[#323858] text-gray-600 dark:text-gray-400 rounded-2xl text-[10px] font-bold transition-all uppercase tracking-widest disabled:opacity-60"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={hapusSiswa}
+                  disabled={deleting}
+                  className="flex-1 py-3.5 bg-red-600 hover:bg-red-700 disabled:opacity-70 text-white rounded-2xl text-[10px] font-bold transition-all uppercase tracking-widest shadow-lg shadow-red-500/20"
+                >
+                  {deleting ? <i className="fas fa-spinner fa-spin" /> : "Ya, Hapus"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </Portal>
+      )}
+
+      <NotifModal open={!!notif} status={notif?.status ?? "ok"} message={notif?.message ?? ""} onClose={tutupNotif} />
     </>
   );
 }

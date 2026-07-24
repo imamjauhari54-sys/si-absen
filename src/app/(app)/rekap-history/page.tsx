@@ -4,6 +4,9 @@ import { requireSession } from "@/lib/auth/session";
 import { getAbsensiSetting } from "@/lib/data/dashboard";
 import { getRekapHistory, getSemuaKelasRekap } from "@/lib/data/rekap";
 import { getListTapel } from "@/lib/data/history";
+import Pagination from "@/components/ui/Pagination";
+
+const PAGE_SIZE = 30;
 
 export const metadata: Metadata = { title: "History Rekap" };
 export const dynamic = "force-dynamic";
@@ -17,7 +20,7 @@ function badgeKelas(persen: number): string {
 export default async function RekapHistoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tapel?: string; semester?: string; kelas?: string }>;
+  searchParams: Promise<{ tapel?: string; semester?: string; kelas?: string; page?: string }>;
 }) {
   const session = await requireSession();
   const isAdmin = session.role === "admin";
@@ -35,6 +38,12 @@ export default async function RekapHistoryPage({
     getRekapHistory(tapel, semester, kelasFilter),
   ]);
   if (tapel && !listTapel.includes(tapel)) listTapel.push(tapel);
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const page = Math.min(Math.max(1, parseInt(sp.page || "1", 10) || 1), totalPages);
+  const pagedRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const buildPageHref = (p: number) =>
+    `/rekap-history?tapel=${encodeURIComponent(tapel)}&semester=${encodeURIComponent(semester)}&kelas=${encodeURIComponent(kelasFilter)}&page=${p}`;
 
   const exportQs = new URLSearchParams({ tapel, semester, kelas: kelasFilter });
 
@@ -154,9 +163,9 @@ export default async function RekapHistoryPage({
                   </td>
                 </tr>
               ) : (
-                rows.map((r, idx) => (
+                pagedRows.map((r, idx) => (
                   <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
-                    <td className="px-6 py-3.5 text-center font-bold text-gray-400">{idx + 1}</td>
+                    <td className="px-6 py-3.5 text-center font-bold text-gray-400">{(page - 1) * PAGE_SIZE + idx + 1}</td>
                     <td className="px-6 py-3.5">
                       <div className="font-bold text-gray-800 dark:text-gray-200">{r.nama}</div>
                       <div className="text-[10px] text-gray-400 font-mono">{r.nisn}</div>
@@ -176,6 +185,8 @@ export default async function RekapHistoryPage({
             </tbody>
           </table>
         </div>
+
+        <Pagination page={page} totalPages={totalPages} buildHref={buildPageHref} />
       </div>
     </div>
   );

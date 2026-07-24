@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getAbsensiSetting } from "@/lib/data/dashboard";
 import { registerScanner, bumpScannerStats } from "@/lib/data/scanner";
+import { kirimNotifAbsen } from "@/lib/wa/notifikasi";
 
 const TOKEN_RE = /^SIELISA:([a-f0-9]{32,})$/i;
 
@@ -176,6 +177,7 @@ export async function POST(req: NextRequest) {
         scanner_id: scannerId,
       });
       bumpScannerStats(scannerId);
+      kirimNotifAbsen(siswaId, siswa.name, siswa.class, status as "hadir" | "terlambat", jamNow); // fire and forget
 
       return NextResponse.json({ status, nama: siswa.name, kelas: siswa.class, jam: jamFmt });
     }
@@ -215,6 +217,7 @@ export async function POST(req: NextRequest) {
       scanner_id: scannerId,
     });
     bumpScannerStats(scannerId);
+    kirimNotifAbsen(siswaId, siswa.name, siswa.class, "pulang", jamNow); // fire and forget
 
     return NextResponse.json({ status: "pulang", nama: siswa.name, kelas: siswa.class, jam: jamFmt });
   } catch (e) {

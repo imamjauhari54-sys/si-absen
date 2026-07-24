@@ -3,6 +3,8 @@ import bcrypt from "bcryptjs";
 import { getSession } from "@/lib/auth/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { normalizeKelas } from "@/lib/utils/kelas";
+import { upsertKelasMaster } from "@/lib/data/kelas";
+import { catatLog } from "@/lib/data/log-aktivitas";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -17,6 +19,7 @@ export async function POST(req: NextRequest) {
   const role = String(form.get("role") || "").trim();
   const kelas = normalizeKelas(String(form.get("kelas") || ""));
   const foto = String(form.get("foto") || "").trim();
+  const wajibGantiPassword = String(form.get("wajib_ganti_password") || "") === "1";
 
   if (!name || !username || !password) {
     return NextResponse.json({ status: "error", message: "Nama, username, dan password wajib diisi." });
@@ -40,7 +43,7 @@ export async function POST(req: NextRequest) {
 
   const { data: inserted, error } = await supabaseAdmin
     .from("users")
-    .insert({ name, username, password: hash, role, foto: foto || null })
+    .insert({ name, username, password: hash, role, foto: foto || null, must_change_password: wajibGantiPassword })
     .select("id")
     .single();
 
@@ -56,7 +59,10 @@ export async function POST(req: NextRequest) {
     if (kelasErr) {
       return NextResponse.json({ status: "error", message: "Pengguna dibuat, tapi gagal menyimpan kelas: " + kelasErr.message });
     }
+    await upsertKelasMaster(kelas);
   }
+
+  await catatLog(session.userId, "tambah_user", name, `Menambahkan pengguna baru "${name}" (@${username}) dengan role ${role}.`);
 
   return NextResponse.json({ status: "ok" });
 }

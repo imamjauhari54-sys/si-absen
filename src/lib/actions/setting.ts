@@ -27,6 +27,30 @@ export async function simpanInfoSekolahAction(_prev: SettingActionState, formDat
   return { status: "ok", message: "Info sekolah berhasil diperbarui." };
 }
 
+export async function simpanWaSettingAction(_prev: SettingActionState, formData: FormData): Promise<SettingActionState> {
+  const session = await getSession();
+  if (!session) return { status: "error", message: "Sesi berakhir, silakan login ulang." };
+  if (session.role !== "admin") return { status: "error", message: "Akses ditolak! Hanya admin yang dapat mengubah pengaturan ini." };
+
+  const enabled = formData.get("wa_enabled") === "1";
+  const gatewayUrl = String(formData.get("wa_gateway_url") || "").trim();
+  const apiKey = String(formData.get("wa_api_key") || "").trim();
+
+  if (enabled && (!gatewayUrl || !apiKey)) {
+    return { status: "error", message: "URL Gateway dan API Key wajib diisi kalau notifikasi WA diaktifkan." };
+  }
+
+  const results = await Promise.all([
+    setSettingValue("wa_enabled", enabled ? "true" : "false"),
+    setSettingValue("wa_gateway_url", gatewayUrl),
+    setSettingValue("wa_api_key", apiKey),
+  ]);
+  const err = results.find((r) => r.error);
+  if (err?.error) return { status: "error", message: err.error };
+
+  return { status: "ok", message: "Pengaturan notifikasi WhatsApp berhasil disimpan." };
+}
+
 export async function simpanJadwalAction(_prev: SettingActionState, formData: FormData): Promise<SettingActionState> {
   const session = await getSession();
   if (!session) return { status: "error", message: "Sesi berakhir, silakan login ulang." };

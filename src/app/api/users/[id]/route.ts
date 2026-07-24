@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { getSession } from "@/lib/auth/session";
+import { getSession, createSession } from "@/lib/auth/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { normalizeKelas } from "@/lib/utils/kelas";
+import { upsertKelasMaster } from "@/lib/data/kelas";
+import { catatLog } from "@/lib/data/log-aktivitas";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -21,6 +23,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const role = String(form.get("role") || "").trim();
   const kelas = normalizeKelas(String(form.get("kelas") || ""));
   const foto = String(form.get("foto") || "").trim();
+  const wajibGantiPassword = String(form.get("wajib_ganti_password") || "") === "1";
 
   if (!name || !username) {
     return NextResponse.json({ status: "error", message: "Nama dan username wajib diisi." });
@@ -55,7 +58,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   const payload: Record<string, unknown> = { name, username, role, foto: foto || null };
-  if (password) payload.password = await bcrypt.hash(password, 10);
+  if (password) {
+    payload.password = await bcrypt.hash(password, 10);
+    payload.must_change_password = wajibGantiPassword;
+  }
 
   const { error } = await supabaseAdmin.from("users").update(payload).eq("id", userId);
   if (error) {
@@ -72,6 +78,17 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (kelasErr) {
       return NextResponse.json({ status: "error", message: "Data tersimpan, tapi gagal menyimpan kelas: " + kelasErr.message });
     }
+    await upsertKelasMaster(kelas);
+  }
+
+  await catatLog(session.userId, "edit_user", name, `Mengubah data pengguna "${name}" (@${username}).`);
+
+  // Kalau admin sedang mengedit akunnya sendiri, sinkronkan cookie sesi juga.
+  // Tanpa ini, sidebar/topbar/salam dashboard masih nampilin nama/username/foto
+  // lama sampai logout-login ulang, karena data itu disimpan di JWT cookie,
+  // bukan dibaca ulang dari DB tiap request.
+  if (userId === session.userId) {
+    await createSession({ ...session, nama: name, username, foto: foto || null });
   }
 
   return NextResponse.json({ status: "ok" });
@@ -91,7 +108,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ status: "error", message: "Anda tidak bisa menghapus akun Anda sendiri." });
   }
 
-  const { data: target } = await supabaseAdmin.from("users").select("role").eq("id", userId).maybeSingle();
+  const { data: target } = await supabaseAdmin.from("users").select("name, role").eq("id", userId).maybeSingle();
   if (!target) return NextResponse.json({ status: "error", message: "Pengguna tidak ditemukan." });
 
   if (target.role === "admin") {
@@ -106,6 +123,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (error) {
     return NextResponse.json({ status: "error", message: error.message });
   }
+
+  await catatLog(session.userId, "hapus_user", target.name, `Menghapus pengguna "${target.name}" (role: ${target.role}).`);
 
   return NextResponse.json({ status: "ok" });
 }

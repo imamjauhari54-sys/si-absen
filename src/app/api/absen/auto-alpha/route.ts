@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { todayJakarta } from "@/lib/utils/tanggal";
+import { kirimNotifAlpha } from "@/lib/wa/notifikasi";
 
 export async function POST() {
   const session = await getSession();
@@ -38,7 +39,7 @@ export async function POST() {
   }
 
   // Siswa yang belum absen hari ini
-  const { data: allStudents } = await supabaseAdmin.from("students").select("id");
+  const { data: allStudents } = await supabaseAdmin.from("students").select("id, name, class");
   const { data: absenRows } = await supabaseAdmin.from("absensi").select("siswa_id").eq("tanggal", today);
   const sudahIds = new Set((absenRows ?? []).map((r) => r.siswa_id));
   const belum = (allStudents ?? []).filter((s) => !sudahIds.has(s.id));
@@ -56,6 +57,9 @@ export async function POST() {
     const { error } = await supabaseAdmin.from("absensi").insert(rows);
     if (error) {
       return NextResponse.json({ status: "error", message: error.message }, { status: 500 });
+    }
+    for (const s of belum) {
+      kirimNotifAlpha(s.id, s.name, s.class, today); // fire and forget, tidak menunggu satu-satu
     }
   }
 

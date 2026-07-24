@@ -3,9 +3,14 @@ import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { getSettingValue } from "@/lib/data/settings";
 import { getStudentsList, hitungStatistikSiswa } from "@/lib/data/siswa";
+import { getKelasMasterList } from "@/lib/data/kelas";
 import KpiSiswa from "@/components/siswa/KpiSiswa";
 import SiswaTable from "@/components/siswa/SiswaTable";
 import TambahSiswaButton from "@/components/siswa/TambahSiswaButton";
+import ImportSiswaButton from "@/components/siswa/ImportSiswaButton";
+import Pagination from "@/components/ui/Pagination";
+
+const PAGE_SIZE = 20;
 
 export const metadata: Metadata = { title: "Data Siswa" };
 export const dynamic = "force-dynamic";
@@ -13,7 +18,7 @@ export const dynamic = "force-dynamic";
 export default async function SiswaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ kelas?: string; q?: string }>;
+  searchParams: Promise<{ kelas?: string; q?: string; page?: string }>;
 }) {
   const session = await requireSession();
   const isAdmin = session.role === "admin";
@@ -23,13 +28,20 @@ export default async function SiswaPage({
   const kelasFilter = isAdmin ? params.kelas ?? "" : guruKelas;
   const search = (params.q ?? "").trim();
 
-  const [namaSekolah, alamat, { list, semuaKelas }] = await Promise.all([
+  const [namaSekolah, alamat, { list, semuaKelas }, kelasMaster] = await Promise.all([
     getSettingValue("nama_sekolah", "SI-ABSEN"),
     getSettingValue("alamat_sekolah", ""),
     getStudentsList(kelasFilter, search),
+    getKelasMasterList(),
   ]);
 
   const stat = hitungStatistikSiswa(list);
+
+  const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+  const page = Math.min(Math.max(1, parseInt(params.page || "1", 10) || 1), totalPages);
+  const pagedList = list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const buildPageHref = (p: number) =>
+    `/siswa?kelas=${encodeURIComponent(kelasFilter)}&q=${encodeURIComponent(search)}&page=${p}`;
 
   const cetakSemuaHref = `/cetak-idcard?kelas=${encodeURIComponent(kelasFilter)}&q=${encodeURIComponent(search)}`;
 
@@ -51,7 +63,8 @@ export default async function SiswaPage({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {isAdmin && <TambahSiswaButton />}
+          {isAdmin && <TambahSiswaButton semuaKelas={kelasMaster} />}
+          {isAdmin && <ImportSiswaButton />}
           <Link
             href={cetakSemuaHref}
             target="_blank"
@@ -136,13 +149,16 @@ export default async function SiswaPage({
       </div>
 
       {/* TABEL + MODAL PREVIEW */}
-      <SiswaTable list={list} search={search} namaSekolah={namaSekolah} alamat={alamat} isAdmin={isAdmin} />
+      <SiswaTable list={pagedList} search={search} namaSekolah={namaSekolah} alamat={alamat} isAdmin={isAdmin} semuaKelas={kelasMaster} />
+
+      <Pagination page={page} totalPages={totalPages} buildHref={buildPageHref} />
 
       {/* FOOTER RINGKASAN */}
       {list.length > 0 && (
         <div className="mt-3 px-1 flex flex-wrap justify-between items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
           <span>
-            Menampilkan <strong className="text-gray-700 dark:text-gray-300">{stat.total}</strong> siswa
+            Menampilkan <strong className="text-gray-700 dark:text-gray-300">{pagedList.length}</strong> dari{" "}
+            <strong className="text-gray-700 dark:text-gray-300">{stat.total}</strong> siswa
             {search && (
               <>
                 {" "}

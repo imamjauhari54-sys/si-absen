@@ -37,3 +37,9 @@ export async function getSemuaKelasGuru(): Promise<string[]> {
   const { data } = await supabaseAdmin.from("guru_mengajar_kelas").select("class").eq("mapel", "Guru Kelas");
   return Array.from(new Set((data ?? []).map((r) => r.class as string)));
 }
+
+/** Cek live ke DB apakah user ini wajib ganti password dulu sebelum lanjut pakai aplikasi. */
+export async function cekWajibGantiPassword(userId: number): Promise<boolean> {
+  const { data } = await supabaseAdmin.from("users").select("must_change_password").eq("id", userId).maybeSingle();
+  return data?.must_change_password === true;
+}
