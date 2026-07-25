@@ -38,12 +38,15 @@ export async function getStudentsPage(
   pageSize: number
 ): Promise<StudentsPageResult> {
   // Daftar semua kelas (untuk pill filter admin) — cuma ambil 1 kolom, ringan.
-  const { data: kelasRows } = await supabaseAdmin.from("students").select("class");
+  // Hanya dari siswa aktif, supaya kelas yang isinya cuma siswa yang sudah
+  // lulus/pindah semua tidak nongol lagi di pill filter.
+  const { data: kelasRows } = await supabaseAdmin.from("students").select("class").eq("status", "aktif");
   const semuaKelas = Array.from(new Set((kelasRows ?? []).map((r) => r.class))).sort();
 
   function applyFilter<T>(q: T): T {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let query = q as any;
+    query = query.eq("status", "aktif"); // hanya siswa aktif — yang sudah lulus/pindah punya halaman sendiri
     if (kelasFilter) query = query.eq("class", kelasFilter);
     if (search) query = query.or(`name.ilike.%${search}%,nisn.ilike.%${search}%`);
     return query;
@@ -140,11 +143,14 @@ export async function getStudentsList(
   kelasFilter: string,
   search: string
 ): Promise<{ list: StudentFull[]; semuaKelas: string[] }> {
-  // Daftar semua kelas (untuk pill filter admin)
-  const { data: kelasRows } = await supabaseAdmin.from("students").select("class");
+  // Daftar semua kelas (untuk pill filter admin) — hanya dari siswa aktif.
+  const { data: kelasRows } = await supabaseAdmin.from("students").select("class").eq("status", "aktif");
   const semuaKelas = Array.from(new Set((kelasRows ?? []).map((r) => r.class))).sort();
 
-  let query = supabaseAdmin.from("students").select("id, name, class, nisn, foto, jenis_kelamin, no_hp_ortu");
+  let query = supabaseAdmin
+    .from("students")
+    .select("id, name, class, nisn, foto, jenis_kelamin, no_hp_ortu")
+    .eq("status", "aktif");
   if (kelasFilter) query = query.eq("class", kelasFilter);
   if (search) query = query.or(`name.ilike.%${search}%,nisn.ilike.%${search}%`);
   const { data: students } = await query.order("class").order("name");
@@ -237,6 +243,32 @@ export async function getStudentsForPrint(opts: {
 
   const { list } = await getStudentsList(opts.kelas ?? "", opts.search ?? "");
   return list;
+}
+
+/**
+ * Daftar siswa yang statusnya sudah 'lulus' atau 'pindah' (soft-deleted),
+ * untuk halaman "Siswa Nonaktif". Tidak perlu token QR di sini karena siswa
+ * nonaktif tidak boleh dipakai buat scan absen lagi.
+ */
+export async function getInactiveStudents(search: string): Promise<StudentFull[]> {
+  let query = supabaseAdmin
+    .from("students")
+    .select("id, name, class, nisn, foto, jenis_kelamin, no_hp_ortu, status")
+    .in("status", ["lulus", "pindah"]);
+  if (search) query = query.or(`name.ilike.%${search}%,nisn.ilike.%${search}%`);
+  const { data } = await query.order("class").order("name");
+
+  return (data ?? []).map((s) => ({
+    id: s.id,
+    name: s.name,
+    class: s.class,
+    foto: s.foto,
+    nisn: s.nisn,
+    jenis_kelamin: s.jenis_kelamin,
+    no_hp_ortu: s.no_hp_ortu ?? null,
+    token: null,
+    status: s.status as "lulus" | "pindah",
+  }));
 }
 
 export function hitungStatistikSiswa(list: StudentFull[]): SiswaStats {

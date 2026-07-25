@@ -29,11 +29,14 @@ export interface Student {
   foto: string | null;
 }
 
+export type StatusSiswa = "aktif" | "lulus" | "pindah";
+
 export interface StudentFull extends Student {
   nisn: string | null;
   jenis_kelamin: string | null; // 'L' | 'P'
   token: string | null;
   no_hp_ortu: string | null;
+  status?: StatusSiswa;
 }
 
 export interface AbsensiSetting {

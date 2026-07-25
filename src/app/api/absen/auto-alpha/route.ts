@@ -59,7 +59,7 @@ async function prosesAutoAlpha(req: NextRequest) {
   }
 
   // Siswa yang belum absen hari ini
-  const { data: allStudents } = await supabaseAdmin.from("students").select("id, name, class");
+  const { data: allStudents } = await supabaseAdmin.from("students").select("id, name, class").eq("status", "aktif");
   const { data: absenRows } = await supabaseAdmin.from("absensi").select("siswa_id").eq("tanggal", today);
   const sudahIds = new Set((absenRows ?? []).map((r) => r.siswa_id));
   const belum = (allStudents ?? []).filter((s) => !sudahIds.has(s.id));

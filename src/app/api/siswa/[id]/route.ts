@@ -63,8 +63,14 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const siswaId = parseInt(id, 10);
   if (!siswaId) return NextResponse.json({ status: "error", message: "ID tidak valid" }, { status: 400 });
 
-  const { data: siswa } = await supabaseAdmin.from("students").select("name, class").eq("id", siswaId).maybeSingle();
+  const { data: siswa } = await supabaseAdmin.from("students").select("name, class, status").eq("id", siswaId).maybeSingle();
   if (!siswa) return NextResponse.json({ status: "error", message: "Siswa tidak ditemukan." });
+  if (siswa.status === "aktif") {
+    return NextResponse.json({
+      status: "error",
+      message: "Siswa masih aktif. Nonaktifkan (Lulus/Pindah) dulu sebelum menghapus permanen.",
+    });
+  }
 
   const { count: jumlahAbsensi } = await supabaseAdmin
     .from("absensi")
@@ -84,9 +90,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   await catatLog(
     session.userId,
-    "hapus_siswa",
+    "hapus_siswa_permanen",
     siswa.name,
-    `Menghapus siswa "${siswa.name}" (Kelas ${siswa.class})${
+    `Menghapus PERMANEN siswa "${siswa.name}" (Kelas ${siswa.class})${
       jumlahAbsensi ? ` beserta ${jumlahAbsensi} riwayat absensinya` : ""
     }.`
   );

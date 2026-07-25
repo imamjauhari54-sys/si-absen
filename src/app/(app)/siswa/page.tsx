@@ -62,6 +62,15 @@ export default async function SiswaPage({
         <div className="flex flex-wrap gap-2">
           {isAdmin && <TambahSiswaButton semuaKelas={kelasMaster} />}
           {isAdmin && <ImportSiswaButton />}
+          {isAdmin && (
+            <Link
+              href="/siswa/nonaktif"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-xl text-sm font-bold border border-gray-200 dark:border-gray-700 transition-all active:scale-95 no-underline"
+            >
+              <i className="fas fa-user-slash" />
+              Siswa Nonaktif
+            </Link>
+          )}
           <Link
             href={cetakSemuaHref}
             target="_blank"

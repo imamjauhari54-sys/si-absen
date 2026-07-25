@@ -84,7 +84,12 @@ export async function POST(req: NextRequest) {
     if (isManual) {
       const siswaId = parseInt(String(form.get("siswa_id") || "0"), 10);
       if (!siswaId) throw new Error("Invalid student ID");
-      const { data } = await supabaseAdmin.from("students").select("id, name, class").eq("id", siswaId).maybeSingle();
+      const { data } = await supabaseAdmin
+        .from("students")
+        .select("id, name, class")
+        .eq("id", siswaId)
+        .eq("status", "aktif")
+        .maybeSingle();
       if (!data) throw new Error("Student not found");
       siswa = data;
       sumberScan = "manual_scanner";
@@ -97,11 +102,12 @@ export async function POST(req: NextRequest) {
 
       const { data } = await supabaseAdmin
         .from("absensi_qr_token")
-        .select("siswa_id, students(id, name, class)")
+        .select("siswa_id, students(id, name, class, status)")
         .eq("token", token)
         .maybeSingle();
       const s = data?.students ? (Array.isArray(data.students) ? data.students[0] : data.students) : null;
       if (!s) throw new Error("Invalid token or student not found");
+      if (s.status !== "aktif") throw new Error("Siswa sudah tidak aktif");
       siswa = s;
       sumberScan = "sistem_otomatis";
     }

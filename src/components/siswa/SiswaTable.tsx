@@ -38,33 +38,37 @@ export default function SiswaTable({
   const [confirmHapus, setConfirmHapus] = useState<StudentFull | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [notif, setNotif] = useState<{ status: "ok" | "error"; message: string } | null>(null);
-  const [teksKonfirmasiHapus, setTeksKonfirmasiHapus] = useState("");
-
-  const KATA_KONFIRMASI = "HAPUS";
-  const konfirmasiValid = teksKonfirmasiHapus.trim().toUpperCase() === KATA_KONFIRMASI;
+  const [alasanNonaktif, setAlasanNonaktif] = useState<"lulus" | "pindah">("lulus");
 
   function bukaKonfirmasiHapus(s: StudentFull) {
-    setTeksKonfirmasiHapus("");
+    setAlasanNonaktif("lulus");
     setConfirmHapus(s);
   }
 
   function tutupKonfirmasiHapus() {
     setConfirmHapus(null);
-    setTeksKonfirmasiHapus("");
   }
 
-  async function hapusSiswa() {
-    if (!confirmHapus || !konfirmasiValid) return;
+  /**
+   * Ini soft-delete: siswa dipindah ke status non-aktif (lulus/pindah), BUKAN
+   * dihapus dari database. Riwayat absensinya tetap tersimpan dan bisa
+   * diaktifkan lagi kapan saja lewat halaman "Siswa Nonaktif". Hapus permanen
+   * (yang tidak bisa dibatalkan) hanya tersedia di halaman itu.
+   */
+  async function nonaktifkanSiswa() {
+    if (!confirmHapus) return;
     setDeleting(true);
     try {
-      const res = await fetch(`/api/siswa/${confirmHapus.id}`, { method: "DELETE" });
+      const form = new FormData();
+      form.set("alasan", alasanNonaktif);
+      const res = await fetch(`/api/siswa/${confirmHapus.id}/nonaktifkan`, { method: "POST", body: form });
       const data = await res.json();
-      const namaTerhapus = confirmHapus.name;
+      const nama = confirmHapus.name;
       tutupKonfirmasiHapus();
       if (data.status === "ok") {
-        setNotif({ status: "ok", message: `Data siswa "${namaTerhapus}" berhasil dihapus.` });
+        setNotif({ status: "ok", message: `Siswa "${nama}" dipindah ke daftar non-aktif (${alasanNonaktif}).` });
       } else {
-        setNotif({ status: "error", message: data.message || "Gagal menghapus siswa." });
+        setNotif({ status: "error", message: data.message || "Gagal menonaktifkan siswa." });
       }
     } catch {
       tutupKonfirmasiHapus();
@@ -188,10 +192,10 @@ export default function SiswaTable({
                               </button>
                               <button
                                 onClick={() => bukaKonfirmasiHapus(s)}
-                                title="Hapus Siswa"
-                                className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-500 transition"
+                                title="Nonaktifkan Siswa"
+                                className="w-8 h-8 rounded-lg flex items-center justify-center bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 dark:hover:bg-amber-900/40 text-amber-600 dark:text-amber-500 transition"
                               >
-                                <i className="fas fa-trash text-xs" />
+                                <i className="fas fa-user-slash text-xs" />
                               </button>
                             </>
                           )}
@@ -301,39 +305,39 @@ export default function SiswaTable({
             >
               <div className="flex justify-center -mt-16 mb-6">
                 <div className="w-16 h-16 bg-white dark:bg-[#1e2235] border-4 border-gray-100 dark:border-[#282d45] rounded-full flex items-center justify-center shadow-xl">
-                  <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-red-500/40">
-                    <i className="fas fa-trash text-sm" />
+                  <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-amber-500/40">
+                    <i className="fas fa-user-slash text-sm" />
                   </div>
                 </div>
               </div>
-              <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-2 tracking-tight">Hapus Siswa?</h3>
+              <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-2 tracking-tight">Nonaktifkan Siswa?</h3>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed px-2 mb-6">
-                Data <strong className="text-gray-700 dark:text-gray-300">{confirmHapus.name}</strong> (Kelas {confirmHapus.class})
-                beserta seluruh riwayat absensinya akan dihapus permanen dan tidak bisa dikembalikan.
+                <strong className="text-gray-700 dark:text-gray-300">{confirmHapus.name}</strong> (Kelas {confirmHapus.class}) akan
+                dipindah ke daftar <strong>Siswa Nonaktif</strong> dan tidak muncul lagi di Data Siswa. Riwayat absensinya tetap
+                tersimpan, dan status ini bisa dibatalkan (diaktifkan lagi) kapan saja.
               </p>
 
               <div className="text-left mb-8">
-                <div className="flex items-center gap-1.5 mb-2 px-1">
-                  <i className="fas fa-lock text-red-500 text-[10px]" />
-                  <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
-                    Ketik &quot;{KATA_KONFIRMASI}&quot; untuk konfirmasi
-                  </span>
+                <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 px-1">
+                  Alasan
                 </div>
-                <input
-                  type="text"
-                  value={teksKonfirmasiHapus}
-                  onChange={(e) => setTeksKonfirmasiHapus(e.target.value)}
-                  disabled={deleting}
-                  placeholder={`Ketik ${KATA_KONFIRMASI}...`}
-                  autoComplete="off"
-                  autoCorrect="off"
-                  autoCapitalize="characters"
-                  spellCheck={false}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && konfirmasiValid && !deleting) hapusSiswa();
-                  }}
-                  className="w-full px-4 py-3 rounded-2xl bg-gray-100 dark:bg-[#282d45] border border-gray-200 dark:border-white/10 text-center text-sm font-semibold tracking-widest text-gray-700 dark:text-gray-200 placeholder:font-normal placeholder:tracking-normal placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/50"
-                />
+                <div className="grid grid-cols-2 gap-2">
+                  {(["lulus", "pindah"] as const).map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      disabled={deleting}
+                      onClick={() => setAlasanNonaktif(opt)}
+                      className={`py-2.5 rounded-xl text-xs font-bold capitalize transition-all border ${
+                        alasanNonaktif === opt
+                          ? "bg-amber-500 border-amber-500 text-white shadow-md shadow-amber-500/30"
+                          : "bg-gray-100 dark:bg-[#282d45] border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-[#323858]"
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="flex gap-3">
@@ -345,11 +349,11 @@ export default function SiswaTable({
                   Batal
                 </button>
                 <button
-                  onClick={hapusSiswa}
-                  disabled={deleting || !konfirmasiValid}
-                  className="flex-1 py-3.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl text-[10px] font-bold transition-all uppercase tracking-widest shadow-lg shadow-red-500/20"
+                  onClick={nonaktifkanSiswa}
+                  disabled={deleting}
+                  className="flex-1 py-3.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-70 text-white rounded-2xl text-[10px] font-bold transition-all uppercase tracking-widest shadow-lg shadow-amber-500/20"
                 >
-                  {deleting ? <i className="fas fa-spinner fa-spin" /> : "Ya, Hapus"}
+                  {deleting ? <i className="fas fa-spinner fa-spin" /> : "Ya, Nonaktifkan"}
                 </button>
               </div>
             </div>
