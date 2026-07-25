@@ -98,7 +98,7 @@ export default function AppShell({
         <div className="px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-600 to-cyan-500 flex items-center justify-center text-white shadow-md flex-shrink-0">
-              <i className="fa-solid fa-qrcode text-sm" />
+              <i className="fa-solid fa-qrcode text-xl" />
             </div>
             <div className="overflow-hidden">
               <div className="text-sm font-extrabold leading-tight truncate">SI-ABSEN</div>
