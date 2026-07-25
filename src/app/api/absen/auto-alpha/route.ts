@@ -6,9 +6,11 @@ import { kirimNotifAlpha } from "@/lib/wa/notifikasi";
 
 /**
  * Diakses dengan salah satu dari dua cara:
- * 1. Session admin (tombol manual di halaman dashboard/setting).
- * 2. Header "Authorization: Bearer <CRON_SECRET>" (dipanggil scheduler,
- *    misal Vercel Cron / cron-job.org, tanpa cookie session).
+ * 1. Session admin lewat tombol manual di dashboard (method POST).
+ * 2. Vercel Cron (lihat vercel.json) — Vercel SELALU memanggil cron pakai
+ *    method GET, bukan POST, dan menyertakan header
+ *    "Authorization: Bearer <CRON_SECRET>" secara otomatis kalau env var
+ *    CRON_SECRET diisi di Vercel project settings.
  * CRON_SECRET wajib diisi di .env untuk mengaktifkan jalur kedua ini —
  * kalau kosong, hanya session admin yang bisa memicu endpoint ini.
  */
@@ -19,7 +21,7 @@ function isCronAuthorized(req: NextRequest): boolean {
   return auth === `Bearer ${cronSecret}`;
 }
 
-export async function POST(req: NextRequest) {
+async function prosesAutoAlpha(req: NextRequest) {
   const session = await getSession();
   const isAdminSession = !!session && session.role === "admin";
   const isCron = isCronAuthorized(req);
@@ -85,4 +87,14 @@ export async function POST(req: NextRequest) {
     status: "ok",
     message: `Berhasil memproses ${belum.length} siswa menjadi Alpha.`,
   });
+}
+
+// Vercel Cron selalu memanggil pakai GET (lihat vercel.json)
+export async function GET(req: NextRequest) {
+  return prosesAutoAlpha(req);
+}
+
+// Tombol manual admin di dashboard memanggil pakai POST
+export async function POST(req: NextRequest) {
+  return prosesAutoAlpha(req);
 }
