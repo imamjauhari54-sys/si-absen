@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { getAbsensiSetting } from "@/lib/data/dashboard";
-import { getRekapHistory, getSemuaKelasRekap } from "@/lib/data/rekap";
+import { getRekapHistoryPage, getSemuaKelasRekap } from "@/lib/data/rekap";
 import { getListTapel } from "@/lib/data/history";
 import Pagination from "@/components/ui/Pagination";
 
@@ -31,17 +31,16 @@ export default async function RekapHistoryPage({
   const tapel = sp.tapel ?? settingDefault.tapel ?? "";
   const semester = sp.semester ?? settingDefault.semester ?? "";
   const kelasFilter = isAdmin ? sp.kelas ?? "" : guruKelas;
+  const pageParam = Math.max(1, parseInt(sp.page || "1", 10) || 1);
 
-  const [listTapel, semuaKelas, { rows, totalHariEfektif }] = await Promise.all([
+  const [listTapel, semuaKelas, hasil] = await Promise.all([
     getListTapel(),
     getSemuaKelasRekap(),
-    getRekapHistory(tapel, semester, kelasFilter),
+    getRekapHistoryPage(tapel, semester, kelasFilter, pageParam, PAGE_SIZE),
   ]);
   if (tapel && !listTapel.includes(tapel)) listTapel.push(tapel);
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const page = Math.min(Math.max(1, parseInt(sp.page || "1", 10) || 1), totalPages);
-  const pagedRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const { rows: pagedRows, totalHariEfektif, totalSiswa, totalPages, page } = hasil;
   const buildPageHref = (p: number) =>
     `/rekap-history?tapel=${encodeURIComponent(tapel)}&semester=${encodeURIComponent(semester)}&kelas=${encodeURIComponent(kelasFilter)}&page=${p}`;
 
@@ -156,7 +155,7 @@ export default async function RekapHistoryPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
-              {rows.length === 0 ? (
+              {totalSiswa === 0 ? (
                 <tr>
                   <td colSpan={9} className="p-10 text-center text-gray-400 font-medium italic">
                     Pilih filter dan klik cari untuk menampilkan data history.

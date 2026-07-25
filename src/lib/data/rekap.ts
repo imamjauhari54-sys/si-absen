@@ -7,10 +7,27 @@ export async function getSemuaKelasRekap(): Promise<string[]> {
   return Array.from(new Set((data ?? []).map((r) => r.class))).sort();
 }
 
-/** Daftar bulan (YYYY-MM) unik yang punya data absensi, terbaru dulu. Dipakai dropdown periode reset di halaman Pengaturan. */
+/**
+ * Daftar bulan (YYYY-MM) yang ada data absensinya, dipakai di dropdown
+ * "reset data per bulan" di halaman Pengaturan. Pakai RPC distinct_bulan_absensi
+ * (lihat supabase/migrations/004_optimasi_query.sql) supaya hitungnya di
+ * level database (jauh lebih ringan daripada narik seluruh kolom tanggal
+ * dari tabel absensi yang bisa puluhan ribu baris). Kalau migrasinya belum
+ * dijalankan, otomatis jatuh ke cara lama (tetap dibatasi LIMIT biar nggak
+ * sepenuhnya tanpa batas).
+ */
 export async function getDistinctBulanAbsensi(): Promise<string[]> {
-  const { data } = await supabaseAdmin.from("absensi").select("tanggal").order("tanggal", { ascending: false });
-  const bulanSet = new Set((data ?? []).map((r) => r.tanggal.slice(0, 7)));
+  const { data, error } = await supabaseAdmin.rpc("distinct_bulan_absensi");
+  if (!error && data) {
+    return (data as { bulan: string }[]).map((r) => r.bulan);
+  }
+
+  const { data: rows } = await supabaseAdmin
+    .from("absensi")
+    .select("tanggal")
+    .order("tanggal", { ascending: false })
+    .limit(5000);
+  const bulanSet = new Set((rows ?? []).map((r) => r.tanggal.slice(0, 7)));
   return Array.from(bulanSet).sort((a, b) => (a < b ? 1 : -1));
 }
 
@@ -127,6 +144,88 @@ export interface RekapHistoryRow {
  * Port dari rekap_history.php: akumulasi total H/T/I/S/A per siswa selama
  * satu tapel+semester penuh, dibanding jumlah hari efektif (hari unik yang
  * punya record absensi pada periode tsb).
+ */
+export interface RekapHistoryPageResult {
+  rows: RekapHistoryRow[];
+  totalHariEfektif: number;
+  totalSiswa: number;
+  totalPages: number;
+  page: number;
+}
+
+/**
+ * Versi paginasi sungguhan dari getRekapHistory() di atas — dipakai khusus
+ * untuk halaman /rekap-history. Bedanya: siswa diambil per halaman lewat
+ * .range(), lalu absensi cuma di-agregasi untuk siswa di halaman itu saja
+ * (bukan seluruh siswa hasil filter kelas). Untuk kebutuhan export
+ * CSV/Excel (yang memang butuh semua baris sekaligus), tetap pakai
+ * getRekapHistory() yang asli.
+ */
+export async function getRekapHistoryPage(
+  tapel: string,
+  semester: string,
+  kelasFilter: string,
+  page: number,
+  pageSize: number
+): Promise<RekapHistoryPageResult> {
+  if (!tapel || !semester) return { rows: [], totalHariEfektif: 0, totalSiswa: 0, totalPages: 1, page: 1 };
+
+  const { data: hariRows } = await supabaseAdmin
+    .from("absensi")
+    .select("tanggal")
+    .eq("tapel", tapel)
+    .eq("semester", semester);
+  const totalHariEfektif = new Set((hariRows ?? []).map((r) => r.tanggal)).size;
+
+  let countQuery = supabaseAdmin.from("students").select("id", { count: "exact", head: true });
+  if (kelasFilter) countQuery = countQuery.eq("class", kelasFilter);
+  const { count } = await countQuery;
+  const totalSiswa = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalSiswa / pageSize));
+  const pageAman = Math.min(Math.max(1, page), totalPages);
+  const from = (pageAman - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let studentsQuery = supabaseAdmin.from("students").select("id, name, class, nisn");
+  if (kelasFilter) studentsQuery = studentsQuery.eq("class", kelasFilter);
+  const { data: students } = await studentsQuery.order("class").order("name").range(from, to);
+  const list = students ?? [];
+  if (list.length === 0) return { rows: [], totalHariEfektif, totalSiswa, totalPages, page: pageAman };
+
+  const ids = list.map((s) => s.id);
+  const { data: absenRows } = await supabaseAdmin
+    .from("absensi")
+    .select("siswa_id, status")
+    .eq("tapel", tapel)
+    .eq("semester", semester)
+    .in("siswa_id", ids);
+
+  const mapAbsen = new Map<number, Record<string, number>>();
+  for (const r of absenRows ?? []) {
+    if (!mapAbsen.has(r.siswa_id)) mapAbsen.set(r.siswa_id, {});
+    const m = mapAbsen.get(r.siswa_id)!;
+    m[r.status] = (m[r.status] ?? 0) + 1;
+  }
+
+  const rows: RekapHistoryRow[] = list.map((s) => {
+    const m = mapAbsen.get(s.id) ?? {};
+    const hadir = m.hadir ?? 0;
+    const telat = m.terlambat ?? 0;
+    const izin = m.izin ?? 0;
+    const sakit = m.sakit ?? 0;
+    const alpha = m.alpha ?? 0;
+    const persen = totalHariEfektif > 0 ? Math.round(((hadir + telat) / totalHariEfektif) * 1000) / 10 : 0;
+    return { nama: s.name, kelas: s.class, nisn: s.nisn, hadir, telat, izin, sakit, alpha, persen };
+  });
+
+  return { rows, totalHariEfektif, totalSiswa, totalPages, page: pageAman };
+}
+
+/**
+ * CATATAN: fungsi di bawah ini menarik SEMUA siswa hasil filter sekaligus
+ * (tanpa batas), jadi khusus dipakai untuk kebutuhan yang memang butuh semua
+ * baris sekaligus (export CSV/Excel). Untuk tabel di halaman /rekap-history,
+ * pakai getRekapHistoryPage() di atas yang sudah true pagination.
  */
 export async function getRekapHistory(
   tapel: string,

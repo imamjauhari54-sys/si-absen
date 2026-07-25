@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/absen/auto-alpha",
+      "schedule": "0 5 * * 1-6"
+    }
+  ]
+}

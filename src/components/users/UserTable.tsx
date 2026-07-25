@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { UserRow } from "@/types";
+import type { MengajarRow } from "@/lib/data/users";
 import UserFormModal from "./UserFormModal";
 import NotifModal from "@/components/ui/NotifModal";
 import Portal from "@/components/ui/Portal";
@@ -20,11 +21,13 @@ export default function UserTable({
   search,
   semuaKelas,
   currentUserId,
+  mengajarMap,
 }: {
   list: UserRow[];
   search: string;
   semuaKelas: string[];
   currentUserId: number;
+  mengajarMap: Record<number, MengajarRow[]>;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<UserRow | null>(null);
@@ -176,6 +179,7 @@ export default function UserTable({
           initialData={editing}
           semuaKelas={semuaKelas}
           currentUserId={currentUserId}
+          initialMengajar={mengajarMap[editing.id] ?? []}
           onClose={() => setEditing(null)}
         />
       )}

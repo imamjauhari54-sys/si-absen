@@ -38,6 +38,33 @@ export async function getSemuaKelasGuru(): Promise<string[]> {
   return Array.from(new Set((data ?? []).map((r) => r.class as string)));
 }
 
+export interface MengajarRow {
+  id: number;
+  class: string;
+  mapel: string;
+}
+
+/**
+ * Semua penugasan mengajar mapel di luar wali kelas, untuk SEMUA guru
+ * sekaligus (1 query), dikelompokkan per guru_id. Dipakai supaya halaman
+ * Manajemen Pengguna bisa langsung sediakan data ini ke tiap modal Edit
+ * Pengguna tanpa perlu fetch tambahan pas modalnya dibuka.
+ */
+export async function getAllMengajarMap(): Promise<Record<number, MengajarRow[]>> {
+  const { data } = await supabaseAdmin
+    .from("guru_mengajar_kelas")
+    .select("id, guru_id, class, mapel")
+    .neq("mapel", "Guru Kelas")
+    .order("class", { ascending: true });
+
+  const map: Record<number, MengajarRow[]> = {};
+  for (const row of data ?? []) {
+    if (!map[row.guru_id]) map[row.guru_id] = [];
+    map[row.guru_id].push({ id: row.id, class: row.class, mapel: row.mapel });
+  }
+  return map;
+}
+
 /** Cek live ke DB apakah user ini wajib ganti password dulu sebelum lanjut pakai aplikasi. */
 export async function cekWajibGantiPassword(userId: number): Promise<boolean> {
   const { data } = await supabaseAdmin.from("users").select("must_change_password").eq("id", userId).maybeSingle();

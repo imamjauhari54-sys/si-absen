@@ -1,12 +1,30 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { todayJakarta } from "@/lib/utils/tanggal";
 import { kirimNotifAlpha } from "@/lib/wa/notifikasi";
 
-export async function POST() {
+/**
+ * Diakses dengan salah satu dari dua cara:
+ * 1. Session admin (tombol manual di halaman dashboard/setting).
+ * 2. Header "Authorization: Bearer <CRON_SECRET>" (dipanggil scheduler,
+ *    misal Vercel Cron / cron-job.org, tanpa cookie session).
+ * CRON_SECRET wajib diisi di .env untuk mengaktifkan jalur kedua ini —
+ * kalau kosong, hanya session admin yang bisa memicu endpoint ini.
+ */
+function isCronAuthorized(req: NextRequest): boolean {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) return false;
+  const auth = req.headers.get("authorization") || "";
+  return auth === `Bearer ${cronSecret}`;
+}
+
+export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session || session.role !== "admin") {
+  const isAdminSession = !!session && session.role === "admin";
+  const isCron = isCronAuthorized(req);
+
+  if (!isAdminSession && !isCron) {
     return NextResponse.json({ status: "error", message: "Akses ditolak!" }, { status: 403 });
   }
 

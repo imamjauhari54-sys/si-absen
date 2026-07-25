@@ -11,7 +11,6 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    // eslint-disable-next-line no-console -- log ke console server/browser buat debugging, belum ada error tracking service terpasang
     console.error(error);
   }, [error]);
 

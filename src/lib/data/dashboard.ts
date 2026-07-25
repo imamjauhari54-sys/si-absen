@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { addDaysJakarta, hariSingkat, todayJakarta } from "@/lib/utils/tanggal";
+import { addDaysJakarta, hariSingkat } from "@/lib/utils/tanggal";
 import type { AbsensiSetting, RecentScan, StatusAbsen, Student, TrenHarian } from "@/types";
 
 export async function getNamaSekolah(fallback: string): Promise<string> {

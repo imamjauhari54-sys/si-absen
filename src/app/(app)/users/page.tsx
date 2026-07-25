@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
-import { getUsersList } from "@/lib/data/users";
+import { getUsersList, getAllMengajarMap } from "@/lib/data/users";
 import { getKelasMasterList } from "@/lib/data/kelas";
 import UserTable from "@/components/users/UserTable";
 import TambahUserButton from "@/components/users/TambahUserButton";
@@ -15,7 +15,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
   const params = await searchParams;
   const search = (params.q ?? "").trim();
 
-  const [list, semuaKelas] = await Promise.all([getUsersList(search), getKelasMasterList()]);
+  const [list, semuaKelas, mengajarMap] = await Promise.all([getUsersList(search), getKelasMasterList(), getAllMengajarMap()]);
 
   const jumlahAdmin = list.filter((u) => u.role === "admin").length;
   const jumlahGuru = list.filter((u) => u.role === "guru").length;
@@ -89,7 +89,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
       </div>
 
       {/* TABEL */}
-      <UserTable list={list} search={search} semuaKelas={semuaKelas} currentUserId={session.userId} />
+      <UserTable list={list} search={search} semuaKelas={semuaKelas} currentUserId={session.userId} mengajarMap={mengajarMap} />
     </div>
   );
 }

@@ -10,7 +10,6 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    // eslint-disable-next-line no-console -- log ke console, belum ada error tracking service terpasang
     console.error(error);
   }, [error]);
 

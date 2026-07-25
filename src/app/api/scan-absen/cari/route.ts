@@ -11,10 +11,15 @@ export async function GET(req: NextRequest) {
   const q = (req.nextUrl.searchParams.get("q") || "").trim().slice(0, 50);
   if (q.length < 2) return NextResponse.json([]);
 
+  // Escape wildcard ilike (% dan _) supaya input user diperlakukan sebagai
+  // teks literal, bukan pattern — mencegah query yang nggak diinginkan
+  // (mis. user cuma ngetik "%" buat nampilin semua siswa).
+  const qEscaped = q.replace(/[%_]/g, (c) => `\\${c}`);
+
   const { data, error } = await supabaseAdmin
     .from("students")
     .select("id, name, class")
-    .ilike("name", `%${q}%`)
+    .ilike("name", `%${qEscaped}%`)
     .order("name")
     .limit(10);
 

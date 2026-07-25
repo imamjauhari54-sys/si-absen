@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { getAbsensiSetting } from "@/lib/data/dashboard";
 import { getSettingValue } from "@/lib/data/settings";
@@ -11,42 +10,6 @@ import WaSettingForm from "@/components/setting/WaSettingForm";
 
 export const metadata: Metadata = { title: "Pengaturan" };
 export const dynamic = "force-dynamic";
-
-const QUICK_LINKS = [
-  { href: "/dashboard", icon: "fa-chart-pie", label: "Dashboard", txt: "text-blue-500", bg: "bg-blue-100 dark:bg-blue-900/30" },
-  { href: "/siswa", icon: "fa-users", label: "Data Siswa & ID Card", txt: "text-emerald-500", bg: "bg-emerald-100 dark:bg-emerald-900/30" },
-  { href: "/rekap", icon: "fa-calendar-days", label: "Rekap Kehadiran", txt: "text-amber-500", bg: "bg-amber-100 dark:bg-amber-900/30" },
-  { href: "/scan-absen", icon: "fa-qrcode", label: "Buka Scanner", txt: "text-purple-500", bg: "bg-purple-100 dark:bg-purple-900/30", blank: true },
-];
-
-const QUICK_LINK_ADMIN = {
-  href: "/users",
-  icon: "fa-user-shield",
-  label: "Manajemen Pengguna",
-  txt: "text-indigo-500",
-  bg: "bg-indigo-100 dark:bg-indigo-900/30",
-  blank: false,
-};
-
-const QUICK_LINKS_ADMIN_EXTRA = [
-  QUICK_LINK_ADMIN,
-  {
-    href: "/kelas",
-    icon: "fa-chalkboard",
-    label: "Kelola Kelas",
-    txt: "text-teal-500",
-    bg: "bg-teal-100 dark:bg-teal-900/30",
-    blank: false,
-  },
-  {
-    href: "/log-aktivitas",
-    icon: "fa-clock-rotate-left",
-    label: "Log Aktivitas",
-    txt: "text-rose-500",
-    bg: "bg-rose-100 dark:bg-rose-900/30",
-    blank: false,
-  },
-];
 
 export default async function SettingPage() {
   const session = await requireSession();
@@ -89,28 +52,6 @@ export default async function SettingPage() {
           <InfoSekolahForm namaSekolah={namaSekolah} alamat={alamat} tapel={tapel} semester={semester} isAdmin={isAdmin} />
 
           {isAdmin && <WaSettingForm enabled={waEnabled === "true"} gatewayUrl={waGatewayUrl} apiKey={waApiKey} />}
-
-          <div className="section-card p-5 shadow-sm reveal">
-            <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-              <i className="fas fa-bolt text-amber-500" /> Akses Cepat
-            </h3>
-            <div className="space-y-2">
-              {(isAdmin ? [...QUICK_LINKS, ...QUICK_LINKS_ADMIN_EXTRA] : QUICK_LINKS).map((l) => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  target={l.blank ? "_blank" : undefined}
-                  className="flex items-center gap-3 p-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-800/50 dark:hover:bg-gray-700 border border-gray-100 dark:border-gray-700/50 transition group no-underline"
-                >
-                  <div className={`w-8 h-8 rounded-lg ${l.bg} ${l.txt} flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110`}>
-                    <i className={`fas ${l.icon} text-xs`} />
-                  </div>
-                  <span className="text-xs font-bold text-gray-700 dark:text-gray-200">{l.label}</span>
-                  <i className="fas fa-chevron-right ml-auto text-[10px] text-gray-400 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-                </Link>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </div>

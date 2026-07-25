@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { getSettingValue } from "@/lib/data/settings";
-import { getStudentsList, hitungStatistikSiswa } from "@/lib/data/siswa";
+import { getStudentsPage } from "@/lib/data/siswa";
 import { getKelasMasterList } from "@/lib/data/kelas";
 import KpiSiswa from "@/components/siswa/KpiSiswa";
 import SiswaTable from "@/components/siswa/SiswaTable";
@@ -27,19 +27,16 @@ export default async function SiswaPage({
   const params = await searchParams;
   const kelasFilter = isAdmin ? params.kelas ?? "" : guruKelas;
   const search = (params.q ?? "").trim();
+  const pageParam = Math.max(1, parseInt(params.page || "1", 10) || 1);
 
-  const [namaSekolah, alamat, { list, semuaKelas }, kelasMaster] = await Promise.all([
+  const [namaSekolah, alamat, hasil, kelasMaster] = await Promise.all([
     getSettingValue("nama_sekolah", "SI-ABSEN"),
     getSettingValue("alamat_sekolah", ""),
-    getStudentsList(kelasFilter, search),
+    getStudentsPage(kelasFilter, search, pageParam, PAGE_SIZE),
     getKelasMasterList(),
   ]);
 
-  const stat = hitungStatistikSiswa(list);
-
-  const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
-  const page = Math.min(Math.max(1, parseInt(params.page || "1", 10) || 1), totalPages);
-  const pagedList = list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const { list: pagedList, semuaKelas, stats: stat, totalPages, page } = hasil;
   const buildPageHref = (p: number) =>
     `/siswa?kelas=${encodeURIComponent(kelasFilter)}&q=${encodeURIComponent(search)}&page=${p}`;
 
@@ -154,7 +151,7 @@ export default async function SiswaPage({
       <Pagination page={page} totalPages={totalPages} buildHref={buildPageHref} />
 
       {/* FOOTER RINGKASAN */}
-      {list.length > 0 && (
+      {stat.total > 0 && (
         <div className="mt-3 px-1 flex flex-wrap justify-between items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
           <span>
             Menampilkan <strong className="text-gray-700 dark:text-gray-300">{pagedList.length}</strong> dari{" "}

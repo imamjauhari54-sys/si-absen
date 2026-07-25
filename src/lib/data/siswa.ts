@@ -14,9 +14,127 @@ function buatToken(id: number, name: string): string {
   return crypto.createHash("sha256").update(raw).digest("hex");
 }
 
+export interface StudentsPageResult {
+  list: StudentFull[];
+  semuaKelas: string[];
+  stats: SiswaStats;
+  totalPages: number;
+  page: number;
+}
+
+/**
+ * Versi paginasi sungguhan (pakai .range() + count di level database) untuk
+ * halaman daftar Data Siswa. Beda dengan getStudentsList() yang narik SEMUA
+ * baris sekaligus (dipakai khusus buat cetak ID card massal, yang memang
+ * butuh semua siswa dalam 1x proses) — di sini kita cuma ambil data
+ * sebanyak satu halaman tabel, plus hitung total/laki-laki lewat query
+ * COUNT ringan (tanpa transfer data baris), supaya makin banyak siswa nggak
+ * bikin halaman ini makin lambat.
+ */
+export async function getStudentsPage(
+  kelasFilter: string,
+  search: string,
+  page: number,
+  pageSize: number
+): Promise<StudentsPageResult> {
+  // Daftar semua kelas (untuk pill filter admin) — cuma ambil 1 kolom, ringan.
+  const { data: kelasRows } = await supabaseAdmin.from("students").select("class");
+  const semuaKelas = Array.from(new Set((kelasRows ?? []).map((r) => r.class))).sort();
+
+  function applyFilter<T>(q: T): T {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query = q as any;
+    if (kelasFilter) query = query.eq("class", kelasFilter);
+    if (search) query = query.or(`name.ilike.%${search}%,nisn.ilike.%${search}%`);
+    return query;
+  }
+
+  const [totalRes, lakiRes] = await Promise.all([
+    applyFilter(supabaseAdmin.from("students").select("id", { count: "exact", head: true })),
+    applyFilter(supabaseAdmin.from("students").select("id", { count: "exact", head: true }).eq("jenis_kelamin", "L")),
+  ]);
+  const total = totalRes.count ?? 0;
+  const laki = lakiRes.count ?? 0;
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const pageAman = Math.min(Math.max(1, page), totalPages);
+  const from = (pageAman - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  const query = applyFilter(
+    supabaseAdmin.from("students").select("id, name, class, nisn, foto, jenis_kelamin, no_hp_ortu")
+  );
+  const { data: students } = await query.order("class").order("name").range(from, to);
+  const baseList = students ?? [];
+
+  let berqr = 0;
+  let list: StudentFull[] = [];
+
+  if (baseList.length > 0) {
+    const ids = baseList.map((s) => s.id);
+    const { data: tokenRows } = await supabaseAdmin
+      .from("absensi_qr_token")
+      .select("siswa_id, token")
+      .in("siswa_id", ids);
+    const tokenMap = new Map((tokenRows ?? []).map((t) => [t.siswa_id, t.token as string]));
+
+    // Auto-generate token untuk siswa di halaman ini yang belum punya.
+    const perluToken = baseList.filter((s) => !tokenMap.has(s.id));
+    if (perluToken.length > 0) {
+      const inserts = perluToken.map((s) => {
+        const token = buatToken(s.id, s.name);
+        tokenMap.set(s.id, token);
+        return { siswa_id: s.id, token };
+      });
+      await supabaseAdmin.from("absensi_qr_token").upsert(inserts, { onConflict: "siswa_id", ignoreDuplicates: true });
+    }
+
+    list = baseList.map((s) => ({
+      id: s.id,
+      name: s.name,
+      class: s.class,
+      foto: s.foto,
+      nisn: s.nisn,
+      jenis_kelamin: s.jenis_kelamin,
+      no_hp_ortu: s.no_hp_ortu ?? null,
+      token: tokenMap.get(s.id) ?? null,
+    }));
+  }
+
+  // Jumlah siswa (di keseluruhan hasil filter, bukan cuma halaman ini) yang
+  // sudah punya token QR — dihitung lewat COUNT ringan, bukan fetch semua
+  // baris. Kalau jumlah hasil filter sangat besar, ini tetap butuh daftar ID
+  // (1 kolom) untuk di-JOIN manual ke tabel token, tapi jauh lebih ringan
+  // dibanding menarik seluruh kolom siswa.
+  if (total > 0) {
+    const { data: idRows } = await applyFilter(supabaseAdmin.from("students").select("id"));
+    const allIds = (idRows ?? []).map((r: { id: number }) => r.id);
+    if (allIds.length > 0) {
+      const { count } = await supabaseAdmin
+        .from("absensi_qr_token")
+        .select("siswa_id", { count: "exact", head: true })
+        .in("siswa_id", allIds);
+      berqr = count ?? 0;
+    }
+  }
+
+  return {
+    list,
+    semuaKelas,
+    stats: { total, laki, pr: total - laki, berqr },
+    totalPages,
+    page: pageAman,
+  };
+}
+
 /**
  * Port dari query utama siswa.php: daftar siswa + token QR (LEFT JOIN
  * absensi_qr_token), auto-generate token untuk siswa yang belum punya.
+ *
+ * CATATAN: fungsi ini menarik SEMUA baris yang cocok filter sekaligus (tanpa
+ * batas), jadi khusus dipakai untuk kebutuhan yang memang butuh semua data
+ * sekaligus (cetak ID card massal). Untuk daftar/tabel di halaman Data Siswa,
+ * pakai getStudentsPage() di atas yang sudah true pagination.
  */
 export async function getStudentsList(
   kelasFilter: string,

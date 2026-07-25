@@ -565,7 +565,7 @@ export default function Scanner({ namaSekolah }: { namaSekolah: string }) {
         <div id="topbar">
           <div className="topbar-left">
             <div className="topbar-brand">
-              <div className="topbar-logo">📋</div>
+              <div className="topbar-logo"><i className="fas fa-qrcode" /></div>
               <div className="topbar-info">
                 <div className="topbar-title">SI-ABSEN</div>
                 <div className="topbar-sub">Scanner</div>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { UserRow } from "@/types";
+import type { MengajarRow } from "@/lib/data/users";
 import Portal from "@/components/ui/Portal";
 import NotifModal from "@/components/ui/NotifModal";
 import FotoUploader from "@/components/siswa/FotoUploader";
@@ -24,12 +25,14 @@ export default function UserFormModal({
   initialData,
   semuaKelas,
   currentUserId,
+  initialMengajar,
   onClose,
 }: {
   mode: "create" | "edit";
   initialData?: UserRow;
   semuaKelas: string[];
   currentUserId: number;
+  initialMengajar?: MengajarRow[];
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -263,7 +266,7 @@ export default function UserFormModal({
             )}
 
             {mode === "edit" && role === "guru" && initialData && (
-              <GuruMengajarManager guruId={initialData.id} semuaKelas={semuaKelas} />
+              <GuruMengajarManager guruId={initialData.id} semuaKelas={semuaKelas} initialList={initialMengajar ?? []} />
             )}
           </div>
 
