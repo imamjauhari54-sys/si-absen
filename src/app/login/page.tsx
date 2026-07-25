@@ -25,7 +25,7 @@ export default async function LoginPage() {
 
       <div className="w-full max-w-[420px] bg-white/85 dark:bg-slate-800/70 backdrop-blur-2xl rounded-[32px] p-9 border border-white/90 dark:border-white/10 shadow-2xl text-center">
         <div className="w-[70px] h-[70px] mx-auto mb-6 rounded-[20px] flex items-center justify-center text-2xl text-white bg-gradient-to-br from-teal-600 to-cyan-500 shadow-lg shadow-teal-600/30">
-          <i className="fa-solid fa-qrcode text-xl" />
+          <i className="fa-solid fa-qrcode" />
         </div>
         <h1 className="text-2xl font-extrabold text-slate-900 dark:text-slate-50 tracking-tight mb-2">
           Masuk SI-ABSEN
