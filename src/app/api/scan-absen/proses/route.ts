@@ -171,7 +171,30 @@ export async function POST(req: NextRequest) {
         scan_oleh: sumberScan,
         scanner_id: scannerId,
       });
-      if (insErr) throw new Error("Gagal simpan absensi: " + insErr.message);
+
+      if (insErr) {
+        // 23505 = unique_violation. Ini kejadian race condition asli: dua
+        // scan nyaris bersamaan sama-sama lolos cek "belum ada absen hari
+        // ini" di atas, tapi cuma satu yang menang INSERT duluan — baris
+        // constraint `absensi_siswa_tanggal_unique` di database yang
+        // mencegah duplikatnya, bukan kode di sini. Kalau ini terjadi,
+        // anggap saja sebagai "sudah absen" (karena memang sudah, oleh
+        // scan yang menang), bukan error ke admin.
+        if (insErr.code === "23505") {
+          const { data: sudahAda } = await supabaseAdmin
+            .from("absensi")
+            .select("jam_masuk, status")
+            .eq("siswa_id", siswaId)
+            .eq("tanggal", tanggal)
+            .maybeSingle();
+          return NextResponse.json({
+            status: "sudah",
+            nama: siswa.name,
+            keterangan: `Sudah tercatat ${sudahAda?.status ?? ""} · ${String(sudahAda?.jam_masuk ?? jamNow).slice(0, 5)}`,
+          });
+        }
+        throw new Error("Gagal simpan absensi: " + insErr.message);
+      }
 
       await supabaseAdmin.from("absensi_log").insert({
         admin_id: session.userId,

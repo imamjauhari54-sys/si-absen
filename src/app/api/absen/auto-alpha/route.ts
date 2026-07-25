@@ -74,7 +74,9 @@ async function prosesAutoAlpha(req: NextRequest) {
       semester: setting.semester,
       scan_oleh: "admin",
     }));
-    const { error } = await supabaseAdmin.from("absensi").insert(rows);
+    const { error } = await supabaseAdmin
+      .from("absensi")
+      .upsert(rows, { onConflict: "siswa_id,tanggal", ignoreDuplicates: true });
     if (error) {
       return NextResponse.json({ status: "error", message: error.message }, { status: 500 });
     }
