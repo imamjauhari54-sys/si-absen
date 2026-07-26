@@ -72,3 +72,23 @@ export function jamSingkat(time: string | null): string | null {
   if (!time) return null;
   return time.slice(0, 5);
 }
+
+/** Tanggal & jam saat ini di zona Asia/Jakarta (WIB, UTC+7), tanpa lib eksternal. */
+export function nowJakarta(): { tanggal: string; jam: string } {
+  const now = new Date();
+  const wib = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  const tanggal = wib.toISOString().slice(0, 10);
+  const jam = wib.toISOString().slice(11, 19); // HH:MM:SS
+  return { tanggal, jam };
+}
+
+/** Tambah (atau kurangi, kalau menit negatif) menit ke string waktu "HH:MM:SS". */
+export function tambahMenit(waktu: string, menit: number): string {
+  const [h, m, s] = waktu.split(":").map(Number);
+  let total = h * 60 + m + menit;
+  total = ((total % 1440) + 1440) % 1440; // wrap 0-1439, aman untuk menit negatif
+  const hh = String(Math.floor(total / 60)).padStart(2, "0");
+  const mm = String(total % 60).padStart(2, "0");
+  const ss = String(s ?? 0).padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
+}
