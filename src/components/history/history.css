@@ -1,0 +1,59 @@
+.avatar-xl {
+  width: 72px; height: 72px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 28px; color: white;
+}
+
+.badge-hadir     { background: #d1fae5; color: #065f46; }
+.badge-terlambat { background: #fef3c7; color: #78350f; }
+.badge-izin      { background: #e0e7ff; color: #3730a3; }
+.badge-sakit     { background: #f3e8ff; color: #6b21a8; }
+.badge-alpha     { background: #fee2e2; color: #991b1b; }
+.dark .badge-hadir     { background: rgba(16,185,129,.15); color: #10b981; }
+.dark .badge-terlambat { background: rgba(245,158,11,.15); color: #f59e0b; }
+.dark .badge-izin      { background: rgba(99,102,241,.15); color: #818cf8; }
+.dark .badge-sakit     { background: rgba(168,85,247,.15); color: #c084fc; }
+.dark .badge-alpha     { background: rgba(239,68,68,.15);  color: #f87171; }
+
+/* Widget statistik history (skema warna beda dari widget dashboard: izin=indigo, sakit=purple terpisah) */
+.hw-card {
+  transition: all .35s cubic-bezier(.2,.8,.2,1);
+  position: relative; overflow: hidden; border: 1.5px solid transparent;
+  background: white;
+}
+.dark .hw-card { background: #1e2535; }
+.hw-card::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.08) 50%, transparent 100%);
+  transform: translateX(-100%); transition: transform .5s ease; pointer-events: none;
+}
+.hw-card:hover::after { transform: translateX(100%); }
+
+.hw-hadir  { border-color: rgba(16,185,129,.45); }
+.hw-telat  { border-color: rgba(245,158,11,.45); }
+.hw-izin   { border-color: rgba(99,102,241,.45); }
+.hw-sakit  { border-color: rgba(168,85,247,.45); }
+.hw-alpha  { border-color: rgba(239,68,68,.45); }
+.dark .hw-hadir  { border-color: rgba(16,185,129,.30); }
+.dark .hw-telat  { border-color: rgba(245,158,11,.30); }
+.dark .hw-izin   { border-color: rgba(99,102,241,.30); }
+.dark .hw-sakit  { border-color: rgba(168,85,247,.30); }
+.dark .hw-alpha  { border-color: rgba(239,68,68,.30); }
+
+.hw-hadir:hover  { background: linear-gradient(135deg,#10b981,#059669) !important; border-color:#10b981; transform: translateY(-5px); box-shadow: 0 20px 35px -8px rgba(16,185,129,.45); }
+.hw-telat:hover  { background: linear-gradient(135deg,#f59e0b,#d97706) !important; border-color:#f59e0b; transform: translateY(-5px); box-shadow: 0 20px 35px -8px rgba(245,158,11,.45); }
+.hw-izin:hover   { background: linear-gradient(135deg,#6366f1,#4f46e5) !important; border-color:#6366f1; transform: translateY(-5px); box-shadow: 0 20px 35px -8px rgba(99,102,241,.45); }
+.hw-sakit:hover  { background: linear-gradient(135deg,#a855f7,#7e22ce) !important; border-color:#a855f7; transform: translateY(-5px); box-shadow: 0 20px 35px -8px rgba(168,85,247,.45); }
+.hw-alpha:hover  { background: linear-gradient(135deg,#ef4444,#b91c1c) !important; border-color:#ef4444; transform: translateY(-5px); box-shadow: 0 20px 35px -8px rgba(239,68,68,.50); }
+
+.hw-card:hover .hw-label, .hw-card:hover .hw-number, .hw-card:hover .hw-pct-label, .hw-card:hover .hw-pct-badge { color: white !important; }
+.hw-card:hover .hw-pct-badge { background: rgba(255,255,255,.22) !important; }
+.hw-card:hover .hw-bar-track { background: rgba(255,255,255,.25) !important; }
+.hw-card:hover .hw-bar-fill  { background: white !important; }
+.hw-card:hover .hw-icon-wrap { background: rgba(255,255,255,.95) !important; box-shadow: 0 4px 15px rgba(0,0,0,.15); }
+
+.hw-hadir:hover  .hw-icon-wrap i { color: #10b981 !important; }
+.hw-telat:hover  .hw-icon-wrap i { color: #f59e0b !important; }
+.hw-izin:hover   .hw-icon-wrap i { color: #6366f1 !important; }
+.hw-sakit:hover  .hw-icon-wrap i { color: #a855f7 !important; }
+.hw-alpha:hover  .hw-icon-wrap i { color: #ef4444 !important; }

@@ -1,0 +1,138 @@
+.id-card {
+  width: 60mm;
+  height: 88mm;
+  font-family: var(--font-jakarta), sans-serif;
+  border-radius: 3.5mm;
+  overflow: hidden;
+  background: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: 0.3mm solid #dee2e8;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+.ic-head {
+  width: 100%;
+  background: linear-gradient(160deg, #0d1b3e 0%, #1a3a8a 65%, #1e40af 100%);
+  padding: 2mm 2.5mm 10mm;
+  text-align: center;
+  position: relative;
+  overflow: visible;
+  flex-shrink: 0;
+  z-index: 1;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+.ic-head::before {
+  content: "";
+  position: absolute;
+  width: 16mm;
+  height: 16mm;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  top: -5mm;
+  right: -4mm;
+}
+.ic-logo {
+  width: 7.5mm;
+  height: 7.5mm;
+  background: white;
+  border-radius: 1.5mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1mm;
+  font-size: 4.2mm;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 0.8mm 3mm rgba(0, 0, 0, 0.25);
+}
+.ic-school {
+  color: white;
+  font-size: 2.1mm;
+  font-weight: 900;
+  line-height: 1.25;
+  position: relative;
+  z-index: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.1px;
+}
+.ic-addr {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 1.6mm;
+  margin-top: 0.5mm;
+  position: relative;
+  z-index: 1;
+}
+.ic-badge {
+  display: inline-block;
+  background: #2563eb;
+  color: white;
+  font-size: 1.7mm;
+  font-weight: 900;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  padding: 0.7mm 3.5mm;
+  border-radius: 50mm;
+  margin-top: 1.2mm;
+  position: relative;
+  z-index: 1;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+.ic-foto {
+  width: 17mm;
+  height: 17mm;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 1.5mm 6mm rgba(0, 0, 0, 0.2);
+  margin-top: -8.5mm;
+  background: #dce8f5;
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 3;
+}
+.ic-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ic-foto-ph {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, #dce8f5 0%, #b8cfe8 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  overflow: hidden;
+  position: relative;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+.ic-sil-head { width: 6mm; height: 6mm; background: rgba(255,255,255,.7); border-radius: 50%; position: absolute; top: 2.5mm; left: 50%; transform: translateX(-50%); }
+.ic-sil-body { width: 11mm; height: 7mm; background: rgba(255,255,255,.55); border-radius: 5.5mm 5.5mm 0 0; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); }
+.ic-body { width: 100%; padding: 1mm 2mm 0; text-align: center; flex: 1; display: flex; flex-direction: column; align-items: center; overflow: hidden; }
+.ic-nama { font-size: 3.6mm; font-weight: 900; color: #0f172a; text-transform: uppercase; margin-top: 1mm; line-height: 1.2; letter-spacing: .1px; max-width: 100%; word-break: break-word; hyphens: auto; }
+.ic-kelas { font-size: 2.2mm; font-weight: 700; color: #64748b; letter-spacing: 1px; text-transform: uppercase; margin-top: .4mm; }
+.ic-qr-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 1.5mm 0; width: 100%; }
+.ic-qr { width: 26mm; height: 26mm; border: .4px solid #e2e8f0; border-radius: 1.5mm; overflow: hidden; padding: .4px; background: white; flex-shrink: 0; }
+.ic-qr img { width: 100%; height: 100%; display: block; }
+.ic-qr-empty {
+  width: 26mm; height: 26mm; background: #f1f5f9; border: 1px dashed #cbd5e1; border-radius: 1.5mm;
+  display: flex; align-items: center; justify-content: center; font-size: 1.8mm; color: #94a3b8;
+  text-align: center; padding: 2mm;
+}
+.ic-foot {
+  width: 100%;
+  background: linear-gradient(90deg, #1e3a8a 0%, #2563eb 100%);
+  color: white;
+  text-align: center;
+  padding: 1.5mm 2mm;
+  font-size: 2.4mm;
+  font-weight: 900;
+  letter-spacing: .3px;
+  flex-shrink: 0;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+.ic-foot span { opacity: .65; font-weight: 400; font-size: 1.5mm; display: block; margin-top: .2mm; }
