@@ -43,6 +43,7 @@ export interface RekapHarianRow {
   jam_masuk: string | null;
   jam_pulang: string | null;
   keterangan: string | null;
+  lampiran: string | null;
 }
 
 export interface StatHarian {
@@ -71,7 +72,7 @@ export async function getRekapHarian(
   const ids = list.map((s) => s.id);
   const { data: absenRows } = await supabaseAdmin
     .from("absensi")
-    .select("siswa_id, status, jam_masuk, jam_pulang, keterangan")
+    .select("siswa_id, status, jam_masuk, jam_pulang, keterangan, lampiran")
     .eq("tanggal", tanggal)
     .in("siswa_id", ids);
   const absenMap = new Map((absenRows ?? []).map((r) => [r.siswa_id, r]));
@@ -92,6 +93,7 @@ export async function getRekapHarian(
       jam_masuk: a?.jam_masuk ?? null,
       jam_pulang: a?.jam_pulang ?? null,
       keterangan: a?.keterangan ?? null,
+      lampiran: a?.lampiran ?? null,
     };
   });
 
