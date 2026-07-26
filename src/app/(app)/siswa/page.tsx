@@ -59,7 +59,7 @@ export default async function SiswaPage({
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           {isAdmin && <TambahSiswaButton semuaKelas={kelasMaster} />}
           {isAdmin && <ImportSiswaButton />}
           {isAdmin && (
