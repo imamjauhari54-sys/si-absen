@@ -8,6 +8,7 @@ import Portal from "@/components/ui/Portal";
 import NotifModal from "@/components/ui/NotifModal";
 import FotoUploader from "@/components/siswa/FotoUploader";
 import KelasPicker from "@/components/ui/KelasPicker";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- disimpan buat pengembangan berikutnya, lihat catatan di bawah
 import GuruMengajarManager from "./GuruMengajarManager";
 import { normalizeKelas } from "@/lib/utils/kelas";
 
@@ -265,9 +266,24 @@ export default function UserFormModal({
               </div>
             )}
 
-            {mode === "edit" && role === "guru" && initialData && (
-              <GuruMengajarManager guruId={initialData.id} semuaKelas={semuaKelas} initialList={initialMengajar ?? []} />
-            )}
+            {/*
+              ── Mengajar Mapel Lain (Opsional) ──
+              Untuk versi saat ini, field ini dinonaktifkan. Alasan:
+              - SI-ABSEN memakai model absensi harian (masuk & pulang), bukan
+                absensi per mata pelajaran.
+              - Hak akses guru didasarkan pada kelas yang diampu sebagai wali
+                kelas (lihat <KelasPicker> "Wali Kelas" di atas), bukan mapel.
+              - Informasi mata pelajaran tidak dipakai di proses absensi
+                maupun rekap.
+              Komponen <GuruMengajarManager> & endpoint API-nya tetap
+              dipertahankan di source code sebagai persiapan pengembangan
+              versi berikutnya (mis. absensi per mata pelajaran / jurnal
+              mengajar), cuma tidak ditampilkan di UI untuk sekarang.
+
+              {mode === "edit" && role === "guru" && initialData && (
+                <GuruMengajarManager guruId={initialData.id} semuaKelas={semuaKelas} initialList={initialMengajar ?? []} />
+              )}
+            */}
           </div>
 
           <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700/50 flex gap-3 bg-gray-50 dark:bg-gray-800/30">
