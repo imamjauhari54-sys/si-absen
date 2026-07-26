@@ -34,7 +34,18 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
       </div>
 
       {/* KPI RINGKAS */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 gap-4 mb-6 reveal">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6 reveal">
+        <div className="section-card p-4 shadow-sm flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+            <i className="fas fa-users" />
+          </div>
+          <div>
+            <div className="text-lg font-extrabold text-gray-800 dark:text-white leading-none">{list.length}</div>
+            <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mt-1">
+              Total Pengguna
+            </div>
+          </div>
+        </div>
         <div className="section-card p-4 shadow-sm flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center">
             <i className="fas fa-shield-halved" />
