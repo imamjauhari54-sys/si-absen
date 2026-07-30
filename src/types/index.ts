@@ -13,6 +13,17 @@ export interface SessionPayload {
   foto: string | null;
 }
 
+// Payload sesi khusus Portal Siswa (login pakai NISN saja, read-only).
+// SENGAJA dipisah dari SessionPayload di atas (cookie beda, JWT beda) supaya
+// sesi siswa tidak pernah bisa disalahgunakan untuk akses halaman admin/guru,
+// dan sebaliknya.
+export interface StudentSessionPayload {
+  siswaId: number;
+  nama: string;
+  kelas: string;
+  nisn: string;
+}
+
 export interface UserRow {
   id: number;
   name: string;

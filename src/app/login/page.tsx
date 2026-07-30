@@ -36,7 +36,14 @@ export default async function LoginPage() {
 
         <LoginForm />
 
-        <div className="mt-7 text-sm text-slate-500 dark:text-slate-400">
+        <div className="mt-5 text-sm text-slate-500 dark:text-slate-400">
+          Siswa?{" "}
+          <a href="/portal-siswa" className="text-teal-600 dark:text-teal-400 font-semibold hover:underline">
+            Cek absensi kamu di sini
+          </a>
+        </div>
+
+        <div className="mt-4 text-sm text-slate-500 dark:text-slate-400">
           {namaSekolah}
         </div>
       </div>

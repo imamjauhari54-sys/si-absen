@@ -39,7 +39,13 @@ export async function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-// Lindungi semua halaman & API kecuali /login, static asset, dan file publik.
+// Lindungi semua halaman & API kecuali /login, /portal-siswa (sesi siswa
+// terpisah, dijaga sendiri lewat requireStudentSession() di halamannya),
+// aset PWA (sw.js, manifest.json, icons — WAJIB bisa diakses tanpa login,
+// browser menolak register service worker kalau responsnya di-redirect),
+// static asset, dan file publik.
 export const config = {
-  matcher: ["/((?!login|_next/static|_next/image|favicon.ico|api/auth/logout).*)"],
+  matcher: [
+    "/((?!login|portal-siswa|sw\\.js|manifest\\.json|icons/|_next/static|_next/image|favicon.ico|api/auth/logout).*)",
+  ],
 };

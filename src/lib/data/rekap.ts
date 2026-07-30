@@ -278,6 +278,69 @@ export async function getRekapHistory(
   return { rows, totalHariEfektif };
 }
 
+export interface RekapBulananSiswaResult {
+  d: Record<string, StatusBulanan>;
+  tglList: string[];
+  hadir: number;
+  terlambat: number;
+  izin: number;
+  sakit: number;
+  alpha: number;
+}
+
+/**
+ * Versi khusus 1 siswa dari getRekapBulanan() di atas — dipakai di Portal
+ * Siswa. SENGAJA fungsi baru (bukan panggil getRekapBulanan lalu filter satu
+ * baris), supaya query absensi cuma narik data siswa itu sendiri, bukan
+ * seluruh siswa 1 kelas yang notabene tidak dipakai di sini.
+ */
+export async function getRekapBulananSiswa(
+  siswaId: number,
+  bulanYYYYMM: string,
+  liburMap: Map<string, string>
+): Promise<RekapBulananSiswaResult> {
+  const tglList = daftarTanggalBulan(bulanYYYYMM);
+  const ta = `${bulanYYYYMM}-01`;
+  const [y, m] = bulanYYYYMM.split("-").map(Number);
+  const tk = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+
+  const { data: absenRows } = await supabaseAdmin
+    .from("absensi")
+    .select("tanggal, status")
+    .eq("siswa_id", siswaId)
+    .gte("tanggal", ta)
+    .lte("tanggal", tk);
+
+  const am = new Map((absenRows ?? []).map((r) => [r.tanggal, r.status as StatusAbsen]));
+  const today = todayJakarta();
+
+  const result: RekapBulananSiswaResult = {
+    d: {},
+    tglList,
+    hadir: 0,
+    terlambat: 0,
+    izin: 0,
+    sakit: 0,
+    alpha: 0,
+  };
+
+  for (const tgl of tglList) {
+    let st: StatusBulanan;
+    if (liburMap.has(tgl)) {
+      st = "libur";
+    } else {
+      const defaultStatus: StatusBulanan = tgl < today ? "alpha" : "kosong";
+      st = am.get(tgl) ?? defaultStatus;
+      if (st === "hadir" || st === "terlambat" || st === "izin" || st === "sakit" || st === "alpha") {
+        result[st] = result[st] + 1;
+      }
+    }
+    result.d[tgl] = st;
+  }
+
+  return result;
+}
+
 export async function getRekapBulanan(
   bulanYYYYMM: string,
   kelasFilter: string,
