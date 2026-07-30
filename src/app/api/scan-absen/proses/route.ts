@@ -48,9 +48,11 @@ export async function POST(req: NextRequest) {
     const jamPulangMulai = setting.jam_pulang_mulai ?? "11:30:00";
     const tapel = setting.tapel ?? "2025/2026";
     const semester = setting.semester ?? "genap";
+    const durasiKunciMenit = setting.durasi_kunci_menit ?? 120;
+    const toleransiPagiMenit = setting.toleransi_pagi_menit ?? 60;
 
-    // Master lock: sistem tutup 120 menit setelah jam_pulang_mulai
-    const batasAkhirSistem = addMinutes(jamPulangMulai, 120);
+    // Master lock: sistem tutup N menit (dinamis, dari Pengaturan) setelah jam_pulang_mulai
+    const batasAkhirSistem = addMinutes(jamPulangMulai, durasiKunciMenit);
     if (jamNow > batasAkhirSistem) {
       return NextResponse.json({
         status: "error",
@@ -126,7 +128,7 @@ export async function POST(req: NextRequest) {
 
     // KONDISI A: belum ada data -> absen masuk
     if (!absenHariIni) {
-      const jamBukaSistem = addMinutes(jamMasuk, -60);
+      const jamBukaSistem = addMinutes(jamMasuk, -toleransiPagiMenit);
       if (jamNow < jamBukaSistem) {
         return NextResponse.json({
           status: "error",

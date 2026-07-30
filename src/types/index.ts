@@ -56,6 +56,8 @@ export interface AbsensiSetting {
   jam_pulang_mulai: string | null;
   tapel: string | null;
   semester: string | null;
+  durasi_kunci_menit: number | null;
+  toleransi_pagi_menit: number | null;
 }
 
 export interface AbsensiRow {

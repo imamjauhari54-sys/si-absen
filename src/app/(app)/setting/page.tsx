@@ -30,6 +30,8 @@ export default async function SettingPage() {
   const jamPulang = (setting.jam_pulang_mulai ?? "11:30:00").slice(0, 5);
   const tapel = setting.tapel ?? "2025/2026";
   const semester = setting.semester === "ganjil" ? "ganjil" : "genap";
+  const durasiKunciMenit = setting.durasi_kunci_menit ?? 120;
+  const toleransiPagiMenit = setting.toleransi_pagi_menit ?? 60;
 
   return (
     <div className="w-full px-4 pt-2 mb-14">
@@ -43,7 +45,15 @@ export default async function SettingPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* KIRI: FORM + ZONA BAHAYA */}
         <div className="lg:col-span-2 reveal">
-          <JadwalForm jamMasuk={jamMasuk} batasTerlambat={batasTerlambat} jamPulang={jamPulang} tapel={tapel} semester={semester} />
+          <JadwalForm
+            jamMasuk={jamMasuk}
+            batasTerlambat={batasTerlambat}
+            jamPulang={jamPulang}
+            tapel={tapel}
+            semester={semester}
+            durasiKunciMenit={durasiKunciMenit}
+            toleransiPagiMenit={toleransiPagiMenit}
+          />
           {isAdmin && <ResetDataModal daftarBulan={daftarBulan} />}
         </div>
 

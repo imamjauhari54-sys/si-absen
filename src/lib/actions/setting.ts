@@ -62,6 +62,11 @@ export async function simpanJadwalAction(_prev: SettingActionState, formData: Fo
   const smRaw = String(formData.get("semester") || "genap");
   const sm = smRaw === "ganjil" ? "ganjil" : "genap";
 
+  const dkRaw = parseInt(String(formData.get("durasi_kunci_menit") || "120"), 10);
+  const durasiKunciMenit = Number.isFinite(dkRaw) && dkRaw > 0 ? dkRaw : 120;
+  const tpRaw = parseInt(String(formData.get("toleransi_pagi_menit") || "60"), 10);
+  const toleransiPagiMenit = Number.isFinite(tpRaw) && tpRaw >= 0 ? tpRaw : 60;
+
   const { data: existing } = await supabaseAdmin.from("absensi_setting").select("id").limit(1).maybeSingle();
 
   const payload = {
@@ -70,6 +75,8 @@ export async function simpanJadwalAction(_prev: SettingActionState, formData: Fo
     jam_pulang_mulai: `${jp}:00`,
     tapel: tp,
     semester: sm,
+    durasi_kunci_menit: durasiKunciMenit,
+    toleransi_pagi_menit: toleransiPagiMenit,
   };
 
   const { error } = existing
