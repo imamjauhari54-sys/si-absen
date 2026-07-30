@@ -1,3 +1,9 @@
+/// <reference lib="webworker" />
+// Project tsconfig pakai lib "dom" (bukan "webworker") karena semua file lain
+// berjalan di browser biasa. Baris di atas cuma nambahin tipe webworker
+// (ServiceWorkerGlobalScope, dll) KHUSUS untuk file ini, tanpa ubah tsconfig
+// global — jadi file lain tetap dapat tipe DOM normal.
+
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 import { Serwist } from "serwist";
