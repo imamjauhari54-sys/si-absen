@@ -101,8 +101,11 @@ export type DeviceStatus = "online" | "idle" | "offline";
 export interface ScanDeviceRow {
   scannerId: string;
   namaDevice: string;
+  namaTampil: string;
+  label: string | null;
   ipAddress: string;
   totalScans: number;
+  scanHariIni: number;
   antrianOffline: number;
   lastSync: string | null;
   detikLalu: number | null;

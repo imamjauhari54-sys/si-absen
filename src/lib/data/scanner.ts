@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { todayJakarta } from "@/lib/utils/tanggal";
 import type { DeviceStatus, ScanDeviceRow } from "@/types";
 
 export async function registerScanner(
@@ -79,24 +80,51 @@ function hitungStatus(detikLalu: number | null): DeviceStatus {
 }
 
 export async function getScanDevices(): Promise<ScanDeviceRow[]> {
-  const { data } = await supabaseAdmin
-    .from("absensi_scanner")
-    .select("scanner_id, device_name, ip_address, total_scans, offline_queue_count, last_sync")
-    .order("last_sync", { ascending: false, nullsFirst: false });
+  const [{ data }, { data: logHariIni }] = await Promise.all([
+    supabaseAdmin
+      .from("absensi_scanner")
+      .select("scanner_id, device_name, label, ip_address, total_scans, offline_queue_count, last_sync")
+      .order("last_sync", { ascending: false, nullsFirst: false }),
+    supabaseAdmin.from("absensi_log").select("scanner_id").eq("tanggal_absen", todayJakarta()),
+  ]);
+
+  const hitungHariIni = new Map<string, number>();
+  for (const row of logHariIni ?? []) {
+    if (!row.scanner_id) continue;
+    hitungHariIni.set(row.scanner_id, (hitungHariIni.get(row.scanner_id) ?? 0) + 1);
+  }
 
   const now = Date.now();
   return (data ?? []).map((row) => {
     // last_sync bisa null kalau device baru keregister tapi belum pernah scan
     const detikLalu = row.last_sync ? Math.max(0, Math.floor((now - new Date(row.last_sync).getTime()) / 1000)) : null;
+    const namaOtomatis = ringkasDeviceName(row.device_name);
     return {
       scannerId: row.scanner_id,
-      namaDevice: ringkasDeviceName(row.device_name),
+      namaDevice: namaOtomatis,
+      namaTampil: row.label?.trim() || namaOtomatis,
+      label: row.label?.trim() || null,
       ipAddress: row.ip_address ?? "-",
       totalScans: row.total_scans ?? 0,
+      scanHariIni: hitungHariIni.get(row.scanner_id) ?? 0,
       antrianOffline: row.offline_queue_count ?? 0,
       lastSync: row.last_sync,
       detikLalu,
       deviceStatus: hitungStatus(detikLalu),
     };
   });
+}
+
+export async function updateScannerLabel(scannerId: string, label: string) {
+  const bersih = label.trim().slice(0, 60);
+  const { error } = await supabaseAdmin
+    .from("absensi_scanner")
+    .update({ label: bersih || null, updated_at: new Date().toISOString() })
+    .eq("scanner_id", scannerId);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteScanner(scannerId: string) {
+  const { error } = await supabaseAdmin.from("absensi_scanner").delete().eq("scanner_id", scannerId);
+  if (error) throw new Error(error.message);
 }
