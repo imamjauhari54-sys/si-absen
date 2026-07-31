@@ -41,6 +41,8 @@ export default function JadwalForm({
   const [prevMasuk, setPrevMasuk] = useState(jamMasuk);
   const [prevBatas, setPrevBatas] = useState(batasTerlambat);
   const [prevPulang, setPrevPulang] = useState(jamPulang);
+  const [prevDurasiKunci, setPrevDurasiKunci] = useState(durasiKunciMenit);
+  const [prevToleransiPagi, setPrevToleransiPagi] = useState(toleransiPagiMenit);
   const [semesterPilih, setSemesterPilih] = useState(semester);
   const [notifOpen, setNotifOpen] = useState(false);
 
@@ -151,10 +153,11 @@ export default function JadwalForm({
                 min={1}
                 name="durasi_kunci_menit"
                 defaultValue={durasiKunciMenit}
+                onChange={(e) => setPrevDurasiKunci(Number(e.target.value) || 0)}
                 className="inp-modern w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-xl font-mono text-sm focus:border-indigo-500 outline-none"
               />
               <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5 ml-1">
-                Sistem terkunci total ini banyak menit setelah <strong>Jam Pulang Mulai</strong>
+                Sistem terkunci total <strong className="text-rose-500">{prevDurasiKunci} menit</strong> setelah <strong>Jam Pulang Mulai</strong>
               </p>
             </div>
             <div>
@@ -166,10 +169,11 @@ export default function JadwalForm({
                 min={0}
                 name="toleransi_pagi_menit"
                 defaultValue={toleransiPagiMenit}
+                onChange={(e) => setPrevToleransiPagi(Number(e.target.value) || 0)}
                 className="inp-modern w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-xl font-mono text-sm focus:border-indigo-500 outline-none"
               />
               <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5 ml-1">
-                Scan absen masuk paling awal boleh ini banyak menit sebelum <strong>Jam Masuk Sekolah</strong>
+                Scan absen masuk paling awal boleh <strong className="text-orange-500">{prevToleransiPagi} menit</strong> sebelum <strong>Jam Masuk Sekolah</strong>
               </p>
             </div>
           </div>

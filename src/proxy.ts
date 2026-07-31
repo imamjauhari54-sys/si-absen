@@ -43,9 +43,15 @@ export async function proxy(request: NextRequest) {
 // terpisah, dijaga sendiri lewat requireStudentSession() di halamannya),
 // aset PWA (sw.js, manifest.json, icons — WAJIB bisa diakses tanpa login,
 // browser menolak register service worker kalau responsnya di-redirect),
-// static asset, dan file publik.
+// api/absen/auto-alpha (dipanggil Vercel Cron TANPA cookie session sama
+// sekali — otentikasinya sendiri lewat header "Authorization: Bearer
+// CRON_SECRET" yang dicek di dalam route handler-nya, BUKAN cookie. Kalau
+// path ini ikut ke-lock di sini, proxy bakal redirect ke /login duluan
+// sebelum request sempat sampai ke pengecekan CRON_SECRET, dan cron-nya
+// diam-diam nggak pernah benar-benar jalan setiap hari), static asset, dan
+// file publik.
 export const config = {
   matcher: [
-    "/((?!login|portal-siswa|sw\\.js|manifest\\.json|icons/|_next/static|_next/image|favicon.ico|api/auth/logout).*)",
+    "/((?!login|portal-siswa|sw\\.js|manifest\\.json|icons/|api/absen/auto-alpha|_next/static|_next/image|favicon.ico|api/auth/logout).*)",
   ],
 };

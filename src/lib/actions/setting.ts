@@ -54,6 +54,9 @@ export async function simpanWaSettingAction(_prev: SettingActionState, formData:
 export async function simpanJadwalAction(_prev: SettingActionState, formData: FormData): Promise<SettingActionState> {
   const session = await getSession();
   if (!session) return { status: "error", message: "Sesi berakhir, silakan login ulang." };
+  if (session.role !== "admin") {
+    return { status: "error", message: "Akses ditolak! Hanya admin yang dapat mengubah jadwal & batas operasional sistem." };
+  }
 
   const jm = String(formData.get("jam_masuk") || "07:00");
   const bt = String(formData.get("batas_terlambat") || "07:15");

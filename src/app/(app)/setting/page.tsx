@@ -45,15 +45,28 @@ export default async function SettingPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* KIRI: FORM + ZONA BAHAYA */}
         <div className="lg:col-span-2 reveal">
-          <JadwalForm
-            jamMasuk={jamMasuk}
-            batasTerlambat={batasTerlambat}
-            jamPulang={jamPulang}
-            tapel={tapel}
-            semester={semester}
-            durasiKunciMenit={durasiKunciMenit}
-            toleransiPagiMenit={toleransiPagiMenit}
-          />
+          {isAdmin ? (
+            <JadwalForm
+              jamMasuk={jamMasuk}
+              batasTerlambat={batasTerlambat}
+              jamPulang={jamPulang}
+              tapel={tapel}
+              semester={semester}
+              durasiKunciMenit={durasiKunciMenit}
+              toleransiPagiMenit={toleransiPagiMenit}
+            />
+          ) : (
+            <div className="p-5 bg-white dark:bg-gray-800/40 border border-gray-100 dark:border-gray-700/50 rounded-2xl mb-6 flex items-start gap-3">
+              <i className="fas fa-lock text-gray-400 mt-0.5" />
+              <div>
+                <div className="text-sm font-bold text-gray-700 dark:text-gray-200">Jadwal & Batas Operasional</div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Jam masuk: <strong>{jamMasuk}</strong> · Batas telat: <strong>{batasTerlambat}</strong> · Jam pulang: <strong>{jamPulang}</strong>.
+                  Hanya admin yang bisa mengubah pengaturan ini.
+                </p>
+              </div>
+            </div>
+          )}
           {isAdmin && <ResetDataModal daftarBulan={daftarBulan} />}
         </div>
 
