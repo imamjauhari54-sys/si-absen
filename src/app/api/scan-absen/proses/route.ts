@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
   const form = await req.formData();
   const isManual = !!form.get("manual");
   const scannerId = String(form.get("scanner_id") || "unknown").trim();
+  const offlineQueueCount = Math.max(0, parseInt(String(form.get("offline_queue_count") || "0"), 10) || 0);
 
   const now = nowJakarta();
   const tanggal = now.toISOString().slice(0, 10);
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   const userAgent = (req.headers.get("user-agent") || "").slice(0, 255);
-  registerScanner(scannerId, userAgent, ip); // fire and forget, non-blocking untuk respons
+  registerScanner(scannerId, userAgent, ip, offlineQueueCount); // fire and forget, non-blocking untuk respons
 
   try {
     // Cek hari libur (Minggu atau tabel hari_libur)

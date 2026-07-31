@@ -194,6 +194,8 @@ export default function Scanner({ namaSekolah }: { namaSekolah: string }) {
         fd.append("siswa_id", item.siswa_id ? String(item.siswa_id) : "");
         fd.append("manual", item.manual ? "1" : "");
         fd.append("scanner_id", scannerIdRef.current);
+        // -1 karena item ini lagi diproses & bakal di-shift kalau berhasil
+        fd.append("offline_queue_count", String(Math.max(0, queue.length - 1)));
 
         const res = await fetch(AJAX, { method: "POST", body: fd, credentials: "same-origin", signal: AbortSignal.timeout(10000) });
         if (res.ok) {
@@ -292,6 +294,7 @@ export default function Scanner({ namaSekolah }: { namaSekolah: string }) {
         const fd = new FormData();
         fd.append("token", token);
         fd.append("scanner_id", scannerIdRef.current);
+        fd.append("offline_queue_count", String(getOfflineQueue(scannerIdRef.current).length));
 
         const res = await fetch(AJAX, { method: "POST", body: fd, credentials: "same-origin", signal: AbortSignal.timeout(15000) });
         if (!res.ok && res.status !== 400 && res.status !== 403) throw new Error(`HTTP ${res.status}`);
@@ -500,6 +503,7 @@ export default function Scanner({ namaSekolah }: { namaSekolah: string }) {
     fd.append("siswa_id", String(id));
     fd.append("manual", "1");
     fd.append("scanner_id", scannerIdRef.current);
+    fd.append("offline_queue_count", String(getOfflineQueue(scannerIdRef.current).length));
 
     try {
       const res = await fetch(AJAX, { method: "POST", body: fd, signal: AbortSignal.timeout(10000) });

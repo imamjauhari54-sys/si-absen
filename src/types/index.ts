@@ -96,6 +96,19 @@ export interface TrenHarian {
   isToday: boolean;
 }
 
+export type DeviceStatus = "online" | "idle" | "offline";
+
+export interface ScanDeviceRow {
+  scannerId: string;
+  namaDevice: string;
+  ipAddress: string;
+  totalScans: number;
+  antrianOffline: number;
+  lastSync: string | null;
+  detikLalu: number | null;
+  deviceStatus: DeviceStatus;
+}
+
 export interface ActivityLog {
   id: number;
   admin_id: number | null;

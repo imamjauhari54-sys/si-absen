@@ -65,6 +65,7 @@ export default function AppShell({
             children: [
               { href: "/users", icon: "fa-user-shield", label: "Manajemen Pengguna" },
               { href: "/kelas", icon: "fa-chalkboard", label: "Kelola Kelas" },
+              { href: "/scan-devices", icon: "fa-tablet-screen-button", label: "Device Scanner" },
               { href: "/log-aktivitas", icon: "fa-clock-rotate-left", label: "Log Aktivitas" },
               { href: "/log-wa", icon: "fa-comment-slash", label: "Log Notifikasi WA" },
             ],

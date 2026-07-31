@@ -35,7 +35,7 @@ export default function LogAktivitasModal() {
         onClick={bukaModal}
         className="ml-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all"
       >
-        <i className="fas fa-history text-indigo-500" /> Log Aktivitas
+        <i className="fas fa-history text-indigo-500" /> Log Absensi Terbaru
       </button>
 
       {open && (
