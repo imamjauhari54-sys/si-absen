@@ -28,6 +28,8 @@ export async function getAbsensiSetting(): Promise<AbsensiSetting> {
     jam_pulang_mulai: data?.jam_pulang_mulai ?? "11:30:00",
     tapel: data?.tapel ?? "2025/2026",
     semester: data?.semester ?? "genap",
+    durasi_kunci_menit: data?.durasi_kunci_menit ?? 120,
+    toleransi_pagi_menit: data?.toleransi_pagi_menit ?? 60,
   };
 }
 

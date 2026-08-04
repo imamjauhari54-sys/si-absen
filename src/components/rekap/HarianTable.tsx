@@ -5,6 +5,7 @@ import "./rekap.css";
 import type { RekapHarianRow, StatusHarian } from "@/lib/data/rekap";
 import Portal from "@/components/ui/Portal";
 import NotifModal from "@/components/ui/NotifModal";
+import LampiranUploader from "@/components/rekap/LampiranUploader";
 
 const BADGE_MAP: Record<string, string> = {
   hadir: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400",
@@ -20,12 +21,16 @@ const ST_OPTS: { st: StatusHarian; icon: string; color: string; emoji: string; l
   { st: "sakit", icon: "fa-briefcase-medical", color: "text-purple-500", emoji: "🤒", label: "Sakit" },
   { st: "alpha", icon: "fa-times-circle", color: "text-red-500", emoji: "❌", label: "Alpha" },
 ];
+const KET_ALPHA_DEFAULT = "Tanpa Keterangan";
 
 export default function HarianTable({ rows: initialRows, tanggal }: { rows: RekapHarianRow[]; tanggal: string }) {
   const [rows, setRows] = useState(initialRows);
   const [editing, setEditing] = useState<RekapHarianRow | null>(null);
+  const [tglDari, setTglDari] = useState("");
+  const [tglSampai, setTglSampai] = useState("");
   const [selSt, setSelSt] = useState<StatusHarian | "">("");
   const [ket, setKet] = useState("");
+  const [lampiranUrl, setLampiranUrl] = useState<string | null>(null); // null = tidak diubah
   const [saving, setSaving] = useState(false);
   const [notif, setNotif] = useState<{ status: "ok" | "error"; message: string } | null>(null);
 
@@ -39,30 +44,60 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
 
   function bukaModal(row: RekapHarianRow) {
     setEditing(row);
-    setSelSt(row.status === "kosong" ? "alpha" : row.status);
-    setKet(row.keterangan ?? "");
+    setTglDari(tanggal);
+    setTglSampai("");
+    const statusAwal = row.status === "kosong" ? "alpha" : row.status;
+    setSelSt(statusAwal);
+    setKet(statusAwal === "alpha" ? row.keterangan || KET_ALPHA_DEFAULT : row.keterangan ?? "");
+    setLampiranUrl(null);
+  }
+
+  function pilihStatus(st: StatusHarian) {
+    setSelSt(st);
+    if (st === "alpha") {
+      if (!ket || ket === KET_ALPHA_DEFAULT) setKet(KET_ALPHA_DEFAULT);
+    } else if (ket === KET_ALPHA_DEFAULT) {
+      setKet("");
+    }
   }
 
   async function simpanEdit() {
-    if (!editing || !selSt) return;
+    if (!editing || !selSt || !tglDari) return;
+    if (tglSampai && tglSampai < tglDari) {
+      setNotif({ status: "error", message: '"Sampai Tanggal" tidak boleh lebih awal dari "Dari Tanggal".' });
+      return;
+    }
     setSaving(true);
     try {
       const fd = new FormData();
       fd.append("action", "edit_status");
       fd.append("siswa_id", String(editing.id));
-      fd.append("tanggal", tanggal);
+      fd.append("tanggal", tglDari);
+      if (tglSampai) fd.append("tanggal_sampai", tglSampai);
       fd.append("status", selSt);
       fd.append("keterangan", ket);
+      if (lampiranUrl !== null) fd.append("lampiran_url", lampiranUrl === "" ? "__HAPUS__" : lampiranUrl);
 
       const res = await fetch("/api/absen/edit", { method: "POST", body: fd });
       const data = await res.json();
 
       if (data.status === "ok") {
-        setRows((prev) =>
-          prev.map((r) => (r.id === editing.id ? { ...r, status: selSt, keterangan: ket || null } : r))
-        );
+        // Update baris di tabel kalau tanggal yang lagi ditampilkan (tanggal
+        // prop) termasuk dalam rentang yang barusan diedit.
+        const akhir = tglSampai || tglDari;
+        if (tglDari <= tanggal && tanggal <= akhir) {
+          setRows((prev) =>
+            prev.map((r) => (r.id === editing.id ? { ...r, status: selSt, keterangan: ket || null } : r))
+          );
+        }
         setEditing(null);
-        setNotif({ status: "ok", message: "Status kehadiran berhasil diperbarui." });
+        const pesan =
+          data.diproses > 1
+            ? `Status kehadiran ${data.diproses} hari berhasil diperbarui.${
+                data.dilewati > 0 ? ` (${data.dilewati} hari dilewati karena Minggu/libur)` : ""
+              }`
+            : "Status kehadiran berhasil diperbarui.";
+        setNotif({ status: "ok", message: pesan });
       } else {
         setNotif({ status: "error", message: data.message || "Terjadi kesalahan." });
       }
@@ -157,7 +192,7 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
           className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm no-print"
           onClick={(e) => e.target === e.currentTarget && setEditing(null)}
         >
-          <div className="modal-inner bg-white dark:bg-[#1e2535] rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700/60 w-full max-w-sm overflow-hidden">
+          <div className="modal-inner bg-white dark:bg-[#1e2535] rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700/60 w-full max-w-md overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50 flex justify-between items-center bg-gray-50 dark:bg-gray-800/30">
               <span className="text-xs font-extrabold text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center gap-2">
                 <i className="fas fa-pen-square text-indigo-500" /> Edit Kehadiran
@@ -170,40 +205,86 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
               </button>
             </div>
 
-            <div className="p-5">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-9 h-9 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+            <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400 flex-shrink-0">
                   <i className="fas fa-user-circle text-lg" />
                 </div>
                 <div className="text-base font-extrabold text-gray-800 dark:text-white">{editing.name}</div>
               </div>
 
-              <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2">
-                Ubah Status
-              </label>
-              <div className="grid grid-cols-2 gap-2 mb-5">
-                {ST_OPTS.map((opt) => (
-                  <button
-                    key={opt.st}
-                    onClick={() => setSelSt(opt.st)}
-                    className={`st-btn ${selSt === opt.st ? `active-${opt.st}` : ""}`}
-                  >
-                    <i className={`fas ${opt.icon} ${opt.color}`} />
-                    {opt.label}
-                  </button>
-                ))}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">
+                  <i className="fas fa-calendar-alt text-indigo-400 mr-1" /> Rentang Tanggal
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <div className="text-[10px] text-gray-400 mb-1">Dari Tanggal</div>
+                    <input
+                      type="date"
+                      value={tglDari}
+                      onChange={(e) => setTglDari(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-gray-400 mb-1">Sampai Tanggal</div>
+                    <input
+                      type="date"
+                      value={tglSampai}
+                      min={tglDari || undefined}
+                      onChange={(e) => setTglSampai(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1.5 flex items-center gap-1">
+                  <i className="fas fa-info-circle text-indigo-400" />
+                  Kosongkan &quot;Sampai Tanggal&quot; jika hanya 1 hari
+                </p>
               </div>
 
-              <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">
-                Keterangan <span className="normal-case font-normal">(Opsional)</span>
-              </label>
-              <input
-                type="text"
-                value={ket}
-                onChange={(e) => setKet(e.target.value)}
-                placeholder="Tulis alasan / keterangan..."
-                className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition"
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2">
+                  <i className="fas fa-tag text-indigo-400 mr-1" /> Kategori
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {ST_OPTS.map((opt) => (
+                    <button
+                      key={opt.st}
+                      onClick={() => pilihStatus(opt.st)}
+                      className={`st-btn ${selSt === opt.st ? `active-${opt.st}` : ""}`}
+                    >
+                      <i className={`fas ${opt.icon} ${opt.color}`} />
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <LampiranUploader
+                key={editing.id}
+                existingUrl={editing.lampiran}
+                onChange={setLampiranUrl}
               />
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">
+                  <i className="fas fa-comment-alt text-indigo-400 mr-1" /> Alasan / Keterangan
+                </label>
+                <textarea
+                  rows={3}
+                  value={ket}
+                  onChange={(e) => setKet(e.target.value)}
+                  placeholder="Tulis alasan / keterangan..."
+                  className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition resize-none leading-relaxed"
+                />
+                {selSt === "alpha" && (
+                  <p className="text-[10px] text-red-500 dark:text-red-400 mt-1 flex items-center gap-1">
+                    <i className="fas fa-robot" /> Keterangan otomatis diisi untuk status Alpha
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700/50 flex gap-3 bg-gray-50 dark:bg-gray-800/30">
@@ -215,7 +296,7 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
               </button>
               <button
                 onClick={simpanEdit}
-                disabled={saving || !selSt}
+                disabled={saving || !selSt || !tglDari}
                 className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-xl text-sm font-bold shadow-sm transition flex items-center justify-center gap-2 active:scale-95"
               >
                 {saving ? <i className="fas fa-spinner fa-spin" /> : <i className="fas fa-save" />}

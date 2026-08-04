@@ -18,11 +18,16 @@ export default function HariLiburModal() {
   const [loading, setLoading] = useState(false);
   const [list, setList] = useState<HariLiburRow[] | null>(null);
   const [tgl, setTgl] = useState("");
+  const [tglSampai, setTglSampai] = useState("");
   const [ket, setKet] = useState("");
   const [saving, setSaving] = useState(false);
   const [notif, setNotif] = useState<{ status: "ok" | "error"; message: string } | null>(null);
   const [confirmHapus, setConfirmHapus] = useState<HariLiburRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [showSinkron, setShowSinkron] = useState(false);
+  const [tahunSinkron, setTahunSinkron] = useState(new Date().getFullYear());
+  const [sinkronBusy, setSinkronBusy] = useState(false);
 
   async function muatLibur() {
     setLoading(true);
@@ -47,18 +52,28 @@ export default function HariLiburModal() {
       setNotif({ status: "error", message: "Tanggal dan keterangan wajib diisi." });
       return;
     }
+    if (tglSampai && tglSampai < tgl) {
+      setNotif({ status: "error", message: '"Sampai Tanggal" tidak boleh sebelum "Tanggal".' });
+      return;
+    }
     setSaving(true);
     try {
       const fd = new FormData();
       fd.append("tanggal", tgl);
+      if (tglSampai) fd.append("sampaiTanggal", tglSampai);
       fd.append("keterangan", ket.trim());
       const res = await fetch("/api/hari-libur", { method: "POST", body: fd });
       const data = await res.json();
       if (data.status === "ok") {
         setTgl("");
+        setTglSampai("");
         setKet("");
         muatLibur();
-        setNotif({ status: "ok", message: "Hari libur berhasil ditambahkan." });
+        const pesan =
+          data.jumlah && data.jumlah > 1
+            ? `${data.jumlah} hari libur berhasil ditambahkan.`
+            : "Hari libur berhasil ditambahkan.";
+        setNotif({ status: "ok", message: pesan });
       } else {
         setNotif({ status: "error", message: data.message || "Terjadi kesalahan." });
       }
@@ -66,6 +81,30 @@ export default function HariLiburModal() {
       setNotif({ status: "error", message: "Terjadi kesalahan jaringan." });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function jalankanSinkron() {
+    setSinkronBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("tahun", String(tahunSinkron));
+      const res = await fetch("/api/hari-libur/sync", { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.status === "ok") {
+        setShowSinkron(false);
+        muatLibur();
+        setNotif({
+          status: "ok",
+          message: `Berhasil menyinkronkan ${data.jumlah} hari libur nasional tahun ${data.tahun}.`,
+        });
+      } else {
+        setNotif({ status: "error", message: data.message || "Gagal sinkronisasi." });
+      }
+    } catch {
+      setNotif({ status: "error", message: "Terjadi kesalahan jaringan." });
+    } finally {
+      setSinkronBusy(false);
     }
   }
 
@@ -112,15 +151,62 @@ export default function HariLiburModal() {
               <span className="text-xs font-extrabold text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center gap-2">
                 <i className="fas fa-calendar-times text-rose-500" /> Kelola Hari Libur
               </span>
-              <button
-                onClick={() => setOpen(false)}
-                className="w-7 h-7 rounded-lg flex items-center justify-center bg-gray-200 hover:bg-red-100 dark:bg-gray-700 dark:hover:bg-red-900/40 text-gray-500 hover:text-red-500 transition"
-              >
-                <i className="fas fa-times text-xs" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSinkron((v) => !v)}
+                  title="Sinkronisasi hari libur nasional Indonesia dari Google Calendar"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50 rounded-xl text-xs font-bold transition"
+                >
+                  <i className="fas fa-sync-alt text-[10px]" />
+                  <span className="hidden sm:inline">Sinkron Libur Nasional</span>
+                </button>
+                <button
+                  onClick={() => setOpen(false)}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center bg-gray-200 hover:bg-red-100 dark:bg-gray-700 dark:hover:bg-red-900/40 text-gray-500 hover:text-red-500 transition"
+                >
+                  <i className="fas fa-times text-xs" />
+                </button>
+              </div>
             </div>
 
             <div className="p-5 border-b border-gray-100 dark:border-gray-700/50">
+              {showSinkron && (
+                <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-xl">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-blue-700 dark:text-blue-400 flex items-center gap-2">
+                      <i className="fas fa-info-circle" /> Sinkronisasi dari Google Calendar Indonesia
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <label className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">Tahun:</label>
+                      <input
+                        type="number"
+                        value={tahunSinkron}
+                        onChange={(e) => setTahunSinkron(parseInt(e.target.value, 10) || tahunSinkron)}
+                        min={2020}
+                        max={2035}
+                        className="w-20 px-2 py-1 text-xs border border-blue-200 dark:border-blue-700 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={jalankanSinkron}
+                        disabled={sinkronBusy}
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-lg text-xs font-bold transition"
+                      >
+                        {sinkronBusy ? (
+                          <i className="fas fa-spinner fa-spin" />
+                        ) : (
+                          <>
+                            <i className="fas fa-download mr-1" />
+                            Ambil
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-3 items-end">
                 <div className="flex-1 min-w-[130px]">
                   <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">
@@ -130,6 +216,18 @@ export default function HariLiburModal() {
                     type="date"
                     value={tgl}
                     onChange={(e) => setTgl(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none"
+                  />
+                </div>
+                <div className="flex-1 min-w-[130px]">
+                  <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">
+                    Sampai Tanggal <span className="normal-case font-medium text-gray-400">(opsional)</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={tglSampai}
+                    min={tgl || undefined}
+                    onChange={(e) => setTglSampai(e.target.value)}
                     className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none"
                   />
                 </div>
@@ -153,6 +251,10 @@ export default function HariLiburModal() {
                   {saving ? <i className="fas fa-spinner fa-spin" /> : "Simpan"}
                 </button>
               </div>
+              <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-2">
+                Kosongkan &quot;Sampai Tanggal&quot; kalau cuma 1 hari. Isi kalau libur beberapa hari sekaligus (mis.
+                cuti bersama) — keterangannya akan sama untuk semua tanggal di rentang itu.
+              </p>
             </div>
 
             <div className="overflow-y-auto" style={{ maxHeight: 320 }}>

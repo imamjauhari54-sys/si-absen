@@ -4,28 +4,9 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { getAbsensiSetting } from "@/lib/data/dashboard";
 import { registerScanner, bumpScannerStats } from "@/lib/data/scanner";
 import { kirimNotifAbsen } from "@/lib/wa/notifikasi";
+import { nowJakarta, hms, jamTitikFormat, addMinutes } from "@/lib/utils/jam";
 
 const TOKEN_RE = /^SIELISA:([a-f0-9]{32,})$/i;
-
-function nowJakarta(): Date {
-  return new Date(Date.now() + 7 * 60 * 60 * 1000);
-}
-function hms(d: Date): string {
-  return d.toISOString().slice(11, 19); // HH:MM:SS
-}
-function jamTitikFormat(d: Date): string {
-  return `${String(d.getUTCHours()).padStart(2, "0")}.${String(d.getUTCMinutes()).padStart(2, "0")}`;
-}
-/** Tambah/kurang menit dari string HH:MM:SS, hasil HH:MM:SS. */
-function addMinutes(hms_: string, minutes: number): string {
-  const [h, m, s] = hms_.split(":").map(Number);
-  const total = h * 3600 + m * 60 + s + minutes * 60;
-  const norm = ((total % 86400) + 86400) % 86400;
-  const hh = Math.floor(norm / 3600);
-  const mm = Math.floor((norm % 3600) / 60);
-  const ss = norm % 60;
-  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
-}
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -36,6 +17,7 @@ export async function POST(req: NextRequest) {
   const form = await req.formData();
   const isManual = !!form.get("manual");
   const scannerId = String(form.get("scanner_id") || "unknown").trim();
+  const offlineQueueCount = Math.max(0, parseInt(String(form.get("offline_queue_count") || "0"), 10) || 0);
 
   const now = nowJakarta();
   const tanggal = now.toISOString().slice(0, 10);
@@ -44,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   const userAgent = (req.headers.get("user-agent") || "").slice(0, 255);
-  registerScanner(scannerId, userAgent, ip); // fire and forget, non-blocking untuk respons
+  registerScanner(scannerId, userAgent, ip, offlineQueueCount); // fire and forget, non-blocking untuk respons
 
   try {
     // Cek hari libur (Minggu atau tabel hari_libur)
@@ -67,9 +49,11 @@ export async function POST(req: NextRequest) {
     const jamPulangMulai = setting.jam_pulang_mulai ?? "11:30:00";
     const tapel = setting.tapel ?? "2025/2026";
     const semester = setting.semester ?? "genap";
+    const durasiKunciMenit = setting.durasi_kunci_menit ?? 120;
+    const toleransiPagiMenit = setting.toleransi_pagi_menit ?? 60;
 
-    // Master lock: sistem tutup 120 menit setelah jam_pulang_mulai
-    const batasAkhirSistem = addMinutes(jamPulangMulai, 120);
+    // Master lock: sistem tutup N menit (dinamis, dari Pengaturan) setelah jam_pulang_mulai
+    const batasAkhirSistem = addMinutes(jamPulangMulai, durasiKunciMenit);
     if (jamNow > batasAkhirSistem) {
       return NextResponse.json({
         status: "error",
@@ -145,7 +129,7 @@ export async function POST(req: NextRequest) {
 
     // KONDISI A: belum ada data -> absen masuk
     if (!absenHariIni) {
-      const jamBukaSistem = addMinutes(jamMasuk, -60);
+      const jamBukaSistem = addMinutes(jamMasuk, -toleransiPagiMenit);
       if (jamNow < jamBukaSistem) {
         return NextResponse.json({
           status: "error",

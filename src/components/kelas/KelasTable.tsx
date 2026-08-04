@@ -10,6 +10,9 @@ export interface KelasRow {
   id: number;
   nama: string;
   jumlahSiswa: number;
+  jumlahLaki: number;
+  jumlahPerempuan: number;
+  waliKelas: string | null;
 }
 
 export default function KelasTable({ list }: { list: KelasRow[] }) {
@@ -139,6 +142,9 @@ export default function KelasTable({ list }: { list: KelasRow[] }) {
               <tr>
                 <th className="px-5 py-3 w-12 text-center">No</th>
                 <th className="px-5 py-3">Nama Kelas</th>
+                <th className="px-5 py-3">Wali Kelas</th>
+                <th className="px-5 py-3 text-center">Siswa Laki-laki</th>
+                <th className="px-5 py-3 text-center">Siswa Perempuan</th>
                 <th className="px-5 py-3 text-center">Jumlah Siswa</th>
                 <th className="px-5 py-3 text-center">Aksi</th>
               </tr>
@@ -146,7 +152,7 @@ export default function KelasTable({ list }: { list: KelasRow[] }) {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
               {list.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-5 py-14 text-center">
+                  <td colSpan={7} className="px-5 py-14 text-center">
                     <div className="flex flex-col items-center justify-center opacity-60">
                       <i className="fas fa-chalkboard text-4xl text-gray-300 dark:text-gray-600 mb-3" />
                       <p className="text-sm font-bold text-gray-500 dark:text-gray-400">Belum ada kelas terdaftar</p>
@@ -162,6 +168,15 @@ export default function KelasTable({ list }: { list: KelasRow[] }) {
                         Kelas {k.nama}
                       </span>
                     </td>
+                    <td className="px-5 py-3">
+                      {k.waliKelas ? (
+                        <span className="text-gray-700 dark:text-gray-300 font-semibold">{k.waliKelas}</span>
+                      ) : (
+                        <span className="text-gray-400 dark:text-gray-500 italic text-xs">Belum ada wali kelas</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3 text-center text-blue-600 dark:text-blue-400 font-bold">{k.jumlahLaki}</td>
+                    <td className="px-5 py-3 text-center text-pink-600 dark:text-pink-400 font-bold">{k.jumlahPerempuan}</td>
                     <td className="px-5 py-3 text-center font-bold text-gray-600 dark:text-gray-300">{k.jumlahSiswa}</td>
                     <td className="px-5 py-3 text-center">
                       <div className="flex justify-center items-center gap-2">

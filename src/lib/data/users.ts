@@ -1,9 +1,18 @@
 import { supabaseAdmin } from "@/lib/supabase/server";
 import type { Role, UserRow } from "@/types";
+import { DEVELOPER_USERNAME } from "@/lib/auth/developer";
 
-/** Daftar semua pengguna (admin & guru) beserta kelas yang diampu (khusus guru). */
+/**
+ * Daftar semua pengguna (admin & guru) beserta kelas yang diampu (khusus guru).
+ * Akun developer (lihat src/lib/auth/developer.ts) SENGAJA di-exclude di sini
+ * supaya tidak muncul di halaman Manajemen Pengguna.
+ */
 export async function getUsersList(search = ""): Promise<UserRow[]> {
-  let query = supabaseAdmin.from("users").select("id, name, username, role, foto").order("name", { ascending: true });
+  let query = supabaseAdmin
+    .from("users")
+    .select("id, name, username, role, foto")
+    .neq("username", DEVELOPER_USERNAME)
+    .order("name", { ascending: true });
   if (search) query = query.or(`name.ilike.%${search}%,username.ilike.%${search}%`);
 
   const { data: users } = await query;

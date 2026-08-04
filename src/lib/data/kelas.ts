@@ -5,6 +5,9 @@ export interface KelasMasterRow {
   id: number;
   nama: string;
   jumlahSiswa: number;
+  jumlahLaki: number;
+  jumlahPerempuan: number;
+  waliKelas: string | null;
 }
 
 /** Daftar nama kelas saja (buat dropdown/picker). */
@@ -13,17 +16,45 @@ export async function getKelasMasterList(): Promise<string[]> {
   return (data ?? []).map((r) => r.nama);
 }
 
-/** Daftar kelas beserta jumlah siswanya (buat halaman Kelola Kelas). */
+/** Daftar kelas beserta jumlah siswa (+ rincian L/P) dan wali kelasnya (buat halaman Kelola Kelas). */
 export async function getKelasMasterDetail(): Promise<KelasMasterRow[]> {
-  const [{ data: kelas }, { data: siswa }] = await Promise.all([
+  const [{ data: kelas }, { data: siswa }, { data: waliRows }] = await Promise.all([
     supabaseAdmin.from("kelas_master").select("id, nama").order("nama", { ascending: true }),
-    supabaseAdmin.from("students").select("class"),
+    supabaseAdmin.from("students").select("class, jenis_kelamin"),
+    supabaseAdmin.from("guru_mengajar_kelas").select("class, guru_id").eq("mapel", "Guru Kelas"),
   ]);
 
   const counts = new Map<string, number>();
-  for (const s of siswa ?? []) counts.set(s.class, (counts.get(s.class) ?? 0) + 1);
+  const countsLaki = new Map<string, number>();
+  const countsPerempuan = new Map<string, number>();
+  for (const s of siswa ?? []) {
+    counts.set(s.class, (counts.get(s.class) ?? 0) + 1);
+    if (s.jenis_kelamin === "L") countsLaki.set(s.class, (countsLaki.get(s.class) ?? 0) + 1);
+    else if (s.jenis_kelamin === "P") countsPerempuan.set(s.class, (countsPerempuan.get(s.class) ?? 0) + 1);
+  }
 
-  return (kelas ?? []).map((k) => ({ id: k.id, nama: k.nama, jumlahSiswa: counts.get(k.nama) ?? 0 }));
+  // class -> guru_id (wali kelas), lalu resolve nama guru-nya lewat query kedua
+  const kelasKeGuruId = new Map<string, number>();
+  for (const row of waliRows ?? []) kelasKeGuruId.set(row.class, row.guru_id);
+
+  const guruIds = Array.from(new Set(Array.from(kelasKeGuruId.values())));
+  const namaGuruMap = new Map<number, string>();
+  if (guruIds.length > 0) {
+    const { data: guruRows } = await supabaseAdmin.from("users").select("id, name").in("id", guruIds);
+    for (const g of guruRows ?? []) namaGuruMap.set(g.id, g.name);
+  }
+
+  return (kelas ?? []).map((k) => {
+    const guruId = kelasKeGuruId.get(k.nama);
+    return {
+      id: k.id,
+      nama: k.nama,
+      jumlahSiswa: counts.get(k.nama) ?? 0,
+      jumlahLaki: countsLaki.get(k.nama) ?? 0,
+      jumlahPerempuan: countsPerempuan.get(k.nama) ?? 0,
+      waliKelas: guruId ? namaGuruMap.get(guruId) ?? null : null,
+    };
+  });
 }
 
 /** Daftarkan nama kelas ke master kalau belum ada. Dipakai otomatis saat simpan siswa/guru. */

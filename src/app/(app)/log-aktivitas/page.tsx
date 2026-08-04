@@ -23,7 +23,7 @@ export default async function LogAktivitasPage() {
   const logs = await getLogAktivitas(100);
 
   return (
-    <div className="w-full px-4 pt-2 mb-14 max-w-2xl">
+    <div className="w-full px-4 pt-2 mb-14">
       <div className="mb-6 reveal">
         <h2 className="text-2xl font-extrabold text-gray-800 dark:text-white tracking-tight">Log Aktivitas</h2>
         <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm font-medium">

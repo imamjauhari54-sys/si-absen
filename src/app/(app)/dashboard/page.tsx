@@ -9,6 +9,7 @@ import {
   getTren7Hari,
 } from "@/lib/data/dashboard";
 import { cekAlphaBerturut } from "@/lib/utils/absen";
+import { hitungWaGagal24Jam } from "@/lib/data/wa-log";
 import { todayJakarta, todayLabel } from "@/lib/utils/tanggal";
 
 import KpiWidgets from "@/components/dashboard/KpiWidgets";
@@ -18,6 +19,7 @@ import JadwalCard from "@/components/dashboard/JadwalCard";
 import AktivitasTerkini from "@/components/dashboard/AktivitasTerkini";
 import BelumAbsen from "@/components/dashboard/BelumAbsen";
 import AlphaBerturutAlert from "@/components/dashboard/AlphaBerturutAlert";
+import WaGagalBanner from "@/components/dashboard/WaGagalBanner";
 import AlphaModal from "@/components/dashboard/AlphaModal";
 import LogAktivitasModal from "@/components/dashboard/LogAktivitasModal";
 
@@ -38,11 +40,12 @@ export default async function DashboardPage() {
     getStatistikHariIni(today, kelas, isAdmin),
   ]);
 
-  const [tren, recent, { belum, belumRecord }, alphaBerturut] = await Promise.all([
+  const [tren, recent, { belum, belumRecord }, alphaBerturut, waGagal24Jam] = await Promise.all([
     getTren7Hari(today, kelas, isAdmin, totalSiswa),
     getRecentScans(today, kelas, isAdmin),
     getBelumAbsen(today, kelas, isAdmin),
     isAdmin ? cekAlphaBerturut("", MIN_HARI_ALERT) : Promise.resolve([]),
+    isAdmin ? hitungWaGagal24Jam() : Promise.resolve(0),
   ]);
 
   const hadirTotal = stat.hadir + stat.terlambat;
@@ -99,10 +102,15 @@ export default async function DashboardPage() {
       <KpiWidgets totalSiswa={totalSiswa} stat={stat} batasTerlambat={batasTerlambat} />
 
       {/* BANNER + MODAL PROSES ALPHA (ADMIN ONLY) */}
-      {isAdmin && <AlphaModal belumRecord={belumRecord} guruNama={session.nama} guruFoto={session.foto} />}
+      {isAdmin && (
+        <AlphaModal belumRecord={belumRecord} guruNama={session.nama} guruFoto={session.foto} isLibur={isLibur} />
+      )}
 
       {/* ALERT ALPHA BERTURUT-TURUT (ADMIN ONLY) */}
       {isAdmin && <AlphaBerturutAlert daftar={alphaBerturut} minHari={MIN_HARI_ALERT} />}
+
+      {/* BANNER NOTIFIKASI WA GAGAL (ADMIN ONLY) */}
+      {isAdmin && <WaGagalBanner jumlah={waGagal24Jam} />}
 
       {/* CHART & JADWAL */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">

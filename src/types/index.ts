@@ -13,6 +13,17 @@ export interface SessionPayload {
   foto: string | null;
 }
 
+// Payload sesi khusus Portal Siswa (login pakai NISN saja, read-only).
+// SENGAJA dipisah dari SessionPayload di atas (cookie beda, JWT beda) supaya
+// sesi siswa tidak pernah bisa disalahgunakan untuk akses halaman admin/guru,
+// dan sebaliknya.
+export interface StudentSessionPayload {
+  siswaId: number;
+  nama: string;
+  kelas: string;
+  nisn: string;
+}
+
 export interface UserRow {
   id: number;
   name: string;
@@ -45,6 +56,8 @@ export interface AbsensiSetting {
   jam_pulang_mulai: string | null;
   tapel: string | null;
   semester: string | null;
+  durasi_kunci_menit: number | null;
+  toleransi_pagi_menit: number | null;
 }
 
 export interface AbsensiRow {
@@ -81,6 +94,22 @@ export interface TrenHarian {
   n: number;
   total: number;
   isToday: boolean;
+}
+
+export type DeviceStatus = "online" | "idle" | "offline";
+
+export interface ScanDeviceRow {
+  scannerId: string;
+  namaDevice: string;
+  namaTampil: string;
+  label: string | null;
+  ipAddress: string;
+  totalScans: number;
+  scanHariIni: number;
+  antrianOffline: number;
+  lastSync: string | null;
+  detikLalu: number | null;
+  deviceStatus: DeviceStatus;
 }
 
 export interface ActivityLog {

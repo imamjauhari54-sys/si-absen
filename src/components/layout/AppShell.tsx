@@ -6,6 +6,7 @@ import { useState } from "react";
 import ThemeToggle from "./ThemeToggle";
 import LiveClock from "./LiveClock";
 import LogoutModal from "./LogoutModal";
+import DevFooter from "./DevFooter";
 
 interface NavItem {
   href: string;
@@ -65,7 +66,9 @@ export default function AppShell({
             children: [
               { href: "/users", icon: "fa-user-shield", label: "Manajemen Pengguna" },
               { href: "/kelas", icon: "fa-chalkboard", label: "Kelola Kelas" },
+              { href: "/scan-devices", icon: "fa-tablet-screen-button", label: "Device Scanner" },
               { href: "/log-aktivitas", icon: "fa-clock-rotate-left", label: "Log Aktivitas" },
+              { href: "/log-wa", icon: "fa-comment-slash", label: "Log Notifikasi WA" },
             ],
           },
         ]
@@ -98,7 +101,7 @@ export default function AppShell({
         <div className="px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-600 to-cyan-500 flex items-center justify-center text-white shadow-md flex-shrink-0">
-              <i className="fa-solid fa-qrcode text-xl" />
+              <i className="fa-solid fa-qrcode text-sm" />
             </div>
             <div className="overflow-hidden">
               <div className="text-sm font-extrabold leading-tight truncate">SI-ABSEN</div>
@@ -169,10 +172,33 @@ export default function AppShell({
           })}
         </nav>
 
-        <div className="p-3 border-t" style={{ borderColor: "var(--border)" }}>
+        <div className="p-3 border-t flex items-center gap-2" style={{ borderColor: "var(--border)" }}>
+          <Link
+            href="/setting"
+            onClick={() => setSidebarOpen(false)}
+            className="flex-shrink-0 inline-flex"
+            title={`${guruNama} (${guruRole})`}
+          >
+            {guruFoto ? (
+              <img
+                src={guruFoto}
+                alt={guruNama}
+                className="rounded-full object-cover hover:ring-2 hover:ring-teal-500/50 transition-all"
+                style={{ width: "2.25rem", height: "2.25rem" }}
+              />
+            ) : (
+              <div
+                className="rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-black hover:ring-2 hover:ring-teal-500/50 transition-all"
+                style={{ width: "2.25rem", height: "2.25rem" }}
+              >
+                {guruNama.charAt(0).toUpperCase()}
+              </div>
+            )}
+          </Link>
           <button
+            type="button"
             id="btn-buka-modal-keluar"
-            className="nav-item w-full text-red-500 hover:!bg-red-500/10 hover:!text-red-500"
+            className="nav-item flex-1 relative z-10 cursor-pointer text-red-500 hover:!bg-red-500/10 hover:!text-red-500"
           >
             <i className="fas fa-right-from-bracket nav-icon" />
             <span>Keluar</span>
@@ -230,6 +256,10 @@ export default function AppShell({
         </header>
 
         <main style={{ flex: 1, padding: "1.5rem", overflowX: "hidden" }}>{children}</main>
+
+        <footer className="px-5 py-4 text-center border-t" style={{ borderColor: "var(--border)" }}>
+          <DevFooter className="inline-block" />
+        </footer>
       </div>
 
       <LogoutModal nama={guruNama} role={guruRole} foto={guruFoto} />

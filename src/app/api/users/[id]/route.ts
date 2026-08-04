@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { normalizeKelas } from "@/lib/utils/kelas";
 import { upsertKelasMaster } from "@/lib/data/kelas";
 import { catatLog } from "@/lib/data/log-aktivitas";
+import { isDeveloperUsername } from "@/lib/auth/developer";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -15,6 +16,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const userId = parseInt(id, 10);
   if (!userId) return NextResponse.json({ status: "error", message: "ID tidak valid" }, { status: 400 });
+
+  const { data: targetUser } = await supabaseAdmin.from("users").select("username").eq("id", userId).maybeSingle();
+  if (isDeveloperUsername(targetUser?.username)) {
+    return NextResponse.json({ status: "error", message: "Pengguna tidak ditemukan." }, { status: 404 });
+  }
 
   const form = await req.formData();
   const name = String(form.get("name") || "").trim();
@@ -108,8 +114,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ status: "error", message: "Anda tidak bisa menghapus akun Anda sendiri." });
   }
 
-  const { data: target } = await supabaseAdmin.from("users").select("name, role").eq("id", userId).maybeSingle();
-  if (!target) return NextResponse.json({ status: "error", message: "Pengguna tidak ditemukan." });
+  const { data: target } = await supabaseAdmin.from("users").select("name, role, username").eq("id", userId).maybeSingle();
+  if (!target || isDeveloperUsername(target.username)) {
+    return NextResponse.json({ status: "error", message: "Pengguna tidak ditemukan." });
+  }
 
   if (target.role === "admin") {
     const { count } = await supabaseAdmin.from("users").select("id", { count: "exact", head: true }).eq("role", "admin");

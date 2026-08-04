@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import { cookies } from "next/headers";
+import PwaRegister from "@/components/layout/PwaRegister";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -18,6 +19,23 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: { default: "SI-ABSEN", template: "%s · SI-ABSEN" },
   description: "Sistem Informasi Absensi Siswa",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "SI-ABSEN",
+  },
+  icons: {
+    icon: [
+      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+};
+
+export const viewport = {
+  themeColor: "#6366f1",
 };
 
 export default async function RootLayout({
@@ -41,7 +59,10 @@ export default async function RootLayout({
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
         />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        {children}
+        <PwaRegister />
+      </body>
     </html>
   );
 }

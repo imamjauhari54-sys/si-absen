@@ -9,10 +9,12 @@ export default function AlphaModal({
   belumRecord,
   guruNama,
   guruFoto,
+  isLibur,
 }: {
   belumRecord: number;
   guruNama: string;
   guruFoto: string | null;
+  isLibur: boolean;
 }) {
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -44,7 +46,7 @@ export default function AlphaModal({
     if (wasSuccess) router.refresh();
   }
 
-  if (belumRecord <= 0) return null;
+  if (belumRecord <= 0 || isLibur) return null;
 
   return (
     <>
