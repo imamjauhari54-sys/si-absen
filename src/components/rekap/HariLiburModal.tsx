@@ -29,6 +29,26 @@ export default function HariLiburModal() {
   const [tahunSinkron, setTahunSinkron] = useState(new Date().getFullYear());
   const [sinkronBusy, setSinkronBusy] = useState(false);
 
+  const [yakinRentangPanjang, setYakinRentangPanjang] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [confirmBulkHapus, setConfirmBulkHapus] = useState(false);
+
+  // Ambang batas: kalau rentang input manual > ini, minta konfirmasi eksplisit
+  // dulu sebelum simpan (jaring pengaman salah format tanggal/typo tahun).
+  const AMBANG_KONFIRMASI_HARI = 31;
+
+  function jumlahHariRentang(dari: string, sampai: string): number | null {
+    if (!dari) return null;
+    const akhir = sampai || dari;
+    if (akhir < dari) return null;
+    const dMs = new Date(`${akhir}T00:00:00Z`).getTime() - new Date(`${dari}T00:00:00Z`).getTime();
+    return Math.round(dMs / 86400000) + 1;
+  }
+
+  const jumlahHari = jumlahHariRentang(tgl, tglSampai);
+  const rentangPanjang = !!jumlahHari && jumlahHari > AMBANG_KONFIRMASI_HARI;
+
   async function muatLibur() {
     setLoading(true);
     try {
@@ -56,6 +76,13 @@ export default function HariLiburModal() {
       setNotif({ status: "error", message: '"Sampai Tanggal" tidak boleh sebelum "Tanggal".' });
       return;
     }
+    if (rentangPanjang && !yakinRentangPanjang) {
+      setNotif({
+        status: "error",
+        message: `Rentang ini ${jumlahHari} hari — centang dulu kotak konfirmasi kalau memang benar sebanyak itu.`,
+      });
+      return;
+    }
     setSaving(true);
     try {
       const fd = new FormData();
@@ -68,6 +95,7 @@ export default function HariLiburModal() {
         setTgl("");
         setTglSampai("");
         setKet("");
+        setYakinRentangPanjang(false);
         muatLibur();
         const pesan =
           data.jumlah && data.jumlah > 1
@@ -105,6 +133,41 @@ export default function HariLiburModal() {
       setNotif({ status: "error", message: "Terjadi kesalahan jaringan." });
     } finally {
       setSinkronBusy(false);
+    }
+  }
+
+  function toggleSelect(id: number) {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  function toggleSelectAll() {
+    if (!list) return;
+    setSelectedIds((prev) => (prev.length === list.length ? [] : list.map((r) => r.id)));
+  }
+
+  async function hapusTerpilih() {
+    if (!selectedIds.length) return;
+    setBulkDeleting(true);
+    try {
+      const res = await fetch("/api/hari-libur", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedIds }),
+      });
+      const data = await res.json();
+      setConfirmBulkHapus(false);
+      if (data.status === "ok") {
+        setSelectedIds([]);
+        muatLibur();
+        setNotif({ status: "ok", message: `${data.jumlah} hari libur berhasil dihapus.` });
+      } else {
+        setNotif({ status: "error", message: data.message || "Gagal menghapus data terpilih." });
+      }
+    } catch {
+      setConfirmBulkHapus(false);
+      setNotif({ status: "error", message: "Terjadi kesalahan jaringan." });
+    } finally {
+      setBulkDeleting(false);
     }
   }
 
@@ -255,12 +318,70 @@ export default function HariLiburModal() {
                 Kosongkan &quot;Sampai Tanggal&quot; kalau cuma 1 hari. Isi kalau libur beberapa hari sekaligus (mis.
                 cuti bersama) — keterangannya akan sama untuk semua tanggal di rentang itu.
               </p>
+
+              {tgl && jumlahHari && (
+                <div
+                  className={`mt-3 px-3 py-2 rounded-xl text-xs font-semibold flex items-start gap-2 ${
+                    rentangPanjang
+                      ? "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50"
+                      : "bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700"
+                  }`}
+                >
+                  <i className={`fas ${rentangPanjang ? "fa-triangle-exclamation" : "fa-circle-info"} mt-0.5`} />
+                  <span>
+                    {jumlahHari === 1 ? (
+                      <>1 hari libur akan ditambahkan: <strong>{formatTgl(tgl)}</strong>.</>
+                    ) : (
+                      <>
+                        <strong>{jumlahHari} hari</strong> libur akan ditambahkan, dari{" "}
+                        <strong>{formatTgl(tgl)}</strong> sampai <strong>{formatTgl(tglSampai || tgl)}</strong>.
+                        {rentangPanjang && " Cek lagi tanggalnya — ini cukup panjang untuk cuti bersama biasa."}
+                      </>
+                    )}
+                  </span>
+                </div>
+              )}
+
+              {rentangPanjang && (
+                <label className="mt-2 flex items-center gap-2 text-xs font-semibold text-amber-700 dark:text-amber-400 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={yakinRentangPanjang}
+                    onChange={(e) => setYakinRentangPanjang(e.target.checked)}
+                    className="w-4 h-4 accent-amber-600"
+                  />
+                  Saya yakin, rentang {jumlahHari} hari ini memang benar.
+                </label>
+              )}
             </div>
 
+            {selectedIds.length > 0 && (
+              <div className="px-5 py-2 bg-rose-50 dark:bg-rose-900/10 border-y border-rose-100 dark:border-rose-900/30 flex items-center justify-between">
+                <span className="text-xs font-bold text-rose-600 dark:text-rose-400">{selectedIds.length} dipilih</span>
+                <button
+                  type="button"
+                  onClick={() => setConfirmBulkHapus(true)}
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5"
+                >
+                  <i className="fas fa-trash text-[10px]" />
+                  Hapus Terpilih
+                </button>
+              </div>
+            )}
             <div className="overflow-y-auto" style={{ maxHeight: 320 }}>
               <table className="w-full text-sm text-left">
                 <thead className="bg-gray-50 dark:bg-gray-800/50 text-[10px] uppercase font-extrabold text-gray-500 dark:text-gray-400 tracking-wider sticky top-0">
                   <tr>
+                    <th className="px-5 py-3 w-10">
+                      {!!list?.length && (
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.length === list.length}
+                          onChange={toggleSelectAll}
+                          className="w-3.5 h-3.5 accent-rose-600"
+                        />
+                      )}
+                    </th>
                     <th className="px-5 py-3">Tanggal</th>
                     <th className="px-5 py-3">Keterangan</th>
                     <th className="px-5 py-3 text-center w-16">Hapus</th>
@@ -269,20 +390,28 @@ export default function HariLiburModal() {
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
                   {loading ? (
                     <tr>
-                      <td colSpan={3} className="p-6 text-center text-gray-400 text-xs">
+                      <td colSpan={4} className="p-6 text-center text-gray-400 text-xs">
                         <i className="fas fa-spinner fa-spin mr-2" />
                         Memuat...
                       </td>
                     </tr>
                   ) : !list || list.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="p-6 text-center text-gray-400 text-xs">
+                      <td colSpan={4} className="p-6 text-center text-gray-400 text-xs">
                         Belum ada data hari libur.
                       </td>
                     </tr>
                   ) : (
                     list.map((r) => (
                       <tr key={r.id} className="hover:bg-rose-50/30 dark:hover:bg-rose-900/10 transition-colors">
+                        <td className="px-5 py-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(r.id)}
+                            onChange={() => toggleSelect(r.id)}
+                            className="w-3.5 h-3.5 accent-rose-600"
+                          />
+                        </td>
                         <td className="px-5 py-3 font-mono text-xs font-bold text-gray-700 dark:text-gray-300">{formatTgl(r.tanggal)}</td>
                         <td className="px-5 py-3 text-sm text-gray-700 dark:text-gray-300">{r.keterangan}</td>
                         <td className="px-5 py-3 text-center">
@@ -340,6 +469,49 @@ export default function HariLiburModal() {
                   className="flex-1 py-3.5 bg-red-600 hover:bg-red-700 disabled:opacity-70 text-white rounded-2xl text-[10px] font-bold transition-all uppercase tracking-widest shadow-lg shadow-red-500/20"
                 >
                   {deleting ? <i className="fas fa-spinner fa-spin" /> : "Ya, Hapus"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </Portal>
+      )}
+
+      {confirmBulkHapus && (
+        <Portal>
+          <div
+            className="fixed inset-0 z-[999] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md"
+            onClick={() => !bulkDeleting && setConfirmBulkHapus(false)}
+          >
+            <div
+              className="bg-white dark:bg-[#1e2235] w-full max-w-[320px] rounded-[2.5rem] p-8 border border-gray-200 dark:border-white/10 shadow-2xl relative text-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-center -mt-16 mb-6">
+                <div className="w-16 h-16 bg-white dark:bg-[#1e2235] border-4 border-gray-100 dark:border-[#282d45] rounded-full flex items-center justify-center shadow-xl">
+                  <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-red-500/40">
+                    <i className="fas fa-trash text-sm" />
+                  </div>
+                </div>
+              </div>
+              <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-2 tracking-tight">Hapus Data Terpilih?</h3>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed px-2 mb-8">
+                <strong className="text-gray-700 dark:text-gray-300">{selectedIds.length} data hari libur</strong> yang
+                dicentang akan dihapus permanen.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmBulkHapus(false)}
+                  disabled={bulkDeleting}
+                  className="flex-1 py-3.5 bg-gray-200 dark:bg-[#282d45] hover:bg-gray-300 dark:hover:bg-[#323858] text-gray-600 dark:text-gray-400 rounded-2xl text-[10px] font-bold transition-all uppercase tracking-widest disabled:opacity-60"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={hapusTerpilih}
+                  disabled={bulkDeleting}
+                  className="flex-1 py-3.5 bg-red-600 hover:bg-red-700 disabled:opacity-70 text-white rounded-2xl text-[10px] font-bold transition-all uppercase tracking-widest shadow-lg shadow-red-500/20"
+                >
+                  {bulkDeleting ? <i className="fas fa-spinner fa-spin" /> : "Ya, Hapus Semua"}
                 </button>
               </div>
             </div>
