@@ -26,7 +26,12 @@ export async function addHariLibur(tanggal: string, keterangan: string): Promise
   return { ok: true };
 }
 
-const MAX_RENTANG_HARI = 366; // batas wajar (maks ~1 tahun), jaga-jaga input keliru dari user
+// Batas wajar untuk input MANUAL (beda dgn sinkron libur nasional yg pakai fungsi lain).
+// Sengaja dibuat ketat (~2 bulan) krn libur/cuti bersama manual biasanya cuma
+// beberapa hari s/d 2 minggu. Ini jaring pengaman kalau user salah ketik format
+// tanggal (mis. keyboard browser membaca mm/dd/yyyy padahal user maksud dd/mm/yyyy),
+// yg bisa bikin rentang melebar jadi ratusan hari tanpa disadari.
+const MAX_RENTANG_HARI = 62;
 
 /**
  * Tambah hari libur untuk 1 hari (kalau sampaiTanggal kosong) atau sekaligus
@@ -65,6 +70,18 @@ export async function deleteHariLibur(id: number): Promise<{ ok: boolean; messag
   const { error } = await supabaseAdmin.from("hari_libur").delete().eq("id", id);
   if (error) return { ok: false, message: error.message };
   return { ok: true };
+}
+
+/**
+ * Hapus banyak baris sekaligus by id — dipakai buat bersih-bersih cepat kalau
+ * ada salah input rentang tanggal (mis. ratusan baris kebuat gara-gara salah
+ * format tanggal), tanpa harus klik hapus satu-satu.
+ */
+export async function deleteHariLiburBulk(ids: number[]): Promise<{ ok: boolean; message?: string; jumlah?: number }> {
+  if (!ids.length) return { ok: false, message: "Tidak ada data yang dipilih." };
+  const { error, count } = await supabaseAdmin.from("hari_libur").delete({ count: "exact" }).in("id", ids);
+  if (error) return { ok: false, message: error.message };
+  return { ok: true, jumlah: count ?? ids.length };
 }
 
 /**
