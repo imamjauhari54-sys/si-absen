@@ -34,14 +34,34 @@ function formatWaktu(iso: string) {
   return `${tgl} ${bln}, ${jam}`;
 }
 
-export async function getLogAktivitas(limit = 20): Promise<LogAktivitasRow[]> {
+export interface LogAktivitasPageResult {
+  rows: LogAktivitasRow[];
+  total: number;
+  totalPages: number;
+  page: number;
+}
+
+/**
+ * Versi paginasi sungguhan (pakai .range() + count di level database) untuk
+ * halaman Log Aktivitas. Sebelumnya cuma pakai .limit(100) tetap — bikin
+ * baris di luar 100 log terbaru tidak bisa dilihat sama sekali begitu log
+ * terus bertambah tiap ada aksi admin.
+ */
+export async function getLogAktivitasPage(page: number, pageSize: number): Promise<LogAktivitasPageResult> {
+  const { count } = await supabaseAdmin.from("log_aktivitas").select("id", { count: "exact", head: true });
+  const total = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const pageAman = Math.min(Math.max(1, page), totalPages);
+  const from = (pageAman - 1) * pageSize;
+  const to = from + pageSize - 1;
+
   const { data } = await supabaseAdmin
     .from("log_aktivitas")
     .select("id, aksi, target, keterangan, created_at, users(name, foto)")
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .range(from, to);
 
-  return (data ?? []).map((row) => {
+  const rows: LogAktivitasRow[] = (data ?? []).map((row) => {
     const admin = Array.isArray(row.users) ? row.users[0] : row.users;
     return {
       id: row.id,
@@ -53,4 +73,6 @@ export async function getLogAktivitas(limit = 20): Promise<LogAktivitasRow[]> {
       fotoAdmin: admin?.foto ?? null,
     };
   });
+
+  return { rows, total, totalPages, page: pageAman };
 }

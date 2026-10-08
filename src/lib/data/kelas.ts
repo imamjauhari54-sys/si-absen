@@ -1,3 +1,4 @@
+import { unstable_cache, revalidateTag } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { normalizeKelas } from "@/lib/utils/kelas";
 
@@ -10,14 +11,23 @@ export interface KelasMasterRow {
   waliKelas: string | null;
 }
 
+// KATEGORI A (data master): daftar kelas cuma berubah lewat CRUD eksplisit
+// di halaman Kelola Kelas (tambah/rename/hapus), tapi tadinya di-query ulang
+// di HAMPIR SETIAP halaman (dashboard, siswa, users, dst) yang butuh dropdown
+// kelas. Di-cache dengan tag "kelas-master", di-invalidate lewat
+// revalidateTag di tambahKelasMaster/renameKelasMaster/hapusKelasMaster.
+
 /** Daftar nama kelas saja (buat dropdown/picker). */
-export async function getKelasMasterList(): Promise<string[]> {
+async function _getKelasMasterList(): Promise<string[]> {
   const { data } = await supabaseAdmin.from("kelas_master").select("nama").order("nama", { ascending: true });
   return (data ?? []).map((r) => r.nama);
 }
+export async function getKelasMasterList(): Promise<string[]> {
+  return unstable_cache(_getKelasMasterList, ["kelas-master-list"], { tags: ["kelas-master"] })();
+}
 
 /** Daftar kelas beserta jumlah siswa (+ rincian L/P) dan wali kelasnya (buat halaman Kelola Kelas). */
-export async function getKelasMasterDetail(): Promise<KelasMasterRow[]> {
+async function _getKelasMasterDetail(): Promise<KelasMasterRow[]> {
   const [{ data: kelas }, { data: siswa }, { data: waliRows }] = await Promise.all([
     supabaseAdmin.from("kelas_master").select("id, nama").order("nama", { ascending: true }),
     supabaseAdmin.from("students").select("class, jenis_kelamin"),
@@ -56,12 +66,20 @@ export async function getKelasMasterDetail(): Promise<KelasMasterRow[]> {
     };
   });
 }
+export async function getKelasMasterDetail(): Promise<KelasMasterRow[]> {
+  return unstable_cache(_getKelasMasterDetail, ["kelas-master-detail"], { tags: ["kelas-master"] })();
+}
 
 /** Daftarkan nama kelas ke master kalau belum ada. Dipakai otomatis saat simpan siswa/guru. */
 export async function upsertKelasMaster(namaMentah: string): Promise<void> {
   const nama = normalizeKelas(namaMentah);
   if (!nama) return;
+  const { data: existing } = await supabaseAdmin.from("kelas_master").select("id").eq("nama", nama).maybeSingle();
   await supabaseAdmin.from("kelas_master").upsert({ nama }, { onConflict: "nama", ignoreDuplicates: true });
+  // Cuma invalidate cache kalau nama kelas ini baru (belum ada di master) —
+  // upsert ke nama yang sudah ada tidak mengubah apapun, jadi tidak perlu
+  // buang cache yang masih valid.
+  if (!existing) revalidateTag("kelas-master", "max");
 }
 
 export async function tambahKelasMaster(namaMentah: string): Promise<{ error: string | null }> {
@@ -72,6 +90,7 @@ export async function tambahKelasMaster(namaMentah: string): Promise<{ error: st
   if (dup) return { error: "Kelas ini sudah ada di daftar." };
 
   const { error } = await supabaseAdmin.from("kelas_master").insert({ nama });
+  if (!error) revalidateTag("kelas-master", "max");
   return { error: error?.message ?? null };
 }
 
@@ -96,6 +115,8 @@ export async function renameKelasMaster(id: number, namaBaruMentah: string): Pro
     supabaseAdmin.from("guru_mengajar_kelas").update({ class: namaBaru }).eq("class", namaLama),
   ]);
 
+  revalidateTag("kelas-master", "max");
+  revalidateTag("siswa", "max");
   return { error: null };
 }
 
@@ -121,5 +142,6 @@ export async function hapusKelasMaster(id: number): Promise<{ error: string | nu
   }
 
   const { error } = await supabaseAdmin.from("kelas_master").delete().eq("id", id);
+  if (!error) revalidateTag("kelas-master", "max");
   return { error: error?.message ?? null };
 }

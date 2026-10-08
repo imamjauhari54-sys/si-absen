@@ -6,7 +6,7 @@ import { getRekapHistoryPage, getSemuaKelasRekap } from "@/lib/data/rekap";
 import { getListTapel } from "@/lib/data/history";
 import Pagination from "@/components/ui/Pagination";
 
-const PAGE_SIZE = 30;
+const PAGE_SIZE = 10;
 
 export const metadata: Metadata = { title: "History Rekap" };
 export const dynamic = "force-dynamic";

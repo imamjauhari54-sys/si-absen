@@ -1,24 +1,36 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
-import { getUsersList, getAllMengajarMap } from "@/lib/data/users";
+import { getUsersPage, getAllMengajarMap } from "@/lib/data/users";
 import { getKelasMasterList } from "@/lib/data/kelas";
 import UserTable from "@/components/users/UserTable";
 import TambahUserButton from "@/components/users/TambahUserButton";
+import Pagination from "@/components/ui/Pagination";
+
+const PAGE_SIZE = 10;
 
 export const metadata: Metadata = { title: "Manajemen Pengguna" };
 export const dynamic = "force-dynamic";
 
-export default async function UsersPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+export default async function UsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; page?: string }>;
+}) {
   const session = await requireSession(["admin"]);
 
   const params = await searchParams;
   const search = (params.q ?? "").trim();
+  const pageParam = Math.max(1, parseInt(params.page || "1", 10) || 1);
 
-  const [list, semuaKelas, mengajarMap] = await Promise.all([getUsersList(search), getKelasMasterList(), getAllMengajarMap()]);
+  const [hasil, semuaKelas] = await Promise.all([
+    getUsersPage(search, pageParam, PAGE_SIZE),
+    getKelasMasterList(),
+  ]);
+  const { list, total, jumlahAdmin, jumlahGuru, totalPages, page } = hasil;
+  const mengajarMap = await getAllMengajarMap(list.map((u) => u.id));
 
-  const jumlahAdmin = list.filter((u) => u.role === "admin").length;
-  const jumlahGuru = list.filter((u) => u.role === "guru").length;
+  const buildPageHref = (p: number) => `/users?q=${encodeURIComponent(search)}&page=${p}`;
 
   return (
     <div className="w-full px-4 pt-2 mb-14">
@@ -40,7 +52,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
             <i className="fas fa-users" />
           </div>
           <div>
-            <div className="text-lg font-extrabold text-gray-800 dark:text-white leading-none">{list.length}</div>
+            <div className="text-lg font-extrabold text-gray-800 dark:text-white leading-none">{total}</div>
             <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mt-1">
               Total Pengguna
             </div>
@@ -101,6 +113,21 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
 
       {/* TABEL */}
       <UserTable list={list} search={search} semuaKelas={semuaKelas} currentUserId={session.userId} mengajarMap={mengajarMap} />
+
+      <Pagination page={page} totalPages={totalPages} buildHref={buildPageHref} />
+
+      {total > 0 && (
+        <div className="mt-1 px-1 text-xs text-gray-500 dark:text-gray-400">
+          Menampilkan <strong className="text-gray-700 dark:text-gray-300">{list.length}</strong> dari{" "}
+          <strong className="text-gray-700 dark:text-gray-300">{total}</strong> pengguna
+          {search && (
+            <>
+              {" "}
+              · Hasil pencarian &quot;<strong>{search}</strong>&quot;
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

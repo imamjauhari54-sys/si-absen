@@ -6,6 +6,9 @@ import type { RekapHarianRow, StatusHarian } from "@/lib/data/rekap";
 import Portal from "@/components/ui/Portal";
 import NotifModal from "@/components/ui/NotifModal";
 import LampiranUploader from "@/components/rekap/LampiranUploader";
+import RekapPagination from "@/components/rekap/RekapPagination";
+
+const PAGE_SIZE = 10;
 
 const BADGE_MAP: Record<string, string> = {
   hadir: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400",
@@ -25,6 +28,7 @@ const KET_ALPHA_DEFAULT = "Tanpa Keterangan";
 
 export default function HarianTable({ rows: initialRows, tanggal }: { rows: RekapHarianRow[]; tanggal: string }) {
   const [rows, setRows] = useState(initialRows);
+  const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<RekapHarianRow | null>(null);
   const [tglDari, setTglDari] = useState("");
   const [tglSampai, setTglSampai] = useState("");
@@ -108,6 +112,8 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
     }
   }
 
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+
   return (
     <>
       <div className="section-card shadow-sm overflow-hidden reveal">
@@ -142,8 +148,15 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
               ) : (
                 rows.map((row, i) => {
                   const bc = BADGE_MAP[row.status] ?? "bg-gray-100 text-gray-600";
+                  // Baris di luar halaman yang lagi aktif disembunyikan di
+                  // layar (biar tabel tetap ringkas 10 baris/halaman), tapi
+                  // TETAP dirender di DOM dan otomatis muncul lagi saat
+                  // print (lihat tombol Cetak) — supaya laporan yang
+                  // dicetak selalu lengkap semua siswa, bukan cuma 1 halaman.
+                  const rowPage = Math.floor(i / PAGE_SIZE) + 1;
+                  const visibilityCls = rowPage === page ? "" : "hidden print:table-row";
                   return (
-                    <tr key={row.id} className="tbl-row text-gray-700 dark:text-gray-300">
+                    <tr key={row.id} className={`tbl-row text-gray-700 dark:text-gray-300 ${visibilityCls}`}>
                       <td className="px-5 py-3 text-center text-xs font-bold text-gray-400">{i + 1}</td>
                       <td className="px-5 py-3 font-bold text-gray-800 dark:text-gray-200">{row.name}</td>
                       <td className="px-5 py-3 text-center">
@@ -184,6 +197,8 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
             </tbody>
           </table>
         </div>
+
+        <RekapPagination page={page} totalPages={totalPages} onChange={setPage} />
       </div>
 
       {editing && (

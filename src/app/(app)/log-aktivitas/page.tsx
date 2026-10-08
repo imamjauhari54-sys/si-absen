@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { requireSession } from "@/lib/auth/session";
-import { getLogAktivitas } from "@/lib/data/log-aktivitas";
+import { getLogAktivitasPage } from "@/lib/data/log-aktivitas";
+import Pagination from "@/components/ui/Pagination";
+
+const PAGE_SIZE = 10;
 
 export const metadata: Metadata = { title: "Log Aktivitas" };
 export const dynamic = "force-dynamic";
@@ -18,16 +21,25 @@ const AKSI_ICON: Record<string, { icon: string; warna: string }> = {
   import_siswa: { icon: "fa-file-import", warna: "text-blue-500 bg-blue-50 dark:bg-blue-900/20" },
 };
 
-export default async function LogAktivitasPage() {
+export default async function LogAktivitasPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   await requireSession(["admin"]);
-  const logs = await getLogAktivitas(100);
+
+  const params = await searchParams;
+  const pageParam = Math.max(1, parseInt(params.page || "1", 10) || 1);
+  const { rows: logs, total, totalPages, page } = await getLogAktivitasPage(pageParam, PAGE_SIZE);
+  const buildPageHref = (p: number) => `/log-aktivitas?page=${p}`;
 
   return (
     <div className="w-full px-4 pt-2 mb-14">
       <div className="mb-6 reveal">
         <h2 className="text-2xl font-extrabold text-gray-800 dark:text-white tracking-tight">Log Aktivitas</h2>
         <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm font-medium">
-          Riwayat perubahan pengguna, siswa, dan data kelas oleh admin (100 aktivitas terakhir).
+          Riwayat perubahan pengguna, siswa, dan data kelas oleh admin. Total{" "}
+          <strong className="text-gray-700 dark:text-gray-200">{total}</strong> aktivitas tercatat.
         </p>
       </div>
 
@@ -63,6 +75,8 @@ export default async function LogAktivitasPage() {
             })}
           </div>
         )}
+
+        <Pagination page={page} totalPages={totalPages} buildHref={buildPageHref} />
       </div>
     </div>
   );

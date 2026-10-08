@@ -77,8 +77,9 @@ export default function LoginForm() {
             onClick={() => setShowPassword((v) => !v)}
             className="absolute right-[18px] top-1/2 -translate-y-1/2 text-slate-400"
             tabIndex={-1}
+            aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
           >
-            <i className={`fa-solid ${showPassword ? "fa-eye-slash" : "fa-eye"}`} />
+            <i className={`fa-solid ${showPassword ? "fa-eye-slash" : "fa-eye"}`} aria-hidden="true" />
           </button>
         </div>
       </div>

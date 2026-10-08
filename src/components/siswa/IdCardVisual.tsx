@@ -1,6 +1,15 @@
 import "./id-card.css";
 import { qrUrl } from "@/lib/utils/qr";
 
+// Ukuran font nama menyesuaikan panjang teks supaya nama panjang tetap muat
+// dalam maksimal 2 baris dan tidak mendorong QR keluar dari kartu.
+function kelasUkuranNama(nama: string): string {
+  const n = nama.trim().length;
+  if (n <= 18) return "ic-nama--l";
+  if (n <= 28) return "ic-nama--m";
+  return "ic-nama--s";
+}
+
 export default function IdCardVisual({
   namaSekolah,
   alamat,
@@ -39,7 +48,7 @@ export default function IdCardVisual({
       </div>
 
       <div className="ic-body">
-        <div className="ic-nama" title={nama}>
+        <div className={`ic-nama ${kelasUkuranNama(nama)}`} title={nama}>
           {nama.toUpperCase()}
         </div>
         <div className="ic-kelas">Kelas {kelas}</div>

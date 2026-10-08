@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { getSession } from "@/lib/auth/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { catatLog } from "@/lib/data/log-aktivitas";
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     siswa.name,
     `Menonaktifkan siswa "${siswa.name}" (Kelas ${siswa.class}) — alasan: ${labelAlasan}.`
   );
+  revalidateTag("siswa", "max");
 
   return NextResponse.json({ status: "ok" });
 }

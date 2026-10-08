@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
-import { getInactiveStudents } from "@/lib/data/siswa";
+import { getInactiveStudentsPage } from "@/lib/data/siswa";
 import SiswaNonaktifTable from "@/components/siswa/SiswaNonaktifTable";
+import Pagination from "@/components/ui/Pagination";
+
+const PAGE_SIZE = 10;
 
 export const metadata: Metadata = { title: "Siswa Nonaktif" };
 export const dynamic = "force-dynamic";
@@ -11,14 +14,17 @@ export const dynamic = "force-dynamic";
 export default async function SiswaNonaktifPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 }) {
   const session = await requireSession();
   if (session.role !== "admin") redirect("/siswa");
 
   const params = await searchParams;
   const search = (params.q ?? "").trim();
-  const list = await getInactiveStudents(search);
+  const pageParam = Math.max(1, parseInt(params.page || "1", 10) || 1);
+
+  const { list, total, totalPages, page } = await getInactiveStudentsPage(search, pageParam, PAGE_SIZE);
+  const buildPageHref = (p: number) => `/siswa/nonaktif?q=${encodeURIComponent(search)}&page=${p}`;
 
   return (
     <div className="w-full px-4 pt-2 mb-14">
@@ -37,7 +43,7 @@ export default async function SiswaNonaktifPage({
           <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm font-medium">
             Siswa berstatus <strong className="text-gray-700 dark:text-gray-200">lulus</strong> atau{" "}
             <strong className="text-gray-700 dark:text-gray-200">pindah</strong> — riwayat absensinya tetap tersimpan.
-            Total <strong className="text-gray-700 dark:text-gray-200">{list.length}</strong> siswa.
+            Total <strong className="text-gray-700 dark:text-gray-200">{total}</strong> siswa.
           </p>
         </div>
       </div>
@@ -58,6 +64,21 @@ export default async function SiswaNonaktifPage({
       </div>
 
       <SiswaNonaktifTable list={list} />
+
+      <Pagination page={page} totalPages={totalPages} buildHref={buildPageHref} />
+
+      {total > 0 && (
+        <div className="mt-1 px-1 text-xs text-gray-500 dark:text-gray-400">
+          Menampilkan <strong className="text-gray-700 dark:text-gray-300">{list.length}</strong> dari{" "}
+          <strong className="text-gray-700 dark:text-gray-300">{total}</strong> siswa nonaktif
+          {search && (
+            <>
+              {" "}
+              · Hasil pencarian &quot;<strong>{search}</strong>&quot;
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

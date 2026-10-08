@@ -10,7 +10,7 @@ import TambahSiswaButton from "@/components/siswa/TambahSiswaButton";
 import ImportSiswaButton from "@/components/siswa/ImportSiswaButton";
 import Pagination from "@/components/ui/Pagination";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 export const metadata: Metadata = { title: "Data Siswa" };
 export const dynamic = "force-dynamic";

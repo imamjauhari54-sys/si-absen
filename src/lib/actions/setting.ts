@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidateTag } from "next/cache";
 import { getSession } from "@/lib/auth/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { setSettingValue } from "@/lib/data/settings";
@@ -23,6 +24,11 @@ export async function simpanInfoSekolahAction(_prev: SettingActionState, formDat
   if (r1.error || r2.error) {
     return { status: "error", message: r1.error || r2.error || "Gagal menyimpan info sekolah." };
   }
+
+  // Buang cache "settings" (dipakai getNamaSekolah di (app)/layout.tsx untuk
+  // header di semua halaman) supaya perubahan nama sekolah langsung kelihatan
+  // di navigasi berikutnya, bukan nunggu cache lama.
+  revalidateTag("settings", "max");
 
   return { status: "ok", message: "Info sekolah berhasil diperbarui." };
 }
@@ -87,6 +93,12 @@ export async function simpanJadwalAction(_prev: SettingActionState, formData: Fo
     : await supabaseAdmin.from("absensi_setting").insert(payload);
 
   if (error) return { status: "error", message: error.message };
+
+  // getAbsensiSetting() di-cache (dipakai dashboard & setiap scan QR) —
+  // buang cache-nya di sini supaya jam masuk/batas terlambat baru langsung
+  // berlaku, tidak nunggu cache lama expired.
+  revalidateTag("absensi-setting", "max");
+
   return { status: "ok", message: "Pengaturan sistem berhasil disimpan dan diperbarui." };
 }
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getStudentSession } from "@/lib/auth/student-session";
 import CekAbsenForm from "./cek-absen-form";
+import DevFooter from "@/components/layout/DevFooter";
 
 export const metadata: Metadata = { title: "Cek Absensi Siswa" };
 
@@ -37,6 +38,7 @@ export default async function PortalSiswaPage() {
             Masuk di sini
           </Link>
         </div>
+        <DevFooter className="mt-4" />
       </div>
     </div>
   );

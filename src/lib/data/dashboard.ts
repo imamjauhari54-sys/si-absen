@@ -1,8 +1,14 @@
+import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { addDaysJakarta, hariSingkat } from "@/lib/utils/tanggal";
 import type { AbsensiSetting, RecentScan, StatusAbsen, Student, TrenHarian } from "@/types";
 
-export async function getNamaSekolah(fallback: string): Promise<string> {
+// KATEGORI A (data master, jarang berubah): nama sekolah cuma berubah saat
+// admin simpan di halaman Setting. Di-cache pakai tag "settings" supaya bisa
+// di-invalidate presisi lewat revalidateTag("settings") di
+// simpanInfoSekolahAction, tanpa perlu nunggu time-based expiry.
+async function _getNamaSekolah(fallback: string): Promise<string> {
   const { data } = await supabaseAdmin
     .from("settings")
     .select("value")
@@ -10,8 +16,13 @@ export async function getNamaSekolah(fallback: string): Promise<string> {
     .maybeSingle();
   return data?.value || fallback;
 }
+export async function getNamaSekolah(fallback: string): Promise<string> {
+  return unstable_cache(_getNamaSekolah, ["nama-sekolah"], { tags: ["settings"] })(fallback);
+}
 
-export async function getFotoUser(username: string): Promise<string | null> {
+// KATEGORI A: foto user berubah hanya saat user ganti profil (jarang).
+// Cache per-username lewat tag supaya invalidation presisi ke user terkait.
+async function _getFotoUser(username: string): Promise<string | null> {
   const { data } = await supabaseAdmin
     .from("users")
     .select("foto")
@@ -19,8 +30,16 @@ export async function getFotoUser(username: string): Promise<string | null> {
     .maybeSingle();
   return data?.foto || null;
 }
+export async function getFotoUser(username: string): Promise<string | null> {
+  return unstable_cache(_getFotoUser, ["foto-user"], { tags: [`user-${username}`] })(username);
+}
 
-export async function getAbsensiSetting(): Promise<AbsensiSetting> {
+// KATEGORI A: absensi_setting (jam masuk/batas terlambat/dst) cuma berubah
+// saat admin simpan di halaman Setting > Jadwal, tapi sebelumnya di-query
+// ulang di SETIAP request scan QR (lihat src/lib/data/scan.ts) dan setiap
+// buka dashboard. Di-cache dengan tag "absensi-setting", di-invalidate lewat
+// revalidateTag di simpanJadwalAction.
+async function _getAbsensiSetting(): Promise<AbsensiSetting> {
   const { data } = await supabaseAdmin.from("absensi_setting").select("*").limit(1).maybeSingle();
   return {
     jam_masuk: data?.jam_masuk ?? "07:00:00",
@@ -31,6 +50,9 @@ export async function getAbsensiSetting(): Promise<AbsensiSetting> {
     durasi_kunci_menit: data?.durasi_kunci_menit ?? 120,
     toleransi_pagi_menit: data?.toleransi_pagi_menit ?? 60,
   };
+}
+export async function getAbsensiSetting(): Promise<AbsensiSetting> {
+  return unstable_cache(_getAbsensiSetting, ["absensi-setting"], { tags: ["absensi-setting"] })();
 }
 
 export async function cekHariLibur(
@@ -60,21 +82,39 @@ export interface StatHariIni {
   alpha: number;
 }
 
+/**
+ * TEMUAN AUDIT #4: getStatistikHariIni, getTren7Hari, getRecentScans, dan
+ * getBelumAbsen masing-masing tadinya menjalankan query terpisah ke tabel
+ * "students" dengan filter kelas yang SAMA persis, walau dipanggil bersamaan
+ * lewat Promise.all di dashboard/page.tsx — untuk role guru, 1x buka
+ * dashboard = sampai 4 query redundan ke "students".
+ *
+ * Dibungkus React cache() supaya di-memoize PER REQUEST (bukan cache lintas
+ * request seperti data master lain di file ini) — begitu salah satu fungsi
+ * di bawah memanggilnya duluan, panggilan berikutnya di request yang sama
+ * otomatis reuse hasilnya tanpa query Supabase kedua/ketiga/keempat kali.
+ */
+const getSiswaKelasUntukDashboard = cache(async (kelas: string, isAdmin: boolean) => {
+  if (isAdmin || !kelas) return null;
+  const { data } = await supabaseAdmin.from("students").select("id, name, class, foto").eq("class", kelas);
+  return data ?? [];
+});
+
 /** Ambil total siswa (opsional filter kelas untuk guru) & statistik status hari ini. */
 export async function getStatistikHariIni(
   today: string,
   kelas: string,
   isAdmin: boolean
 ): Promise<{ totalSiswa: number; stat: StatHariIni }> {
-  let studentsQuery = supabaseAdmin.from("students").select("id", { count: "exact", head: true });
-  if (!isAdmin && kelas) studentsQuery = studentsQuery.eq("class", kelas);
-  const { count } = await studentsQuery;
-  const totalSiswa = count ?? 0;
+  const siswaKelas = await getSiswaKelasUntukDashboard(kelas, isAdmin);
+  const studentIds = siswaKelas ? siswaKelas.map((s) => s.id) : null;
 
-  let studentIds: number[] | null = null;
-  if (!isAdmin && kelas) {
-    const { data } = await supabaseAdmin.from("students").select("id").eq("class", kelas);
-    studentIds = (data ?? []).map((s) => s.id);
+  let totalSiswa: number;
+  if (studentIds) {
+    totalSiswa = studentIds.length;
+  } else {
+    const { count } = await supabaseAdmin.from("students").select("id", { count: "exact", head: true });
+    totalSiswa = count ?? 0;
   }
 
   let absensiQuery = supabaseAdmin.from("absensi").select("status").eq("tanggal", today);
@@ -97,11 +137,8 @@ export async function getTren7Hari(
   isAdmin: boolean,
   totalSiswa: number
 ): Promise<TrenHarian[]> {
-  let studentIds: number[] | null = null;
-  if (!isAdmin && kelas) {
-    const { data } = await supabaseAdmin.from("students").select("id").eq("class", kelas);
-    studentIds = (data ?? []).map((s) => s.id);
-  }
+  const siswaKelas = await getSiswaKelasUntukDashboard(kelas, isAdmin);
+  const studentIds = siswaKelas ? siswaKelas.map((s) => s.id) : null;
 
   const mulai = addDaysJakarta(today, -6);
   let query = supabaseAdmin
@@ -133,11 +170,8 @@ export async function getTren7Hari(
 
 /** 6 aktivitas absen terbaru hari ini (selain alpha). */
 export async function getRecentScans(today: string, kelas: string, isAdmin: boolean): Promise<RecentScan[]> {
-  let studentIds: number[] | null = null;
-  if (!isAdmin && kelas) {
-    const { data } = await supabaseAdmin.from("students").select("id").eq("class", kelas);
-    studentIds = (data ?? []).map((s) => s.id);
-  }
+  const siswaKelas = await getSiswaKelasUntukDashboard(kelas, isAdmin);
+  const studentIds = siswaKelas ? siswaKelas.map((s) => s.id) : null;
 
   let query = supabaseAdmin
     .from("absensi")
@@ -170,10 +204,18 @@ export async function getBelumAbsen(
   kelas: string,
   isAdmin: boolean
 ): Promise<{ belum: Student[]; belumRecord: number }> {
-  let studentsQuery = supabaseAdmin.from("students").select("id, name, class, foto");
-  if (!isAdmin && kelas) studentsQuery = studentsQuery.eq("class", kelas);
-  const { data: allStudents } = await studentsQuery.order("class").order("name");
-  const students = allStudents ?? [];
+  const siswaKelas = await getSiswaKelasUntukDashboard(kelas, isAdmin);
+  let students: Student[];
+  if (siswaKelas) {
+    students = [...siswaKelas].sort((a, b) => a.class.localeCompare(b.class) || a.name.localeCompare(b.name));
+  } else {
+    const { data: allStudents } = await supabaseAdmin
+      .from("students")
+      .select("id, name, class, foto")
+      .order("class")
+      .order("name");
+    students = allStudents ?? [];
+  }
 
   const { data: absenRows } = await supabaseAdmin
     .from("absensi")

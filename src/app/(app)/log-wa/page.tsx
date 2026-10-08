@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { requireSession } from "@/lib/auth/session";
-import { getWaLog } from "@/lib/data/wa-log";
+import { getWaLogPage, hitungWaGagalTotal } from "@/lib/data/wa-log";
+import Pagination from "@/components/ui/Pagination";
+
+const PAGE_SIZE = 10;
 
 export const metadata: Metadata = { title: "Log Notifikasi WA" };
 export const dynamic = "force-dynamic";
@@ -17,17 +20,28 @@ function formatWaktu(iso: string) {
 
 const TIPE_LABEL: Record<string, string> = { absen: "Absen", alpha: "Alpha" };
 
-export default async function LogWaPage() {
+export default async function LogWaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   await requireSession(["admin"]);
-  const logs = await getWaLog(150);
-  const jumlahGagal = logs.filter((l) => l.status === "gagal").length;
+
+  const params = await searchParams;
+  const pageParam = Math.max(1, parseInt(params.page || "1", 10) || 1);
+  const [{ rows: logs, total, totalPages, page }, jumlahGagal] = await Promise.all([
+    getWaLogPage(pageParam, PAGE_SIZE),
+    hitungWaGagalTotal(),
+  ]);
+  const buildPageHref = (p: number) => `/log-wa?page=${p}`;
 
   return (
     <div className="w-full px-4 pt-2 mb-14">
       <div className="mb-6 reveal">
         <h2 className="text-2xl font-extrabold text-gray-800 dark:text-white tracking-tight">Log Notifikasi WA</h2>
         <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm font-medium">
-          Riwayat percobaan kirim notifikasi WhatsApp ke orang tua (150 terakhir).
+          Riwayat percobaan kirim notifikasi WhatsApp ke orang tua. Total{" "}
+          <strong className="text-gray-700 dark:text-gray-200">{total}</strong> percobaan.
           {jumlahGagal > 0 && (
             <span className="ml-1 text-red-500 font-bold">{jumlahGagal} gagal di antaranya.</span>
           )}
@@ -75,6 +89,8 @@ export default async function LogWaPage() {
             })}
           </div>
         )}
+
+        <Pagination page={page} totalPages={totalPages} buildHref={buildPageHref} />
       </div>
     </div>
   );

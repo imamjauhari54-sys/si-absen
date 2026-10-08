@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { getSession } from "@/lib/auth/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { normalizeKelas } from "@/lib/utils/kelas";
@@ -90,6 +91,7 @@ export async function POST(req: NextRequest) {
 
   if (berhasil > 0) {
     await catatLog(session.userId, "import_siswa", `${berhasil} siswa`, `Import massal ${berhasil} siswa dari file CSV.`);
+    revalidateTag("siswa", "max");
   }
 
   return NextResponse.json({

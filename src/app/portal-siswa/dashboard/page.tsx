@@ -17,6 +17,7 @@ import HistoryChart from "@/components/history/HistoryChart";
 import RekapBulananSiswaCard from "@/components/history/RekapBulananSiswaCard";
 import "@/components/history/history.css";
 import "@/components/rekap/rekap.css";
+import DevFooter from "@/components/layout/DevFooter";
 
 export const metadata: Metadata = { title: "Absensi Saya" };
 export const dynamic = "force-dynamic";
@@ -267,6 +268,10 @@ export default async function PortalSiswaDashboardPage({
               </table>
             </div>
           </div>
+        </div>
+
+        <div className="text-center mt-2">
+          <DevFooter className="inline-block" />
         </div>
       </div>
     </div>

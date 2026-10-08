@@ -3,6 +3,9 @@
 import { useState } from "react";
 import "./rekap.css";
 import type { RekapBulananRow, StatusBulanan } from "@/lib/data/rekap";
+import RekapPagination from "@/components/rekap/RekapPagination";
+
+const PAGE_SIZE = 10;
 
 const LEG: { k: string; cls: string; lbl: string }[] = [
   { k: "H", cls: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400", lbl: "Hadir" },
@@ -61,6 +64,8 @@ export default function BulananTable({
   liburKeterangan: Record<string, string>;
 }) {
   const [openId, setOpenId] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
 
   return (
     <>
@@ -113,8 +118,15 @@ export default function BulananTable({
                   </td>
                 </tr>
               ) : (
-                rows.map((row, i) => (
-                  <tr key={row.id} className="hover:bg-indigo-50/20 dark:hover:bg-white/[0.015] transition-colors">
+                rows.map((row, i) => {
+                  // Sama seperti HarianTable: baris di luar halaman aktif
+                  // disembunyikan di layar tapi tetap dirender penuh untuk
+                  // keperluan print (tombol Cetak butuh semua siswa 1 kelas
+                  // muncul sekaligus di kertas, bukan cuma 1 halaman tabel).
+                  const rowPage = Math.floor(i / PAGE_SIZE) + 1;
+                  const visibilityCls = rowPage === page ? "" : "hidden print:table-row";
+                  return (
+                  <tr key={row.id} className={`hover:bg-indigo-50/20 dark:hover:bg-white/[0.015] transition-colors ${visibilityCls}`}>
                     <td className="sticky-no bg-white dark:bg-[#1e2535] text-center text-xs font-bold text-gray-400 py-2">{i + 1}</td>
                     <td className="sticky-nama bg-white dark:bg-[#1e2535] font-bold text-gray-800 dark:text-gray-100 py-2 pr-3">
                       {row.nama}
@@ -134,11 +146,14 @@ export default function BulananTable({
                     <td className="sum-s py-2">{row.sakit}</td>
                     <td className="sum-a py-2">{row.alpha}</td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
+
+        <RekapPagination page={page} totalPages={totalPages} onChange={setPage} />
       </div>
 
       {/* MOBILE */}
@@ -165,8 +180,14 @@ export default function BulananTable({
         ) : (
           rows.map((row, i) => {
             const isOpen = openId === row.id;
+            const rowPage = Math.floor(i / PAGE_SIZE) + 1;
+            const visibilityCls = rowPage === page ? "" : "hidden print:block";
             return (
-              <div key={row.id} className="bulanan-card mb-3 shadow-sm" onClick={() => setOpenId(isOpen ? null : row.id)}>
+              <div
+                key={row.id}
+                className={`bulanan-card mb-3 shadow-sm ${visibilityCls}`}
+                onClick={() => setOpenId(isOpen ? null : row.id)}
+              >
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-xs font-black flex-shrink-0">
                     {i + 1}
@@ -209,6 +230,7 @@ export default function BulananTable({
             );
           })
         )}
+        {rows.length > 0 && <RekapPagination page={page} totalPages={totalPages} onChange={setPage} />}
       </div>
     </>
   );

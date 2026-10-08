@@ -41,15 +41,34 @@ export async function catatWaLog(params: {
   }
 }
 
-/** Daftar log WA terbaru, untuk halaman admin. */
-export async function getWaLog(limit = 100): Promise<WaLogRow[]> {
+export interface WaLogPageResult {
+  rows: WaLogRow[];
+  total: number;
+  totalPages: number;
+  page: number;
+}
+
+/**
+ * Versi paginasi sungguhan (pakai .range() + count di level database) untuk
+ * halaman Log Notifikasi WA. Sebelumnya cuma pakai .limit(100/150) tetap —
+ * begitu jumlah percobaan kirim WA (yang dicatat untuk SETIAP absen siswa)
+ * lewat dari batas itu, log-log lama jadi tidak bisa diakses lagi.
+ */
+export async function getWaLogPage(page: number, pageSize: number): Promise<WaLogPageResult> {
+  const { count } = await supabaseAdmin.from("wa_log").select("id", { count: "exact", head: true });
+  const total = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const pageAman = Math.min(Math.max(1, page), totalPages);
+  const from = (pageAman - 1) * pageSize;
+  const to = from + pageSize - 1;
+
   const { data } = await supabaseAdmin
     .from("wa_log")
     .select("id, nama_siswa, nomor_hp, tipe, status, error_message, created_at")
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .range(from, to);
 
-  return (data ?? []).map((r) => ({
+  const rows: WaLogRow[] = (data ?? []).map((r) => ({
     id: r.id,
     namaSiswa: r.nama_siswa,
     nomorHp: r.nomor_hp,
@@ -58,6 +77,14 @@ export async function getWaLog(limit = 100): Promise<WaLogRow[]> {
     errorMessage: r.error_message,
     createdAt: r.created_at,
   }));
+
+  return { rows, total, totalPages, page: pageAman };
+}
+
+/** Jumlah gagal kirim WA di antara SELURUH log (bukan cuma halaman yang sedang tampil), untuk badge peringatan. */
+export async function hitungWaGagalTotal(): Promise<number> {
+  const { count } = await supabaseAdmin.from("wa_log").select("id", { count: "exact", head: true }).eq("status", "gagal");
+  return count ?? 0;
 }
 
 /** Ringkasan cepat buat badge peringatan di dashboard: berapa gagal 24 jam terakhir. */

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import bcrypt from "bcryptjs";
 import { getSession } from "@/lib/auth/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
@@ -39,6 +40,11 @@ export async function POST(req: NextRequest) {
   if (error) {
     return NextResponse.json({ status: "error", message: error.message });
   }
+
+  // cekWajibGantiPassword() di-cache — buang cache-nya SEKARANG, jangan
+  // nunggu 60 detik, supaya user tidak diarahkan balik ke /ganti-password
+  // setelah baru saja berhasil menggantinya.
+  revalidateTag(`user-id-${session.userId}`, "max");
 
   return NextResponse.json({ status: "ok" });
 }

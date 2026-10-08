@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { cekWajibGantiPassword } from "@/lib/data/users";
 import GantiPasswordForm from "./GantiPasswordForm";
+import DevFooter from "@/components/layout/DevFooter";
 
 export const metadata: Metadata = { title: "Ganti Password" };
 export const dynamic = "force-dynamic";
@@ -30,6 +31,7 @@ export default async function GantiPasswordPage() {
         </p>
 
         <GantiPasswordForm wajib={wajib} />
+        <DevFooter className="mt-5" />
       </div>
     </div>
   );

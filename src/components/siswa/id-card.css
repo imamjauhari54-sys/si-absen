@@ -111,14 +111,23 @@
 }
 .ic-sil-head { width: 6mm; height: 6mm; background: rgba(255,255,255,.7); border-radius: 50%; position: absolute; top: 2.5mm; left: 50%; transform: translateX(-50%); }
 .ic-sil-body { width: 11mm; height: 7mm; background: rgba(255,255,255,.55); border-radius: 5.5mm 5.5mm 0 0; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); }
-.ic-body { width: 100%; padding: 1mm 2mm 0; text-align: center; flex: 1; display: flex; flex-direction: column; align-items: center; overflow: hidden; }
-.ic-nama { font-size: 3.6mm; font-weight: 900; color: #0f172a; text-transform: uppercase; margin-top: 1mm; line-height: 1.2; letter-spacing: .1px; max-width: 100%; word-break: break-word; hyphens: auto; }
-.ic-kelas { font-size: 2.2mm; font-weight: 700; color: #64748b; letter-spacing: 1px; text-transform: uppercase; margin-top: .4mm; }
-.ic-qr-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 1.5mm 0; width: 100%; }
-.ic-qr { width: 26mm; height: 26mm; border: .4px solid #e2e8f0; border-radius: 1.5mm; overflow: hidden; padding: .4px; background: white; flex-shrink: 0; }
+.ic-body { width: 100%; padding: 1mm 2mm 0; text-align: center; flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; align-items: center; }
+.ic-nama {
+  font-size: 3.6mm; font-weight: 900; color: #0f172a; text-transform: uppercase;
+  margin-top: 1mm; line-height: 1.2; letter-spacing: .1px; max-width: 100%;
+  overflow-wrap: break-word; flex-shrink: 0;
+  /* Maksimal 2 baris; lebih dari itu dipotong dengan "…" (nama lengkap tetap ada di atribut title). */
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+}
+.ic-nama--l { font-size: 3.6mm; }
+.ic-nama--m { font-size: 3.1mm; }
+.ic-nama--s { font-size: 2.8mm; }
+.ic-kelas { flex-shrink: 0; font-size: 2.2mm; font-weight: 700; color: #64748b; letter-spacing: 1px; text-transform: uppercase; margin-top: .4mm; }
+.ic-qr-wrap { flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 1mm 0; width: 100%; }
+.ic-qr { width: 24mm; height: 24mm; border: .4px solid #e2e8f0; border-radius: 1.5mm; overflow: hidden; padding: .4px; background: white; flex-shrink: 0; }
 .ic-qr img { width: 100%; height: 100%; display: block; }
 .ic-qr-empty {
-  width: 26mm; height: 26mm; background: #f1f5f9; border: 1px dashed #cbd5e1; border-radius: 1.5mm;
+  width: 24mm; height: 24mm; background: #f1f5f9; border: 1px dashed #cbd5e1; border-radius: 1.5mm;
   display: flex; align-items: center; justify-content: center; font-size: 1.8mm; color: #94a3b8;
   text-align: center; padding: 2mm;
 }
