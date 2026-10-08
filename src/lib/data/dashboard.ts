@@ -1,7 +1,9 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { addDaysJakarta, hariSingkat } from "@/lib/utils/tanggal";
+import { addDaysJakarta, hariSingkat, isoWeekday } from "@/lib/utils/tanggal";
+import { ambilSemua } from "@/lib/utils/ambil-semua";
+import { getLiburSet } from "@/lib/data/hari-libur";
 import type { AbsensiSetting, RecentScan, StatusAbsen, Student, TrenHarian } from "@/types";
 
 // KATEGORI A (data master, jarang berubah): nama sekolah cuma berubah saat
@@ -141,28 +143,36 @@ export async function getTren7Hari(
   const studentIds = siswaKelas ? siswaKelas.map((s) => s.id) : null;
 
   const mulai = addDaysJakarta(today, -6);
-  let query = supabaseAdmin
-    .from("absensi")
-    .select("tanggal, status")
-    .gte("tanggal", mulai)
-    .lte("tanggal", today)
-    .in("status", ["hadir", "terlambat"]);
-  if (studentIds) query = query.in("siswa_id", studentIds);
-  const { data: rows } = await query;
+  // Dipaginasi: 7 hari x >140 siswa melewati batas 1000 baris PostgREST.
+  const [rows, liburSet] = await Promise.all([
+    ambilSemua<{ tanggal: string; status: string }>((dari, sampai) => {
+      let query = supabaseAdmin
+        .from("absensi")
+        .select("tanggal, status")
+        .gte("tanggal", mulai)
+        .lte("tanggal", today)
+        .in("status", ["hadir", "terlambat"]);
+      if (studentIds) query = query.in("siswa_id", studentIds);
+      return query.order("id").range(dari, sampai);
+    }),
+    getLiburSet(mulai, today),
+  ]);
 
   const perTanggal = new Map<string, number>();
-  for (const r of rows ?? []) {
+  for (const r of rows) {
     perTanggal.set(r.tanggal, (perTanggal.get(r.tanggal) ?? 0) + 1);
   }
 
   const tren: TrenHarian[] = [];
   for (let i = 6; i >= 0; i--) {
     const tgl = addDaysJakarta(today, -i);
+    const libur = isoWeekday(tgl) === 7 || liburSet.has(tgl);
     tren.push({
       tgl: hariSingkat(tgl),
-      n: perTanggal.get(tgl) ?? 0,
+      n: libur ? 0 : perTanggal.get(tgl) ?? 0,
       total: totalSiswa,
       isToday: i === 0,
+      libur,
     });
   }
   return tren;

@@ -4,9 +4,13 @@
  * ke sini biar bisa di-unit-test terpisah dari database/HTTP.
  */
 
-/** Waktu sekarang di Asia/Jakarta (WIB, UTC+7), tanpa lib eksternal. */
-export function nowJakarta(): Date {
-  return new Date(Date.now() + 7 * 60 * 60 * 1000);
+/**
+ * Waktu di Asia/Jakarta (WIB, UTC+7), tanpa lib eksternal. Tanpa argumen =
+ * sekarang; dengan `base` = waktu tertentu (dipakai untuk scan dari antrean
+ * offline, supaya jam & status memakai waktu scan asli, bukan waktu sinkron).
+ */
+export function nowJakarta(base?: Date): Date {
+  return new Date((base ? base.getTime() : Date.now()) + 7 * 60 * 60 * 1000);
 }
 
 /** Format HH:MM:SS dari Date yang sudah di-geser ke WIB (lihat nowJakarta). */

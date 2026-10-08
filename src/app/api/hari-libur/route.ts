@@ -29,5 +29,5 @@ export async function POST(req: NextRequest) {
 
   const result = await addHariLiburRange(tanggal, sampaiTanggal, keterangan);
   if (!result.ok) return NextResponse.json({ status: "error", message: result.message });
-  return NextResponse.json({ status: "ok", jumlah: result.jumlah });
+  return NextResponse.json({ status: "ok", jumlah: result.jumlah, recordTerdampak: result.recordTerdampak ?? 0 });
 }

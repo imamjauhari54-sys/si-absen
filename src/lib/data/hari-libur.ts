@@ -27,13 +27,44 @@ export async function getHariLiburList(): Promise<HariLiburRow[]> {
   return data ?? [];
 }
 
-export async function addHariLibur(tanggal: string, keterangan: string): Promise<{ ok: boolean; message?: string }> {
+/**
+ * Set tanggal libur (YYYY-MM-DD), opsional dibatasi rentang. Sengaja query
+ * langsung ke DB (tanpa unstable_cache) supaya perubahan libur langsung
+ * berlaku di perhitungan rekap/alpha/tren, bukan menunggu cache segar.
+ */
+export async function getLiburSet(dari?: string, sampai?: string): Promise<Set<string>> {
+  let q = supabaseAdmin.from("hari_libur").select("tanggal");
+  if (dari) q = q.gte("tanggal", dari);
+  if (sampai) q = q.lte("tanggal", sampai);
+  const { data } = await q;
+  return new Set((data ?? []).map((r) => r.tanggal as string));
+}
+
+/**
+ * Jumlah record absensi yang SUDAH ada pada tanggal-tanggal tertentu. Dipakai
+ * untuk memberi tahu admin saat menetapkan libur belakangan (mis. libur
+ * mendadak setelah cron auto-alpha jalan). Datanya tidak dihapus — semua
+ * perhitungan rekap sudah mengabaikan tanggal yang tercatat libur.
+ */
+export async function hitungAbsensiDiTanggal(tanggal: string[]): Promise<number> {
+  if (tanggal.length === 0) return 0;
+  const { count } = await supabaseAdmin
+    .from("absensi")
+    .select("id", { count: "exact", head: true })
+    .in("tanggal", tanggal);
+  return count ?? 0;
+}
+
+export async function addHariLibur(
+  tanggal: string,
+  keterangan: string
+): Promise<{ ok: boolean; message?: string; recordTerdampak?: number }> {
   const { error } = await supabaseAdmin
     .from("hari_libur")
     .upsert({ tanggal, keterangan }, { onConflict: "tanggal" });
   if (error) return { ok: false, message: error.message };
   revalidateTag("hari-libur", "max");
-  return { ok: true };
+  return { ok: true, recordTerdampak: await hitungAbsensiDiTanggal([tanggal]) };
 }
 
 const MAX_RENTANG_HARI = 366; // batas wajar (maks ~1 tahun), jaga-jaga input keliru dari user
@@ -48,7 +79,7 @@ export async function addHariLiburRange(
   dariTanggal: string,
   sampaiTanggal: string,
   keterangan: string
-): Promise<{ ok: boolean; message?: string; jumlah?: number }> {
+): Promise<{ ok: boolean; message?: string; jumlah?: number; recordTerdampak?: number }> {
   const akhir = sampaiTanggal || dariTanggal;
   if (akhir < dariTanggal) {
     return { ok: false, message: '"Sampai Tanggal" tidak boleh sebelum "Tanggal".' };
@@ -69,7 +100,7 @@ export async function addHariLiburRange(
   const { error } = await supabaseAdmin.from("hari_libur").upsert(rows, { onConflict: "tanggal" });
   if (error) return { ok: false, message: error.message };
   revalidateTag("hari-libur", "max");
-  return { ok: true, jumlah: rows.length };
+  return { ok: true, jumlah: rows.length, recordTerdampak: await hitungAbsensiDiTanggal(rows.map((r) => r.tanggal)) };
 }
 
 export async function deleteHariLibur(id: number): Promise<{ ok: boolean; message?: string }> {
@@ -91,7 +122,7 @@ export async function deleteHariLibur(id: number): Promise<{ ok: boolean; messag
  */
 export async function syncLiburNasional(
   tahun: number
-): Promise<{ ok: boolean; message?: string; jumlah?: number }> {
+): Promise<{ ok: boolean; message?: string; jumlah?: number; recordTerdampak?: number }> {
   const apiKey = process.env.GOOGLE_CALENDAR_API_KEY;
   if (!apiKey) {
     return {
@@ -126,17 +157,33 @@ export async function syncLiburNasional(
   }
 
   const result = await res.json();
-  const items: Array<{ start?: { date?: string }; summary?: string }> = result.items ?? [];
+  const items: Array<{ start?: { date?: string }; end?: { date?: string }; summary?: string }> = result.items ?? [];
 
-  const rows: { tanggal: string; keterangan: string }[] = [];
+  const perTanggal = new Map<string, string>();
   for (const item of items) {
     const tglEvent = item.start?.date; // all-day event -> start.date (bukan start.dateTime)
     const namaEvent = item.summary;
     if (!tglEvent || !namaEvent) continue;
-    if (!tglEvent.startsWith(String(tahun))) continue; // jaga-jaga event nyebrang tahun
-    rows.push({ tanggal: tglEvent, keterangan: namaEvent });
+
+    // Event all-day yang membentang beberapa hari: end.date bersifat EKSKLUSIF
+    // (hari setelah hari terakhir). Dulu hanya start.date yang disimpan, jadi
+    // hari ke-2 dan seterusnya hilang. Untuk event 1 hari, end = start + 1.
+    const akhirEksklusif = item.end?.date && item.end.date > tglEvent ? item.end.date : addDaysJakarta(tglEvent, 1);
+    let cur = tglEvent;
+    let pengaman = 0;
+    while (cur < akhirEksklusif && pengaman < 31) {
+      if (cur.startsWith(String(tahun))) {
+        // jaga-jaga event nyebrang tahun. Dua event di tanggal yang sama digabung:
+        // upsert dengan tanggal kembar dalam satu batch ditolak Postgres.
+        const ada = perTanggal.get(cur);
+        perTanggal.set(cur, ada && !ada.includes(namaEvent) ? `${ada} / ${namaEvent}` : ada ?? namaEvent);
+      }
+      cur = addDaysJakarta(cur, 1);
+      pengaman++;
+    }
   }
 
+  const rows = Array.from(perTanggal, ([tanggal, keterangan]) => ({ tanggal, keterangan }));
   if (rows.length === 0) {
     return { ok: false, message: `Tidak ada data libur dari Google Calendar untuk tahun ${tahun}.` };
   }
@@ -145,5 +192,5 @@ export async function syncLiburNasional(
   if (error) return { ok: false, message: error.message };
 
   revalidateTag("hari-libur", "max");
-  return { ok: true, jumlah: rows.length };
+  return { ok: true, jumlah: rows.length, recordTerdampak: await hitungAbsensiDiTanggal(rows.map((r) => r.tanggal)) };
 }

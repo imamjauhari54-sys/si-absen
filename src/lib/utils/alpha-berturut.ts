@@ -15,14 +15,18 @@ export type BarisAbsensi = { siswa_id: number; tanggal: string; status: string }
 export function hitungAlphaBerturut(
   students: SiswaRingkas[],
   rows: BarisAbsensi[],
-  minHari: number
+  minHari: number,
+  tanggalLibur: ReadonlySet<string> = new Set()
 ): AlphaBerturut[] {
   if (rows.length === 0) return [];
 
-  // hari_valid = tanggal yang punya minimal 1 record, bukan Minggu
+  // hari_valid = tanggal yang punya minimal 1 record, bukan Minggu, dan bukan
+  // hari libur yang tercatat di Kelola Hari Libur. Filter libur ini eksplisit:
+  // sebelumnya hari libur "terlewati" hanya karena kebetulan tidak punya record,
+  // padahal record bisa ada (mis. libur dicatat setelah auto-alpha terlanjur jalan).
   const tanggalSet = new Set<string>();
   for (const r of rows) {
-    if (isoWeekday(r.tanggal) !== 7) tanggalSet.add(r.tanggal);
+    if (isoWeekday(r.tanggal) !== 7 && !tanggalLibur.has(r.tanggal)) tanggalSet.add(r.tanggal);
   }
   const hariValid = Array.from(tanggalSet).sort((a, b) => (a < b ? 1 : -1)); // desc
 

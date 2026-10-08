@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getAbsensiSetting } from "@/lib/data/dashboard";
@@ -7,6 +7,15 @@ import { kirimNotifAbsen } from "@/lib/wa/notifikasi";
 import { nowJakarta, hms, jamTitikFormat, addMinutes } from "@/lib/utils/jam";
 
 const TOKEN_RE = /^SIELISA:([a-f0-9]{32,})$/i;
+
+// Scan dari antrean offline membawa waktu scan asli (scan_at). Dibatasi supaya
+// tidak bisa dipakai mengarang waktu: tidak boleh di masa depan, dan maksimal
+// 3 hari ke belakang (lebih lama dari itu catat manual lewat Rekap).
+const SCAN_AT_MAKS_MUNDUR_MS = 3 * 24 * 60 * 60 * 1000;
+const SCAN_AT_TOLERANSI_MASA_DEPAN_MS = 2 * 60 * 1000;
+
+/** Penolakan karena input/aturan bisnis (permanen, tidak perlu dicoba ulang). */
+class ErrorBisnis extends Error {}
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -19,14 +28,36 @@ export async function POST(req: NextRequest) {
   const scannerId = String(form.get("scanner_id") || "unknown").trim();
   const offlineQueueCount = Math.max(0, parseInt(String(form.get("offline_queue_count") || "0"), 10) || 0);
 
-  const now = nowJakarta();
+  // Waktu scan: default = sekarang. Scan dari antrean offline mengirim scan_at
+  // (waktu scan asli) supaya jam masuk, status terlambat, dan tanggalnya benar —
+  // bukan waktu ketika perangkat kembali online.
+  let waktuScan: Date | null = null;
+  const scanAtRaw = String(form.get("scan_at") || "").trim();
+  if (scanAtRaw) {
+    const t = new Date(scanAtRaw);
+    const umurMs = Date.now() - t.getTime();
+    if (Number.isNaN(t.getTime()) || umurMs < -SCAN_AT_TOLERANSI_MASA_DEPAN_MS) {
+      return NextResponse.json({ status: "error", message: "Waktu scan offline tidak valid." }, { status: 400 });
+    }
+    if (umurMs > SCAN_AT_MAKS_MUNDUR_MS) {
+      return NextResponse.json(
+        { status: "error", message: "Scan offline lebih dari 3 hari — catat manual lewat Rekap." },
+        { status: 400 }
+      );
+    }
+    waktuScan = t;
+  }
+
+  const now = nowJakarta(waktuScan ?? undefined);
   const tanggal = now.toISOString().slice(0, 10);
   const jamNow = hms(now);
   const jamFmt = jamTitikFormat(now);
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   const userAgent = (req.headers.get("user-agent") || "").slice(0, 255);
-  registerScanner(scannerId, userAgent, ip, offlineQueueCount); // fire and forget, non-blocking untuk respons
+  // Dijalankan setelah respons (after) supaya tidak memperlambat scan, tapi TIDAK hilang:
+  // pemanggilan tanpa await di serverless bisa dibekukan sebelum selesai.
+  after(() => registerScanner(scannerId, userAgent, ip, offlineQueueCount));
 
   try {
     // Cek hari libur (Minggu atau tabel hari_libur)
@@ -34,16 +65,15 @@ export async function POST(req: NextRequest) {
     if (dow === 0) {
       return NextResponse.json({ status: "error", message: "LIBUR: Hari Minggu" });
     }
-    const { data: libur } = await supabaseAdmin
-      .from("hari_libur")
-      .select("keterangan")
-      .eq("tanggal", tanggal)
-      .maybeSingle();
+    // Dua query ini saling bebas: jalankan bersamaan (hemat 1 round-trip ke DB).
+    const [{ data: libur }, setting] = await Promise.all([
+      supabaseAdmin.from("hari_libur").select("keterangan").eq("tanggal", tanggal).maybeSingle(),
+      getAbsensiSetting(),
+    ]);
     if (libur) {
       return NextResponse.json({ status: "error", message: `LIBUR: ${libur.keterangan}` });
     }
 
-    const setting = await getAbsensiSetting();
     const jamMasuk = setting.jam_masuk ?? "07:00:00";
     const batasTerlambat = setting.batas_terlambat ?? "07:15:00";
     const jamPulangMulai = setting.jam_pulang_mulai ?? "11:30:00";
@@ -67,21 +97,21 @@ export async function POST(req: NextRequest) {
 
     if (isManual) {
       const siswaId = parseInt(String(form.get("siswa_id") || "0"), 10);
-      if (!siswaId) throw new Error("Invalid student ID");
+      if (!siswaId) throw new ErrorBisnis("ID siswa tidak valid");
       const { data } = await supabaseAdmin
         .from("students")
         .select("id, name, class")
         .eq("id", siswaId)
         .eq("status", "aktif")
         .maybeSingle();
-      if (!data) throw new Error("Student not found");
+      if (!data) throw new ErrorBisnis("Siswa tidak ditemukan");
       siswa = data;
       sumberScan = "manual_scanner";
     } else {
       const rawToken = String(form.get("token") || "").trim();
-      if (!rawToken) throw new Error("Token empty");
+      if (!rawToken) throw new ErrorBisnis("Token kosong");
       const match = rawToken.match(TOKEN_RE);
-      if (!match) throw new Error("Invalid QR token format");
+      if (!match) throw new ErrorBisnis("Format QR tidak valid");
       const token = match[1];
 
       const { data } = await supabaseAdmin
@@ -90,8 +120,8 @@ export async function POST(req: NextRequest) {
         .eq("token", token)
         .maybeSingle();
       const s = data?.students ? (Array.isArray(data.students) ? data.students[0] : data.students) : null;
-      if (!s) throw new Error("Invalid token or student not found");
-      if (s.status !== "aktif") throw new Error("Siswa sudah tidak aktif");
+      if (!s) throw new ErrorBisnis("QR tidak dikenal atau siswa tidak ditemukan");
+      if (s.status !== "aktif") throw new ErrorBisnis("Siswa sudah tidak aktif");
       siswa = s;
       sumberScan = "sistem_otomatis";
     }
@@ -99,14 +129,23 @@ export async function POST(req: NextRequest) {
     const siswaId = siswa.id;
 
     // Anti-double-tap: 30 detik debounce berdasarkan log terakhir
-    const { data: lastLog } = await supabaseAdmin
-      .from("absensi_log")
-      .select("created_at")
-      .eq("siswa_id", siswaId)
-      .eq("tanggal_absen", tanggal)
-      .order("id", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // Log terakhir & absen hari ini saling bebas -> satu round-trip.
+    const [{ data: lastLog }, { data: absenHariIni }] = await Promise.all([
+      supabaseAdmin
+        .from("absensi_log")
+        .select("created_at")
+        .eq("siswa_id", siswaId)
+        .eq("tanggal_absen", tanggal)
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("absensi")
+        .select("id, jam_masuk, jam_pulang, status")
+        .eq("siswa_id", siswaId)
+        .eq("tanggal", tanggal)
+        .maybeSingle(),
+    ]);
 
     if (lastLog) {
       const selisih = Math.floor((Date.now() - new Date(lastLog.created_at).getTime()) / 1000);
@@ -119,26 +158,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Cek absen hari ini
-    const { data: absenHariIni } = await supabaseAdmin
-      .from("absensi")
-      .select("id, jam_masuk, jam_pulang, status")
-      .eq("siswa_id", siswaId)
-      .eq("tanggal", tanggal)
-      .maybeSingle();
-
     // KONDISI A: belum ada data -> absen masuk
     if (!absenHariIni) {
       const jamBukaSistem = addMinutes(jamMasuk, -toleransiPagiMenit);
       if (jamNow < jamBukaSistem) {
         return NextResponse.json({
           status: "error",
+          nama: siswa.name,
           message: `Terlalu Pagi! Scan dibuka jam ${jamBukaSistem.slice(0, 5)}`,
         });
       }
       if (jamNow >= jamPulangMulai) {
         return NextResponse.json({
           status: "error",
+          nama: siswa.name,
           message: `Akses Ditolak! Sudah masuk waktu pulang (${jamPulangMulai.slice(0, 5)}). Anda dianggap tidak hadir.`,
         });
       }
@@ -189,8 +222,12 @@ export async function POST(req: NextRequest) {
         keterangan: `Scan: ${status.toUpperCase()}`,
         scanner_id: scannerId,
       });
-      bumpScannerStats(scannerId);
-      kirimNotifAbsen(siswaId, siswa.name, siswa.class, status as "hadir" | "terlambat", jamNow); // fire and forget
+      const namaSiswa = siswa.name;
+      const kelasSiswa = siswa.class;
+      after(async () => {
+        await bumpScannerStats(scannerId);
+        await kirimNotifAbsen(siswaId, namaSiswa, kelasSiswa, status as "hadir" | "terlambat", jamNow);
+      });
 
       return NextResponse.json({ status, nama: siswa.name, kelas: siswa.class, jam: jamFmt });
     }
@@ -214,11 +251,22 @@ export async function POST(req: NextRequest) {
     }
 
     // KONDISI C: absen pulang
-    const { error: updErr } = await supabaseAdmin
+    // Bersyarat jam_pulang IS NULL: kalau dua perangkat memindai bersamaan, hanya satu yang
+    // menang — yang lain tidak menggandakan log dan notifikasi WA.
+    const { data: terupdate, error: updErr } = await supabaseAdmin
       .from("absensi")
       .update({ jam_pulang: jamNow })
-      .eq("id", absenHariIni.id);
+      .eq("id", absenHariIni.id)
+      .is("jam_pulang", null)
+      .select("id");
     if (updErr) throw new Error("Gagal simpan absen pulang: " + updErr.message);
+    if (!terupdate || terupdate.length === 0) {
+      return NextResponse.json({
+        status: "sudah",
+        nama: siswa.name,
+        keterangan: "Selesai! Sudah absen pulang",
+      });
+    }
 
     await supabaseAdmin.from("absensi_log").insert({
       admin_id: session.userId,
@@ -229,12 +277,22 @@ export async function POST(req: NextRequest) {
       keterangan: "Scan: PULANG",
       scanner_id: scannerId,
     });
-    bumpScannerStats(scannerId);
-    kirimNotifAbsen(siswaId, siswa.name, siswa.class, "pulang", jamNow); // fire and forget
+    const namaSiswa = siswa.name;
+    const kelasSiswa = siswa.class;
+    after(async () => {
+      await bumpScannerStats(scannerId);
+      await kirimNotifAbsen(siswaId, namaSiswa, kelasSiswa, "pulang", jamNow);
+    });
 
     return NextResponse.json({ status: "pulang", nama: siswa.name, kelas: siswa.class, jam: jamFmt });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Terjadi kesalahan";
-    return NextResponse.json({ status: "error", message }, { status: 400 });
+    if (e instanceof ErrorBisnis) {
+      // Penolakan permanen (QR tidak dikenal, siswa nonaktif, dst): tidak perlu dicoba ulang.
+      return NextResponse.json({ status: "error", message }, { status: 400 });
+    }
+    // Kegagalan sementara (DB/jaringan): 500 + retry, supaya klien menyimpan di antrean
+    // dan mencoba lagi, bukan menganggap scan ini selesai.
+    return NextResponse.json({ status: "error", message, retry: true }, { status: 500 });
   }
 }

@@ -2,7 +2,9 @@ import type { TrenHarian } from "@/types";
 
 export default function TrenChart({ tren, totalSiswa }: { tren: TrenHarian[]; totalSiswa: number }) {
   const maxTren = Math.max(...tren.map((t) => t.n), 1);
-  const rataRata = totalSiswa > 0 ? Math.round(tren.reduce((a, t) => a + t.n, 0) / 7) : 0;
+  // Rata-rata hanya dari hari belajar; Minggu/libur tidak ikut sebagai 0.
+  const hariBelajar = tren.filter((t) => !t.libur).length;
+  const rataRata = totalSiswa > 0 && hariBelajar > 0 ? Math.round(tren.reduce((a, t) => a + t.n, 0) / hariBelajar) : 0;
 
   return (
     <div className="section-card p-5 lg:col-span-2 reveal flex flex-col">
@@ -27,14 +29,14 @@ export default function TrenChart({ tren, totalSiswa }: { tren: TrenHarian[]; to
               <div
                 className={`text-[10px] sm:text-xs font-bold ${t.isToday ? "text-emerald-500" : "text-gray-400 dark:text-gray-500"} transition-all opacity-0 group-hover:opacity-100 absolute -top-5`}
               >
-                {t.n}
+                {t.libur ? "Libur" : t.n}
               </div>
               <div
-                className={`w-full rounded-t-md tren-bar relative ${t.isToday ? "bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.4)]" : "bg-gray-200 dark:bg-gray-700 hover:bg-emerald-300 dark:hover:bg-emerald-700"}`}
+                className={`w-full rounded-t-md tren-bar relative ${t.libur ? "bg-gray-100 dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-600" : t.isToday ? "bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.4)]" : "bg-gray-200 dark:bg-gray-700 hover:bg-emerald-300 dark:hover:bg-emerald-700"}`}
                 style={{ height: `${h}%` }}
               >
                 <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] font-bold py-1 px-2 rounded-md whitespace-nowrap tren-tip z-10">
-                  {t.tgl} : {t.n}/{totalSiswa} ({pctT}%)
+                  {t.libur ? `${t.tgl} : Libur` : `${t.tgl} : ${t.n}/${totalSiswa} (${pctT}%)`}
                   <div className="absolute top-full left-1/2 -translate-x-1/2 border-[4px] border-transparent border-t-gray-900" />
                 </div>
               </div>
@@ -50,6 +52,7 @@ export default function TrenChart({ tren, totalSiswa }: { tren: TrenHarian[]; to
             className={`flex-1 text-center text-[10px] uppercase tracking-wider font-bold ${t.isToday ? "text-emerald-500" : "text-gray-400 dark:text-gray-500"}`}
           >
             {t.tgl}
+            {t.libur && <span className="block text-[8px] font-semibold normal-case tracking-normal opacity-70">libur</span>}
           </div>
         ))}
       </div>

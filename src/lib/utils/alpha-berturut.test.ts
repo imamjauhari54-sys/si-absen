@@ -100,4 +100,33 @@ describe("hitungAlphaBerturut", () => {
     const hasil = hitungAlphaBerturut([siswaA, siswaB], rows, 1);
     expect(hasil.map((h) => h.id)).toEqual([1]);
   });
+
+  describe("hari libur", () => {
+    // 2026-10-05 Senin, 06 Selasa, 07 Rabu (libur), 08 Kamis, 09 Jumat
+    const rows = [
+      { siswa_id: 1, tanggal: "2026-10-05", status: "alpha" },
+      { siswa_id: 1, tanggal: "2026-10-06", status: "alpha" },
+      { siswa_id: 1, tanggal: "2026-10-07", status: "hadir" }, // record ada di tanggal libur
+      { siswa_id: 1, tanggal: "2026-10-08", status: "alpha" },
+    ];
+
+    it("tanpa info libur: record 'hadir' di tanggal libur memutus rentetan (perilaku lama)", () => {
+      expect(hitungAlphaBerturut([siswaA], rows, 3)).toEqual([]);
+    });
+
+    it("tanggal libur diabaikan walau punya record -> rentetan alpha tetap tersambung", () => {
+      const hasil = hitungAlphaBerturut([siswaA], rows, 3, new Set(["2026-10-07"]));
+      expect(hasil).toHaveLength(1);
+      expect(hasil[0]).toMatchObject({ id: 1, hari: 3, sejak: "2026-10-05" });
+    });
+
+    it("alpha yang tercatat di tanggal libur tidak dihitung sebagai hari alpha", () => {
+      const r = [
+        { siswa_id: 1, tanggal: "2026-10-05", status: "alpha" },
+        { siswa_id: 1, tanggal: "2026-10-06", status: "alpha" },
+        { siswa_id: 1, tanggal: "2026-10-07", status: "alpha" }, // libur mendadak, alpha dari auto-alpha
+      ];
+      expect(hitungAlphaBerturut([siswaA], r, 3, new Set(["2026-10-07"]))).toEqual([]);
+    });
+  });
 });

@@ -9,20 +9,39 @@ export interface WaConfig {
   apiKey: string;
 }
 
+// Sebelumnya getWaConfig() menjalankan 3 query ke tabel settings di SETIAP scan,
+// walaupun fitur WA nonaktif. Sekarang di-cache di memori instance selama 30
+// detik. Sengaja BUKAN unstable_cache: API key gateway tidak perlu masuk Data
+// Cache. Setelah admin menyimpan pengaturan WA, resetWaConfigCache() dipanggil
+// (instance lain menyusul paling lama sebesar TTL).
+const WA_CONFIG_TTL_MS = 30_000;
+let waConfigCache: { at: number; cfg: WaConfig } | null = null;
+
+export function resetWaConfigCache(): void {
+  waConfigCache = null;
+}
+
 export async function getWaConfig(): Promise<WaConfig> {
+  const sekarang = Date.now();
+  if (waConfigCache && sekarang - waConfigCache.at < WA_CONFIG_TTL_MS) return waConfigCache.cfg;
+
   const [enabled, gatewayUrl, apiKey] = await Promise.all([
     getSettingValue("wa_enabled", "false"),
     getSettingValue("wa_gateway_url", ""),
     getSettingValue("wa_api_key", ""),
   ]);
-  return { enabled: enabled === "true", gatewayUrl, apiKey };
+  const cfg: WaConfig = { enabled: enabled === "true", gatewayUrl, apiKey };
+  waConfigCache = { at: sekarang, cfg };
+  return cfg;
 }
 
 /**
  * Kirim notifikasi absensi ke orang tua/wali lewat WhatsApp (kalau fitur ini
- * aktif & nomor HP-nya terisi). Sengaja "fire and forget" & fail-safe —
- * dipanggil TANPA await dari proses scan supaya tidak memperlambat respons
- * scan, dan kalau gagal kirim, proses absensi tetap dianggap sukses.
+ * aktif & nomor HP-nya terisi). Fail-safe: kalau gagal kirim,
+ * proses absensi tetap dianggap sukses. Di serverless JANGAN dipanggil
+ * "telanjang" tanpa await (eksekusi bisa dibekukan setelah respons dikirim,
+ * notifikasi hilang acak) — bungkus dengan after() dari next/server supaya
+ * jalan setelah respons tanpa memperlambat scan.
  *
  * Setiap percobaan (berhasil maupun gagal, termasuk error tak terduga) selalu
  * dicatat ke tabel wa_log lewat catatWaLog() — sebelumnya kegagalan di sini

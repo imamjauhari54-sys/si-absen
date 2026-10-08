@@ -4,6 +4,7 @@ import { revalidateTag } from "next/cache";
 import { getSession } from "@/lib/auth/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { setSettingValue } from "@/lib/data/settings";
+import { resetWaConfigCache } from "@/lib/wa/notifikasi";
 import type { SettingActionState } from "./setting-types";
 
 export async function simpanInfoSekolahAction(_prev: SettingActionState, formData: FormData): Promise<SettingActionState> {
@@ -54,6 +55,7 @@ export async function simpanWaSettingAction(_prev: SettingActionState, formData:
   const err = results.find((r) => r.error);
   if (err?.error) return { status: "error", message: err.error };
 
+  resetWaConfigCache();
   return { status: "ok", message: "Pengaturan notifikasi WhatsApp berhasil disimpan." };
 }
 

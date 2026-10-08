@@ -43,7 +43,8 @@ export default async function DashboardPage() {
   const [tren, recent, { belum, belumRecord }, alphaBerturut, waGagal24Jam] = await Promise.all([
     getTren7Hari(today, kelas, isAdmin, totalSiswa),
     getRecentScans(today, kelas, isAdmin),
-    getBelumAbsen(today, kelas, isAdmin),
+    // Hari libur/Minggu: tidak ada yang "belum absen", lewati query-nya.
+    isLibur ? Promise.resolve({ belum: [], belumRecord: 0 }) : getBelumAbsen(today, kelas, isAdmin),
     isAdmin ? cekAlphaBerturut("", MIN_HARI_ALERT) : Promise.resolve([]),
     isAdmin ? hitungWaGagal24Jam() : Promise.resolve(0),
   ]);
@@ -98,8 +99,21 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      {/* BANNER HARI LIBUR */}
+      {isLibur && (
+        <div className="mb-4 rounded-xl border border-sky-200 dark:border-sky-900/50 bg-sky-50 dark:bg-sky-900/20 px-4 py-3 flex items-center gap-3 reveal">
+          <span className="text-2xl">🏖️</span>
+          <div>
+            <div className="text-sm font-bold text-sky-700 dark:text-sky-300">Hari ini libur: {pesanLibur || "Hari libur"}</div>
+            <div className="text-xs text-sky-600/80 dark:text-sky-400/80">
+              Scan QR, absen manual, dan penandaan alpha otomatis dinonaktifkan. Data absensi pada tanggal ini tidak dihitung di rekap.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* KPI WIDGETS */}
-      <KpiWidgets totalSiswa={totalSiswa} stat={stat} batasTerlambat={batasTerlambat} />
+      <KpiWidgets totalSiswa={totalSiswa} stat={stat} batasTerlambat={batasTerlambat} isLibur={isLibur} />
 
       {/* BANNER + MODAL PROSES ALPHA (ADMIN ONLY) */}
       {isAdmin && (
@@ -114,7 +128,7 @@ export default async function DashboardPage() {
 
       {/* CHART & JADWAL */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
-        <RingChart totalSiswa={totalSiswa} stat={stat} />
+        <RingChart totalSiswa={totalSiswa} stat={stat} isLibur={isLibur} pesanLibur={pesanLibur} />
         <TrenChart tren={tren} totalSiswa={totalSiswa} />
         <JadwalCard jamMasuk={jamMasukStd} batasTerlambat={batasTerlambat} jamPulang={jamPulangStd} />
       </div>
@@ -122,7 +136,7 @@ export default async function DashboardPage() {
       {/* AKTIVITAS & BELUM ABSEN */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <AktivitasTerkini isLibur={isLibur} pesanLibur={pesanLibur} recent={recent} today={today} />
-        <BelumAbsen belum={belum} belumRecord={belumRecord} pctHadir={pctHadir} today={today} />
+        <BelumAbsen belum={belum} belumRecord={belumRecord} pctHadir={pctHadir} today={today} isLibur={isLibur} pesanLibur={pesanLibur} />
       </div>
     </div>
   );

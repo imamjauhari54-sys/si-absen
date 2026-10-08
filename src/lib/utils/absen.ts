@@ -1,13 +1,15 @@
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { addDaysJakarta, todayJakarta } from "@/lib/utils/tanggal";
 import { hitungAlphaBerturut } from "@/lib/utils/alpha-berturut";
+import { ambilSemua } from "@/lib/utils/ambil-semua";
+import { getLiburSet } from "@/lib/data/hari-libur";
 import type { AlphaBerturut } from "@/types";
 
 export { hitungAlphaBerturut } from "@/lib/utils/alpha-berturut";
 
 /**
  * Deteksi siswa yang alpha berturut-turut >= minHari, dihitung mundur dari
- * hari valid terakhir (hari dengan minimal 1 record absensi, bukan Minggu).
+ * hari valid terakhir (hari dengan minimal 1 record absensi, bukan Minggu, bukan hari libur).
  *
  * Wrapper tipis: ambil data dari database, lalu serahkan perhitungannya ke
  * hitungAlphaBerturut() di alpha-berturut.ts (fungsi murni, ada unit test-nya
@@ -29,15 +31,24 @@ export async function cekAlphaBerturut(
 
   const studentIds = students.map((s) => s.id);
 
-  // STEP 2: absensi dalam rentang tanggal untuk siswa-siswa tsb
-  const { data: rows } = await supabaseAdmin
-    .from("absensi")
-    .select("siswa_id, tanggal, status")
-    .in("siswa_id", studentIds)
-    .gte("tanggal", batas)
-    .lte("tanggal", today);
+  // STEP 2: absensi dalam rentang tanggal untuk siswa-siswa tsb.
+  // Dipaginasi: 14 hari x >70 siswa sudah melewati batas 1000 baris PostgREST,
+  // dan baris yang terpotong membuat rentetan alpha salah hitung.
+  const [rows, tanggalLibur] = await Promise.all([
+    ambilSemua<{ siswa_id: number; tanggal: string; status: string }>((dari, sampai) =>
+      supabaseAdmin
+        .from("absensi")
+        .select("siswa_id, tanggal, status")
+        .in("siswa_id", studentIds)
+        .gte("tanggal", batas)
+        .lte("tanggal", today)
+        .order("id")
+        .range(dari, sampai)
+    ),
+    getLiburSet(batas, today),
+  ]);
 
-  if (!rows || rows.length === 0) return [];
+  if (rows.length === 0) return [];
 
-  return hitungAlphaBerturut(students, rows, minHari);
+  return hitungAlphaBerturut(students, rows, minHari, tanggalLibur);
 }

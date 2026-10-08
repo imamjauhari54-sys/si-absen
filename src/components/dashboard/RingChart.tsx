@@ -3,10 +3,30 @@ import type { StatHariIni } from "@/lib/data/dashboard";
 export default function RingChart({
   totalSiswa,
   stat,
+  isLibur = false,
+  pesanLibur = "",
 }: {
   totalSiswa: number;
   stat: StatHariIni;
+  isLibur?: boolean;
+  pesanLibur?: string;
 }) {
+  // Hari libur/Minggu: tidak ada kehadiran untuk dihitung (data absensi di tanggal ini diabaikan).
+  if (isLibur) {
+    return (
+      <div className="section-card p-5 lg:col-span-1 flex flex-col items-center justify-center reveal">
+        <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 w-full text-center">
+          Kehadiran Hari Ini
+        </h3>
+        <div className="w-[120px] h-[120px] mb-4 rounded-full border-[10px] border-dashed border-sky-200 dark:border-sky-900/50 flex flex-col items-center justify-center">
+          <span className="text-3xl">🏖️</span>
+          <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400 uppercase mt-1">Libur</span>
+        </div>
+        <p className="text-xs text-center font-medium text-gray-500 dark:text-gray-400">{pesanLibur || "Hari libur"}</p>
+      </div>
+    );
+  }
+
   const hadirTotal = stat.hadir + stat.terlambat;
   const izinTotal = stat.izin + stat.sakit;
 

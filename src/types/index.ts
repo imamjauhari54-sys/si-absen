@@ -94,6 +94,8 @@ export interface TrenHarian {
   n: number;
   total: number;
   isToday: boolean;
+  /** Minggu atau hari libur tercatat: bukan hari belajar, jangan dihitung 0% hadir. */
+  libur?: boolean;
 }
 
 export type DeviceStatus = "online" | "idle" | "offline";

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { addMinutes, hms, jamTitikFormat } from "./jam";
+import { addMinutes, hms, jamTitikFormat, nowJakarta } from "./jam";
 
 describe("addMinutes", () => {
   it("nambah menit biasa, tanpa nyebrang jam", () => {
@@ -92,5 +92,23 @@ describe("kombinasi: alur penentuan status hadir/terlambat/lock (seperti di scan
 
   it("scan setelah batas akhir sistem (120 menit setelah jam pulang) -> locked", () => {
     expect(tentukanStatus("13:30:01")).toBe("LOCKED");
+  });
+});
+
+describe("nowJakarta", () => {
+  it("dengan base: geser UTC+7 dari waktu scan asli, bukan waktu sekarang", () => {
+    // 23.55 UTC tanggal 5 = 06.55 WIB tanggal 6 (scan offline pagi hari)
+    const scanAsli = new Date("2026-10-05T23:55:00.000Z");
+    const wib = nowJakarta(scanAsli);
+    expect(wib.toISOString().slice(0, 10)).toBe("2026-10-06");
+    expect(hms(wib)).toBe("06:55:00");
+  });
+
+  it("tanpa argumen: tetap memakai waktu sekarang (perilaku lama)", () => {
+    const sebelum = Date.now() + 7 * 3600 * 1000;
+    const wib = nowJakarta().getTime();
+    const sesudah = Date.now() + 7 * 3600 * 1000;
+    expect(wib).toBeGreaterThanOrEqual(sebelum);
+    expect(wib).toBeLessThanOrEqual(sesudah);
   });
 });

@@ -6,12 +6,39 @@ export default function BelumAbsen({
   belumRecord,
   pctHadir,
   today,
+  isLibur = false,
+  pesanLibur = "",
 }: {
   belum: Student[];
   belumRecord: number;
   pctHadir: number;
   today: string;
+  isLibur?: boolean;
+  pesanLibur?: string;
 }) {
+  // Hari libur / Minggu: tidak ada absensi, jadi jangan tampilkan semua siswa sebagai "belum absen".
+  if (isLibur) {
+    return (
+      <div className="section-card shadow-sm flex flex-col reveal">
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-white/[0.05] rounded-t-xl">
+          <h3 className="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <i className="fas fa-umbrella-beach text-sky-500" /> Hari Libur
+          </h3>
+          <p className="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Tidak ada absensi hari ini</p>
+        </div>
+        <div className="p-4 flex-1 flex flex-col items-center justify-center py-10 opacity-80">
+          <div className="w-16 h-16 bg-sky-100 dark:bg-sky-900/30 text-sky-500 rounded-full flex items-center justify-center text-3xl mb-4">
+            🏖️
+          </div>
+          <p className="text-sm font-bold text-sky-600 dark:text-sky-400 text-center">{pesanLibur || "Hari libur"}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-center">
+            Scan QR dan penandaan alpha otomatis dinonaktifkan.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="section-card shadow-sm flex flex-col reveal">
       <div className="px-5 py-4 border-b border-gray-100 dark:border-white/[0.05] flex justify-between items-center bg-red-50/50 dark:bg-red-900/10 rounded-t-xl">

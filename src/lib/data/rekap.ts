@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { todayJakarta } from "@/lib/utils/tanggal";
+import { ambilSemua } from "@/lib/utils/ambil-semua";
 import type { StatusAbsen } from "@/types";
 
 export async function getSemuaKelasRekap(): Promise<string[]> {
@@ -130,6 +131,35 @@ export function daftarTanggalBulan(bulanYYYYMM: string): string[] {
 
 // ── HISTORY (AKUMULASI SEMESTER) ──────────────────────────────────────
 
+// Hari libur (tabel hari_libur) dan hari Minggu TIDAK dihitung sebagai hari
+// efektif, dan record absensi pada tanggal itu diabaikan — walaupun libur baru
+// dicatat setelah absensi hari itu terlanjur ada. Agregasi dilakukan di
+// database (lihat migrasi 013) supaya tidak terkena batas 1000 baris PostgREST.
+async function hitungHariEfektif(tapel: string, semester: string): Promise<number> {
+  const { data, error } = await supabaseAdmin.rpc("hari_efektif", { p_tapel: tapel, p_semester: semester });
+  if (error) throw new Error(`Gagal menghitung hari efektif: ${error.message}`);
+  return Number(data ?? 0);
+}
+
+async function ambilAgregatSemester(
+  tapel: string,
+  semester: string,
+  ids: number[]
+): Promise<Map<number, Record<string, number>>> {
+  const { data, error } = await supabaseAdmin.rpc("rekap_history_siswa", {
+    p_tapel: tapel,
+    p_semester: semester,
+    p_ids: ids,
+  });
+  if (error) throw new Error(`Gagal mengambil rekap semester: ${error.message}`);
+  const peta = new Map<number, Record<string, number>>();
+  for (const r of (data ?? []) as { siswa_id: number; status: string; jumlah: number }[]) {
+    if (!peta.has(r.siswa_id)) peta.set(r.siswa_id, {});
+    peta.get(r.siswa_id)![r.status] = Number(r.jumlah);
+  }
+  return peta;
+}
+
 export interface RekapHistoryRow {
   nama: string;
   kelas: string;
@@ -172,12 +202,7 @@ export async function getRekapHistoryPage(
 ): Promise<RekapHistoryPageResult> {
   if (!tapel || !semester) return { rows: [], totalHariEfektif: 0, totalSiswa: 0, totalPages: 1, page: 1 };
 
-  const { data: hariRows } = await supabaseAdmin
-    .from("absensi")
-    .select("tanggal")
-    .eq("tapel", tapel)
-    .eq("semester", semester);
-  const totalHariEfektif = new Set((hariRows ?? []).map((r) => r.tanggal)).size;
+  const totalHariEfektif = await hitungHariEfektif(tapel, semester);
 
   let countQuery = supabaseAdmin.from("students").select("id", { count: "exact", head: true });
   if (kelasFilter) countQuery = countQuery.eq("class", kelasFilter);
@@ -195,19 +220,7 @@ export async function getRekapHistoryPage(
   if (list.length === 0) return { rows: [], totalHariEfektif, totalSiswa, totalPages, page: pageAman };
 
   const ids = list.map((s) => s.id);
-  const { data: absenRows } = await supabaseAdmin
-    .from("absensi")
-    .select("siswa_id, status")
-    .eq("tapel", tapel)
-    .eq("semester", semester)
-    .in("siswa_id", ids);
-
-  const mapAbsen = new Map<number, Record<string, number>>();
-  for (const r of absenRows ?? []) {
-    if (!mapAbsen.has(r.siswa_id)) mapAbsen.set(r.siswa_id, {});
-    const m = mapAbsen.get(r.siswa_id)!;
-    m[r.status] = (m[r.status] ?? 0) + 1;
-  }
+  const mapAbsen = await ambilAgregatSemester(tapel, semester, ids);
 
   const rows: RekapHistoryRow[] = list.map((s) => {
     const m = mapAbsen.get(s.id) ?? {};
@@ -236,12 +249,7 @@ export async function getRekapHistory(
 ): Promise<{ rows: RekapHistoryRow[]; totalHariEfektif: number }> {
   if (!tapel || !semester) return { rows: [], totalHariEfektif: 0 };
 
-  const { data: hariRows } = await supabaseAdmin
-    .from("absensi")
-    .select("tanggal")
-    .eq("tapel", tapel)
-    .eq("semester", semester);
-  const totalHariEfektif = new Set((hariRows ?? []).map((r) => r.tanggal)).size;
+  const totalHariEfektif = await hitungHariEfektif(tapel, semester);
 
   let studentsQuery = supabaseAdmin.from("students").select("id, name, class, nisn");
   if (kelasFilter) studentsQuery = studentsQuery.eq("class", kelasFilter);
@@ -250,19 +258,7 @@ export async function getRekapHistory(
   if (list.length === 0) return { rows: [], totalHariEfektif };
 
   const ids = list.map((s) => s.id);
-  const { data: absenRows } = await supabaseAdmin
-    .from("absensi")
-    .select("siswa_id, status")
-    .eq("tapel", tapel)
-    .eq("semester", semester)
-    .in("siswa_id", ids);
-
-  const mapAbsen = new Map<number, Record<string, number>>();
-  for (const r of absenRows ?? []) {
-    if (!mapAbsen.has(r.siswa_id)) mapAbsen.set(r.siswa_id, {});
-    const m = mapAbsen.get(r.siswa_id)!;
-    m[r.status] = (m[r.status] ?? 0) + 1;
-  }
+  const mapAbsen = await ambilAgregatSemester(tapel, semester, ids);
 
   const rows: RekapHistoryRow[] = list.map((s) => {
     const m = mapAbsen.get(s.id) ?? {};
@@ -358,15 +354,21 @@ export async function getRekapBulanan(
   if (list.length === 0) return { rows: [], tglList };
 
   const ids = list.map((s) => s.id);
-  const { data: absenRows } = await supabaseAdmin
-    .from("absensi")
-    .select("siswa_id, tanggal, status")
-    .gte("tanggal", ta)
-    .lte("tanggal", tk)
-    .in("siswa_id", ids);
+  // Dipaginasi: satu bulan x >40 siswa sudah melewati batas 1000 baris PostgREST.
+  // Tanpa ini baris yang terpotong tampil sebagai "alpha" palsu di rekap.
+  const absenRows = await ambilSemua<{ siswa_id: number; tanggal: string; status: string }>((dari, sampai) =>
+    supabaseAdmin
+      .from("absensi")
+      .select("siswa_id, tanggal, status")
+      .gte("tanggal", ta)
+      .lte("tanggal", tk)
+      .in("siswa_id", ids)
+      .order("id")
+      .range(dari, sampai)
+  );
 
   const am = new Map<number, Map<string, StatusAbsen>>();
-  for (const r of absenRows ?? []) {
+  for (const r of absenRows) {
     if (!am.has(r.siswa_id)) am.set(r.siswa_id, new Map());
     am.get(r.siswa_id)!.set(r.tanggal, r.status as StatusAbsen);
   }

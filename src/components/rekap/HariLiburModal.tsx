@@ -13,6 +13,13 @@ function formatTgl(tanggal: string): string {
   return `${d} ${BULAN_NAMA[Number(m)]} ${y}`;
 }
 
+/** Catatan tambahan kalau tanggal yang dijadikan libur sudah punya record absensi. */
+function catatanRecord(jumlah: unknown): string {
+  const n = typeof jumlah === "number" ? jumlah : 0;
+  if (n <= 0) return "";
+  return ` Catatan: sudah ada ${n} data absensi pada tanggal tersebut. Data tidak dihapus, tetapi rekap, riwayat, dan alpha berturut-turut akan mengabaikannya.`;
+}
+
 export default function HariLiburModal() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -73,7 +80,7 @@ export default function HariLiburModal() {
           data.jumlah && data.jumlah > 1
             ? `${data.jumlah} hari libur berhasil ditambahkan.`
             : "Hari libur berhasil ditambahkan.";
-        setNotif({ status: "ok", message: pesan });
+        setNotif({ status: "ok", message: pesan + catatanRecord(data.recordTerdampak) });
       } else {
         setNotif({ status: "error", message: data.message || "Terjadi kesalahan." });
       }
@@ -96,7 +103,7 @@ export default function HariLiburModal() {
         muatLibur();
         setNotif({
           status: "ok",
-          message: `Berhasil menyinkronkan ${data.jumlah} hari libur nasional tahun ${data.tahun}.`,
+          message: `Berhasil menyinkronkan ${data.jumlah} hari libur nasional tahun ${data.tahun}.` + catatanRecord(data.recordTerdampak),
         });
       } else {
         setNotif({ status: "error", message: data.message || "Gagal sinkronisasi." });

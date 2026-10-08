@@ -1,8 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { todayJakarta } from "@/lib/utils/tanggal";
 import { kirimNotifAlpha } from "@/lib/wa/notifikasi";
+
+// Notifikasi WA dikirim di after() setelah respons; beri waktu cukup untuk banyak siswa.
+export const maxDuration = 60;
+
+const WA_PARALEL = 5; // jangan banjiri gateway WA dengan puluhan request sekaligus
 
 /**
  * Diakses dengan salah satu dari dua cara:
@@ -80,9 +85,14 @@ async function prosesAutoAlpha(req: NextRequest) {
     if (error) {
       return NextResponse.json({ status: "error", message: error.message }, { status: 500 });
     }
-    for (const s of belum) {
-      kirimNotifAlpha(s.id, s.name, s.class, today); // fire and forget, tidak menunggu satu-satu
-    }
+    // Dijalankan setelah respons dikirim (after) — tanpa ini eksekusi serverless bisa
+    // dibekukan dan notifikasi hilang. Dikirim per kelompok kecil, bukan serentak.
+    after(async () => {
+      for (let i = 0; i < belum.length; i += WA_PARALEL) {
+        const kelompok = belum.slice(i, i + WA_PARALEL);
+        await Promise.allSettled(kelompok.map((s) => kirimNotifAlpha(s.id, s.name, s.class, today)));
+      }
+    });
   }
 
   return NextResponse.json({

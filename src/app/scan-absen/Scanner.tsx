@@ -29,6 +29,12 @@ interface OfflineItem {
   scannerId: string;
 }
 
+interface DitolakSync {
+  nama: string;
+  jam: string;
+  pesan: string;
+}
+
 interface SiswaResult {
   id: number;
   name: string;
@@ -55,7 +61,7 @@ function setOfflineQueue(scannerId: string, queue: OfflineItem[]) {
   localStorage.setItem(OFFLINE_KEY + scannerId, JSON.stringify(queue));
 }
 
-export default function Scanner({ namaSekolah }: { namaSekolah: string }) {
+export default function Scanner({ namaSekolah, liburInfo = null }: { namaSekolah: string; liburInfo?: string | null }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const roiCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -102,6 +108,7 @@ export default function Scanner({ namaSekolah }: { namaSekolah: string }) {
   const [syncStatus, setSyncStatus] = useState<"syncing" | "success" | null>(null);
   const [syncItems, setSyncItems] = useState<OfflineItem[]>([]);
   const syncingRef = useRef(false);
+  const [ditolakSync, setDitolakSync] = useState<DitolakSync[]>([]);
 
   // ── SUARA ──────────────────────────────────────────────────────────
   const initAudio = useCallback(() => {
@@ -189,32 +196,66 @@ export default function Scanner({ namaSekolah }: { namaSekolah: string }) {
     }
 
     setSyncStatus("syncing");
-    let synced = 0;
+    let berhasil = 0;
+    let sesiHabis = false;
+    const ditolak: DitolakSync[] = [];
 
-    for (const item of queue) {
+    // while + queue[0] (bukan for..of + shift): for..of sambil shift() melompati setiap
+    // item kedua, jadi separuh antrean tidak terkirim di tiap putaran.
+    while (queue.length > 0) {
+      const item = queue[0];
       try {
         const fd = new FormData();
         fd.append("token", item.token || "");
         fd.append("siswa_id", item.siswa_id ? String(item.siswa_id) : "");
         fd.append("manual", item.manual ? "1" : "");
         fd.append("scanner_id", scannerIdRef.current);
+        // Waktu scan ASLI. Tanpa ini server memakai waktu sinkron, sehingga scan 06.55
+        // yang disinkronkan jam 08.10 tercatat terlambat/ditolak.
+        fd.append("scan_at", item.timestamp);
         // -1 karena item ini lagi diproses & bakal di-shift kalau berhasil
         fd.append("offline_queue_count", String(Math.max(0, queue.length - 1)));
 
         const res = await fetch(AJAX, { method: "POST", body: fd, credentials: "same-origin", signal: AbortSignal.timeout(10000) });
-        if (res.ok) {
-          synced++;
-          queue.shift();
-          setOfflineQueue(scannerIdRef.current, queue);
-        } else {
+
+        // Sesi login habis: antrean DISIMPAN, kirim ulang setelah login lagi.
+        if (res.status === 403) {
+          sesiHabis = true;
           break;
+        }
+        // Gangguan sementara di server: berhenti, coba lagi di putaran berikutnya.
+        if (res.status >= 500) break;
+
+        const d = (await res.json().catch(() => null)) as { status?: string; nama?: string; message?: string } | null;
+        if (!d || !d.status) break; // balasan bukan dari aplikasi (mis. captive portal) -> coba lagi nanti
+
+        // Server sudah memutuskan. Item keluar dari antrean, tetapi penolakan TIDAK boleh
+        // hilang diam-diam (sebelumnya semua balasan 200 dianggap sukses).
+        queue.shift();
+        setOfflineQueue(scannerIdRef.current, queue);
+        if (d.status === "error") {
+          ditolak.push({
+            nama: d.nama || item.nama,
+            jam: new Date(item.timestamp).toTimeString().slice(0, 5),
+            pesan: d.message || "Ditolak server",
+          });
+        } else {
+          berhasil++;
         }
       } catch {
         break;
       }
     }
 
-    if (synced > 0) {
+    if (ditolak.length > 0) {
+      setDitolakSync((prev) => [...prev, ...ditolak]);
+      playBeep("error");
+    }
+    if (sesiHabis) {
+      showNotif("error", "🔒", "Sesi habis", "Login ulang. Antrean offline tetap tersimpan.");
+    }
+
+    if (berhasil > 0) {
       setSyncStatus("success");
       playBeep("success");
       setTimeout(() => {
@@ -226,7 +267,31 @@ export default function Scanner({ namaSekolah }: { namaSekolah: string }) {
 
     syncingRef.current = false;
     refreshSyncModal();
-  }, [playBeep, refreshSyncModal]);
+  }, [playBeep, refreshSyncModal, showNotif]);
+
+  // ── LAYAR TETAP MENYALA ────────────────────────────────────────────
+  // Scanner dipakai berjam-jam; tanpa Wake Lock layar HP/tablet mati sendiri saat idle.
+  useEffect(() => {
+    let lock: WakeLockSentinel | null = null;
+    async function minta() {
+      try {
+        if ("wakeLock" in navigator && document.visibilityState === "visible") {
+          lock = await navigator.wakeLock.request("screen");
+        }
+      } catch {
+        // tidak didukung / ditolak browser: abaikan
+      }
+    }
+    minta();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") minta();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      lock?.release().catch(() => {});
+    };
+  }, []);
 
   // ── ONLINE/OFFLINE ─────────────────────────────────────────────────
   useEffect(() => {
@@ -301,19 +366,25 @@ export default function Scanner({ namaSekolah }: { namaSekolah: string }) {
         fd.append("offline_queue_count", String(getOfflineQueue(scannerIdRef.current).length));
 
         const res = await fetch(AJAX, { method: "POST", body: fd, credentials: "same-origin", signal: AbortSignal.timeout(15000) });
-        if (!res.ok && res.status !== 400 && res.status !== 403) throw new Error(`HTTP ${res.status}`);
+
+        if (res.status === 403) {
+          // Sesi login habis: simpan scan supaya tidak hilang, lalu minta login ulang.
+          addToOfflineQueue({ token, siswa_id: null, manual: false, nama: "Scan (sesi habis)", status: "pending" });
+          showNotif("error", "🔒", "Sesi habis", "Login ulang. Scan ini disimpan dan dikirim setelahnya.");
+          playBeep("error");
+          return;
+        }
+        if (!res.ok && res.status !== 400) throw new Error(`HTTP ${res.status}`);
 
         const d = await res.json();
         handleResult(d);
       } catch {
-        if (navigator.onLine) {
-          showNotif("error", "❌", "Error", "Gagal menghubungi server");
-          playBeep("error");
-        } else {
-          addToOfflineQueue({ token, siswa_id: null, manual: false, nama: "Scan Offline", status: "pending" });
-          showNotif("offline", "📡", "Offline Mode", "Data disimpan untuk disinkronkan");
-          playBeep("offline");
-        }
+        // Gagal menghubungi server, entah perangkat offline atau Wi-Fi tersambung tanpa
+        // internet (navigator.onLine tetap true). Simpan ke antrean, jangan dibuang —
+        // kalau ternyata server sempat memproses, kirim ulang aman (constraint unik di DB).
+        addToOfflineQueue({ token, siswa_id: null, manual: false, nama: "Scan Offline", status: "pending" });
+        showNotif("offline", "📡", navigator.onLine ? "Koneksi bermasalah" : "Offline Mode", "Scan disimpan, dikirim otomatis nanti");
+        playBeep("offline");
       } finally {
         setTimeout(() => {
           processingTokenRef.current = null;
@@ -584,12 +655,23 @@ export default function Scanner({ namaSekolah }: { namaSekolah: string }) {
 
     try {
       const res = await fetch(AJAX, { method: "POST", body: fd, signal: AbortSignal.timeout(10000) });
+      if (res.status === 403) {
+        addToOfflineQueue({ token: null, siswa_id: id, manual: true, nama, status: "pending" });
+        tutupManual();
+        showNotif("error", "🔒", "Sesi habis", "Login ulang. Absen ini disimpan dan dikirim setelahnya.");
+        playBeep("error");
+        return;
+      }
+      if (res.status >= 500) throw new Error(`HTTP ${res.status}`);
       const d = await res.json();
       tutupManual();
       handleResult({ ...d, nama, kelas: "" });
     } catch {
-      showNotif("error", "❌", "Gagal", "Kesalahan jaringan");
-      playBeep("error");
+      // Jaringan bermasalah: simpan ke antrean, jangan dibuang.
+      addToOfflineQueue({ token: null, siswa_id: id, manual: true, nama, status: "pending" });
+      tutupManual();
+      showNotif("offline", "📡", nama, "Koneksi bermasalah, disimpan untuk dikirim ulang");
+      playBeep("offline");
     }
   }
 
@@ -639,6 +721,25 @@ export default function Scanner({ namaSekolah }: { namaSekolah: string }) {
   return (
     <div className="scan-page">
       <div id="scan-app">
+        {liburInfo && (
+          <div
+            role="status"
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              zIndex: 14,
+              background: "rgba(2,132,199,.92)",
+              padding: ".75rem 1rem",
+              textAlign: "center",
+              fontSize: ".75rem",
+              fontWeight: 700,
+            }}
+          >
+            🏖️ Hari ini libur: {liburInfo}. Scan akan ditolak.
+          </div>
+        )}
         <div id="offline-banner" className={isOnline ? "" : "show"}>
           <i className="fas fa-wifi" /> Offline Mode - Data akan disinkronkan saat terhubung
         </div>
@@ -797,6 +898,42 @@ export default function Scanner({ namaSekolah }: { namaSekolah: string }) {
             </div>
           </div>
         </div>
+
+        {ditolakSync.length > 0 && (
+          <div
+            role="alert"
+            style={{
+              position: "fixed",
+              left: 12,
+              right: 12,
+              bottom: 96,
+              zIndex: 60,
+              background: "#7f1d1d",
+              color: "#fff",
+              borderRadius: 12,
+              padding: "10px 12px",
+              fontSize: 12,
+              boxShadow: "0 8px 24px rgba(0,0,0,.4)",
+            }}
+          >
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>
+              ⚠️ {ditolakSync.length} scan offline ditolak server (tidak tercatat)
+            </div>
+            {ditolakSync.slice(0, 4).map((d, i) => (
+              <div key={i}>
+                {d.jam} · {d.nama}: {d.pesan}
+              </div>
+            ))}
+            {ditolakSync.length > 4 && <div>+{ditolakSync.length - 4} lainnya</div>}
+            <div style={{ marginTop: 4, opacity: 0.85 }}>Catat manual lewat Rekap bila perlu.</div>
+            <button
+              onClick={() => setDitolakSync([])}
+              style={{ marginTop: 6, background: "rgba(255,255,255,.15)", border: 0, color: "#fff", padding: "4px 10px", borderRadius: 8 }}
+            >
+              Tutup
+            </button>
+          </div>
+        )}
 
         <div id="bottombar">
           <div className="mode-badge">

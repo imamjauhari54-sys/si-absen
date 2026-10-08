@@ -17,5 +17,5 @@ export async function POST(req: NextRequest) {
 
   const result = await syncLiburNasional(tahun);
   if (!result.ok) return NextResponse.json({ status: "error", message: result.message });
-  return NextResponse.json({ status: "ok", jumlah: result.jumlah, tahun });
+  return NextResponse.json({ status: "ok", jumlah: result.jumlah, tahun, recordTerdampak: result.recordTerdampak ?? 0 });
 }
