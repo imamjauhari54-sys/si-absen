@@ -1,0 +1,357 @@
+/* ============================================================
+   Auth shell — layout kartu login (panel dekoratif + tab melengkung)
+   Palet tetap SI-ABSEN:
+   - Masuk (admin/guru) : teal  -> cyan
+   - Siswa              : indigo -> purple
+   ============================================================ */
+
+.auth-card {
+  --r: 26px; /* radius lengkung tab */
+  --auth-card: #ffffff;
+  --auth-tab-text: #334155;
+  --auth-line: #e2e8f0;
+  --auth-field-border: #cbd5e1; /* slate-300 */
+  --auth-field-text: #0f172a; /* slate-900 */
+  --auth-muted: #94a3b8; /* slate-400: placeholder & ikon kosong */
+  --auth-label: #6b7280; /* gray-500: label melayang & ikon terisi */
+  --auth-danger: #f43f5e; /* rose-500 */
+}
+.dark .auth-card {
+  --auth-card: #1e293b;
+  --auth-tab-text: #f1f5f9;
+  --auth-line: #334155;
+  --auth-field-border: #475569; /* slate-600 */
+  --auth-field-text: #f1f5f9;
+  --auth-muted: #64748b; /* slate-500 */
+  --auth-label: #94a3b8;
+  --auth-danger: #fb7185; /* rose-400 */
+}
+
+/* Tema warna per tab */
+.auth-theme-masuk {
+  --s2: #14b8a6; /* teal-500 */
+  --s3: #0f766e; /* teal-700 */
+  --accent: #06b6d4; /* cyan-500 */
+  --c-from: #0d9488; /* teal-600 */
+  --c-to: #06b6d4; /* cyan-500 */
+  --t-from: #0d9488;
+  --t-to: #06b6d4;
+  --glow: rgba(13, 148, 136, 0.35);
+  --field-accent: #0d9488;
+}
+.auth-theme-siswa {
+  --s2: #6366f1; /* indigo-500 */
+  --s3: #4338ca; /* indigo-700 */
+  --accent: #9333ea; /* purple-600 */
+  --c-from: #4f46e5; /* indigo-600 */
+  --c-to: #9333ea; /* purple-600 */
+  --t-from: #4f46e5;
+  --t-to: #9333ea;
+  --glow: rgba(79, 70, 229, 0.35);
+  --field-accent: #4f46e5;
+}
+
+/* Dark mode: judul & ikon dibuat lebih terang agar kontras */
+.dark .auth-theme-masuk { --t-from: #2dd4bf; --t-to: #22d3ee; --field-accent: #2dd4bf; }
+.dark .auth-theme-siswa { --t-from: #818cf8; --t-to: #c084fc; --field-accent: #818cf8; }
+
+/* ---------- Panel kiri ---------- */
+.auth-side {
+  position: relative;
+  overflow: hidden;
+  min-height: 132px;
+}
+.auth-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.auth-tabs {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 10px;
+  height: 100%;
+  min-height: 132px;
+  padding: 0 20px;
+}
+
+.auth-tab {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  border-radius: 16px 16px 0 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.95);
+  text-decoration: none;
+  transition: background 0.25s, color 0.25s;
+}
+.auth-tab:not([aria-current="page"]):hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.auth-tab[aria-current="page"] {
+  background: var(--auth-card);
+  color: var(--auth-tab-text);
+}
+
+/* Lengkung (inverted radius) kiri & kanan tab aktif — versi mobile */
+.auth-tab[aria-current="page"]::before,
+.auth-tab[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: var(--r);
+  height: var(--r);
+  pointer-events: none;
+}
+.auth-tab[aria-current="page"]::before {
+  right: 100%;
+  background: radial-gradient(circle at 0 0, transparent calc(var(--r) - 0.5px), var(--auth-card) var(--r));
+}
+.auth-tab[aria-current="page"]::after {
+  left: 100%;
+  background: radial-gradient(circle at 100% 0, transparent calc(var(--r) - 0.5px), var(--auth-card) var(--r));
+}
+
+/* ---------- Desktop: tab vertikal, menyatu ke panel kanan ---------- */
+@media (min-width: 768px) {
+  .auth-side {
+    width: 250px;
+    flex-shrink: 0;
+    min-height: 0;
+  }
+  .auth-tabs {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 18px;
+    padding: 0 0 0 44px;
+    min-height: 0;
+  }
+  .auth-tab {
+    flex: none;
+    height: 56px;
+    justify-content: flex-start;
+    padding-left: 30px;
+    border-radius: 9999px 0 0 9999px;
+    font-size: 0.82rem;
+  }
+
+  .auth-tab[aria-current="page"]::before,
+  .auth-tab[aria-current="page"]::after {
+    left: auto;
+    right: 0;
+  }
+  /* sudut atas: area putih membulat masuk ke tab */
+  .auth-tab[aria-current="page"]::before {
+    top: calc(var(--r) * -1);
+    bottom: auto;
+    background: radial-gradient(circle at 0 0, transparent calc(var(--r) - 0.5px), var(--auth-card) var(--r));
+  }
+  /* sudut bawah */
+  .auth-tab[aria-current="page"]::after {
+    top: auto;
+    bottom: calc(var(--r) * -1);
+    background: radial-gradient(circle at 0 100%, transparent calc(var(--r) - 0.5px), var(--auth-card) var(--r));
+  }
+}
+
+/* ---------- Logo ikon berwarna tanpa background ---------- */
+.auth-logo {
+  display: inline-block;
+  font-size: 3rem;
+  line-height: 1;
+  background: linear-gradient(135deg, var(--t-from), var(--t-to));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 6px 8px var(--glow));
+}
+
+.auth-title {
+  background: linear-gradient(135deg, var(--t-from), var(--t-to));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.auth-pill {
+  background: linear-gradient(135deg, var(--c-from), var(--c-to));
+  box-shadow: 0 10px 20px -8px var(--glow);
+}
+
+/* ============================================================
+   Field outlined + floating label
+   Kosong  : label = placeholder di dalam kotak
+   Fokus / terisi : label naik ke garis border atas
+   ============================================================ */
+.auth-field {
+  position: relative;
+}
+
+.auth-field-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.8rem 1rem 0.8rem 3rem;
+  border: 1.5px solid var(--auth-field-border);
+  border-radius: 16px;
+  background: transparent;
+  color: var(--auth-field-text);
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.5rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.auth-field-input--trailing {
+  padding-right: 3rem;
+}
+.auth-field-input:hover:not(:focus) {
+  border-color: var(--auth-muted);
+}
+.auth-field-input:focus {
+  border-color: var(--field-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--field-accent) 18%, transparent);
+}
+.auth-field-input[aria-invalid="true"] {
+  border-color: var(--auth-danger);
+}
+.auth-field-input[aria-invalid="true"]:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--auth-danger) 18%, transparent);
+}
+
+/* Label (posisi awal = tampak seperti placeholder) */
+.auth-field-label {
+  position: absolute;
+  left: 3rem;
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: calc(100% - 4rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.5rem;
+  color: var(--auth-muted);
+  pointer-events: none;
+  transition: top 0.18s ease, left 0.18s ease, font-size 0.18s ease,
+    line-height 0.18s ease, color 0.18s ease, padding 0.18s ease;
+}
+
+/* Label melayang: fokus, terisi, atau autofill browser */
+.auth-field-input:focus ~ .auth-field-label,
+.auth-field-input:not(:placeholder-shown) ~ .auth-field-label,
+.auth-field-input:-webkit-autofill ~ .auth-field-label {
+  top: 0;
+  left: 0.875rem;
+  max-width: calc(100% - 2rem);
+  padding: 0 0.375rem;
+  font-size: 0.75rem;
+  line-height: 1;
+  color: var(--auth-label);
+  background: var(--auth-card); /* "melubangi" garis border */
+}
+.auth-field-input:focus ~ .auth-field-label {
+  color: var(--field-accent);
+}
+.auth-field-input[aria-invalid="true"] ~ .auth-field-label {
+  color: var(--auth-danger);
+}
+
+/* Ikon kiri */
+.auth-field-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  color: var(--auth-muted);
+  pointer-events: none;
+  transition: color 0.2s;
+}
+.auth-field-icon svg {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+.auth-field-input:not(:placeholder-shown) ~ .auth-field-icon {
+  color: var(--auth-label);
+}
+.auth-field-input:focus ~ .auth-field-icon {
+  color: var(--field-accent);
+}
+
+/* Slot kanan (tombol mata) */
+.auth-field-trailing {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+}
+.auth-field-toggle {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--auth-muted);
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+.auth-field-toggle:hover {
+  color: var(--field-accent);
+  background: color-mix(in srgb, var(--field-accent) 10%, transparent);
+}
+.auth-field-toggle svg {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+
+/* Autofill Chrome: jangan ubah warna latar/teks field */
+.auth-field-input:-webkit-autofill {
+  -webkit-text-fill-color: var(--auth-field-text);
+  caret-color: var(--auth-field-text);
+  transition: background-color 600000s 0s, color 600000s 0s;
+}
+
+/* ---------- Animasi ringan ---------- */
+@keyframes auth-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes auth-enter-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.auth-fade { animation: auth-fade 0.22s ease-out both; }
+.auth-enter-up { animation: auth-enter-up 0.25s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-fade,
+  .auth-enter-up { animation: none; }
+  .auth-field-input,
+  .auth-field-label,
+  .auth-field-icon { transition: none; }
+}
+
+/* Logo badge */
+.auth-logo-badge {
+  display: block;
+  filter: drop-shadow(0 8px 10px var(--glow));
+}
