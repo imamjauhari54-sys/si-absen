@@ -85,6 +85,19 @@ export default function BulananTable({
         </div>
         <div className="overflow-x-auto">
           <table className="tbl-bulanan w-full text-left border-collapse whitespace-nowrap">
+            {/* Lebar kolom dipakai saat cetak (table-layout: fixed), lihat rekap.css */}
+            <colgroup>
+              <col className="col-no" />
+              <col className="col-nama" />
+              {tglList.map((tgl) => (
+                <col key={tgl} className="col-tgl" />
+              ))}
+              <col className="col-sum" />
+              <col className="col-sum" />
+              <col className="col-sum" />
+              <col className="col-sum" />
+              <col className="col-sum" />
+            </colgroup>
             <thead className="bg-gray-50 dark:bg-[#1a2030] text-[10px] uppercase font-extrabold text-gray-500 dark:text-gray-400 tracking-wider">
               <tr>
                 <th className="sticky-no bg-gray-50 dark:bg-[#1a2030] w-10 text-center z-20">No</th>
@@ -95,7 +108,7 @@ export default function BulananTable({
                   return (
                     <th
                       key={tgl}
-                      className={`w-10 text-center py-2 ${isHol ? "text-rose-500 dark:text-rose-400" : ""}`}
+                      className={`col-tgl w-10 text-center py-2 ${isHol ? "text-rose-500 dark:text-rose-400" : ""}`}
                       title={tglTitle(tgl, isHol ? "libur" : "hadir", liburKeterangan[tgl])}
                     >
                       {String(d.getUTCDate()).padStart(2, "0")}
@@ -103,11 +116,11 @@ export default function BulananTable({
                     </th>
                   );
                 })}
-                <th className="w-10 text-center bg-emerald-50/80 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400 py-3">H</th>
-                <th className="w-10 text-center bg-amber-50/80 dark:bg-amber-900/10 text-amber-600 dark:text-amber-400">T</th>
-                <th className="w-10 text-center bg-indigo-50/80 dark:bg-indigo-900/10 text-indigo-600 dark:text-indigo-400">I</th>
-                <th className="w-10 text-center bg-purple-50/80 dark:bg-purple-900/10 text-purple-600 dark:text-purple-400">S</th>
-                <th className="w-10 text-center bg-red-50/80 dark:bg-red-900/10 text-red-600 dark:text-red-400">A</th>
+                <th className="col-sum w-10 text-center bg-emerald-50/80 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400 py-3">H</th>
+                <th className="col-sum w-10 text-center bg-amber-50/80 dark:bg-amber-900/10 text-amber-600 dark:text-amber-400">T</th>
+                <th className="col-sum w-10 text-center bg-indigo-50/80 dark:bg-indigo-900/10 text-indigo-600 dark:text-indigo-400">I</th>
+                <th className="col-sum w-10 text-center bg-purple-50/80 dark:bg-purple-900/10 text-purple-600 dark:text-purple-400">S</th>
+                <th className="col-sum w-10 text-center bg-red-50/80 dark:bg-red-900/10 text-red-600 dark:text-red-400">A</th>
               </tr>
             </thead>
             <tbody className="text-gray-700 dark:text-gray-300">
@@ -129,7 +142,7 @@ export default function BulananTable({
                   <tr key={row.id} className={`hover:bg-indigo-50/20 dark:hover:bg-white/[0.015] transition-colors ${visibilityCls}`}>
                     <td className="sticky-no bg-white dark:bg-[#1e2535] text-center text-xs font-bold text-gray-400 py-2">{i + 1}</td>
                     <td className="sticky-nama bg-white dark:bg-[#1e2535] font-bold text-gray-800 dark:text-gray-100 py-2 pr-3">
-                      {row.nama}
+                      <span className="nama-cetak">{row.nama}</span>
                       <div className="text-[10px] font-normal text-gray-400 dark:text-gray-500">Kelas {row.kelas}</div>
                     </td>
                     {tglList.map((tgl) => {

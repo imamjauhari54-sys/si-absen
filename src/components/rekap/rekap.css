@@ -101,4 +101,31 @@
   .bulanan-mobile { display: none !important; }
   .bulanan-desktop { display: block !important; }
   .bulanan-desktop .overflow-x-auto { overflow: visible !important; width: 100% !important; }
+
+  /* Rekap bulanan (A4 landscape): semua kolom harus muat selebar kertas.
+     Lebar kolom Tailwind (w-10 = 40px x ~32 kolom) sebelumnya membuat tabel
+     melebar melewati kertas (kolom H/T/I/S/A terpotong) dan nama menimpa
+     kolom tanggal. Di sini kolom No & Nama dikunci, sisanya dibagi rata. */
+  table.tbl-bulanan col.col-no,
+  table.tbl-bulanan th.sticky-no { width: 3% !important; min-width: 0 !important; }
+  table.tbl-bulanan col.col-nama,
+  table.tbl-bulanan th.sticky-nama { width: 21% !important; min-width: 0 !important; text-align: left !important; }
+  table.tbl-bulanan col.col-tgl,
+  table.tbl-bulanan col.col-sum { width: auto !important; }
+  table.tbl-bulanan th.col-tgl,
+  table.tbl-bulanan th.col-sum { width: auto !important; min-width: 0 !important; }
+  table.tbl-bulanan th { font-size: 7.5pt !important; padding: 3px 1px !important; }
+  table.tbl-bulanan td { font-size: 7.5pt !important; padding: 2px 1px !important; line-height: 1.25 !important; }
+  table.tbl-bulanan td.sticky-no { text-align: center !important; }
+  table.tbl-bulanan td.sticky-nama {
+    min-width: 0 !important; padding-left: 3px !important; padding-right: 2px !important;
+    text-align: left !important; white-space: nowrap !important;
+    overflow: hidden !important; text-overflow: ellipsis !important;
+  }
+  /* Nama dibungkus block supaya SELALU terpotong di batas kolomnya
+     (tidak pernah meluber ke kolom tanggal), apa pun lebar kolomnya. */
+  table.tbl-bulanan td.sticky-nama .nama-cetak {
+    display: block !important; max-width: 100% !important;
+    overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important;
+  }
 }
