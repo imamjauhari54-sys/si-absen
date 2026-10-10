@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getStudentSession } from "@/lib/auth/student-session";
 import AuthShell from "@/components/auth/AuthShell";
-import CekAbsenForm from "./cek-absen-form";
 
 export const metadata: Metadata = { title: "Cek Absensi Siswa" };
 
@@ -12,9 +11,5 @@ export default async function PortalSiswaPage() {
   const session = await getStudentSession();
   if (session) redirect("/portal-siswa/dashboard");
 
-  return (
-    <AuthShell active="siswa">
-      <CekAbsenForm />
-    </AuthShell>
-  );
+  return <AuthShell active="siswa" />;
 }

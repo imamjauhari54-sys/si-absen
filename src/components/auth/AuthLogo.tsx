@@ -1,11 +1,19 @@
-import type { AuthTab } from "./AuthShell";
+import type { AuthTab } from "./types";
 
 /**
- * Logo badge per tab: kotak membulat bergradien (ikut warna tema tab)
- * dengan glyph putih. Masuk = motif QR code, Siswa = topi toga.
- * SVG inline — tidak butuh Font Awesome.
+ * Logo badge: kotak membulat dengan glyph putih.
+ * Masuk = motif QR code, Siswa = topi toga.
+ * tone "gradient" = isi gradien tema (di atas putih),
+ * tone "glass"    = kaca transparan (di atas panel berwarna / pintu).
  */
-export default function AuthLogo({ variant }: { variant: AuthTab }) {
+export default function AuthLogo({
+  variant,
+  tone = "gradient",
+}: {
+  variant: AuthTab;
+  tone?: "gradient" | "glass";
+}) {
+  const glass = tone === "glass";
   return (
     <svg
       className="auth-logo-badge mx-auto"
@@ -15,24 +23,41 @@ export default function AuthLogo({ variant }: { variant: AuthTab }) {
       fill="none"
       aria-hidden="true"
     >
-      <defs>
-        <linearGradient id="authLogoGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" style={{ stopColor: "var(--c-from)" }} />
-          <stop offset="1" style={{ stopColor: "var(--c-to)" }} />
-        </linearGradient>
-      </defs>
+      {!glass && (
+        <defs>
+          <linearGradient id={`authLogoGrad-${variant}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" style={{ stopColor: "var(--c-from)" }} />
+            <stop offset="1" style={{ stopColor: "var(--c-to)" }} />
+          </linearGradient>
+        </defs>
+      )}
 
-      <rect x="2" y="2" width="60" height="60" rx="18" fill="url(#authLogoGrad)" />
-      {/* kilau halus di sisi atas */}
-      <path
-        d="M20 2h24a18 18 0 0 1 18 18v4C50 20 22 20 2 26v-6A18 18 0 0 1 20 2z"
-        fill="#fff"
-        opacity="0.14"
-      />
+      {glass ? (
+        <rect
+          x="2.75"
+          y="2.75"
+          width="58.5"
+          height="58.5"
+          rx="17.5"
+          fill="#fff"
+          fillOpacity="0.18"
+          stroke="#fff"
+          strokeOpacity="0.45"
+          strokeWidth="1.5"
+        />
+      ) : (
+        <>
+          <rect x="2" y="2" width="60" height="60" rx="18" fill={`url(#authLogoGrad-${variant})`} />
+          <path
+            d="M20 2h24a18 18 0 0 1 18 18v4C50 20 22 20 2 26v-6A18 18 0 0 1 20 2z"
+            fill="#fff"
+            opacity="0.14"
+          />
+        </>
+      )}
 
       {variant === "masuk" ? (
         <g stroke="#fff" strokeWidth="2.6">
-          {/* tiga penanda sudut QR */}
           <rect x="16" y="16" width="13" height="13" rx="3.5" />
           <rect x="35" y="16" width="13" height="13" rx="3.5" />
           <rect x="16" y="35" width="13" height="13" rx="3.5" />
@@ -40,7 +65,6 @@ export default function AuthLogo({ variant }: { variant: AuthTab }) {
             <rect x="20.5" y="20.5" width="4" height="4" rx="1" />
             <rect x="39.5" y="20.5" width="4" height="4" rx="1" />
             <rect x="20.5" y="39.5" width="4" height="4" rx="1" />
-            {/* modul data */}
             <rect x="35" y="35" width="5" height="5" rx="1.2" />
             <rect x="43" y="35" width="5" height="5" rx="1.2" />
             <rect x="39" y="39.5" width="5" height="5" rx="1.2" />

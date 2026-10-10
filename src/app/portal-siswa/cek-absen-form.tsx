@@ -13,7 +13,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="auth-pill shrink-0 px-9 py-3 rounded-full text-sm font-bold uppercase tracking-wide text-white hover:-translate-y-0.5 transition-all disabled:opacity-70 disabled:translate-y-0 flex items-center justify-center gap-2"
+      className="auth-pill w-full px-6 py-2.5 md:py-3 rounded-full cursor-pointer disabled:cursor-not-allowed text-sm font-bold uppercase tracking-wide text-white hover:-translate-y-0.5 transition-all disabled:opacity-70 disabled:translate-y-0 flex items-center justify-center gap-2"
     >
       {pending ? (
         <>
@@ -45,7 +45,6 @@ export default function CekAbsenForm() {
           label="NISN"
           icon={<IdCardIcon />}
           required
-          autoFocus
           invalid={!!state?.error}
         />
         <p className="text-xs text-slate-400 dark:text-slate-500 pl-1">
@@ -64,11 +63,11 @@ export default function CekAbsenForm() {
       )}
 
       {/* mt-auto: tombol sejajar dengan tab Masuk */}
-      <div className="mt-auto pt-4 flex items-center justify-between gap-4 flex-wrap">
-        <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 max-w-[200px] leading-snug">
+      <div className="mt-auto pt-4 flex flex-col gap-3">
+        <SubmitButton />
+        <span className="text-center text-xs font-semibold text-indigo-600 dark:text-indigo-400">
           NISN ada di kartu pelajar atau rapor. Tanpa password.
         </span>
-        <SubmitButton />
       </div>
     </form>
   );
