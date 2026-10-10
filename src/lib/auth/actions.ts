@@ -8,14 +8,18 @@ import type { Role } from "@/types";
 
 export interface LoginState {
   error: string | null;
+  /** Sisa waktu kunci akun (detik) — dipakai form untuk hitung mundur. */
+  retryAfter?: number;
+  /** Sisa percobaan salah sebelum akun dikunci. */
+  remaining?: number;
 }
 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 5;
 
-function sisaMenit(lockedUntil: string): number {
+function sisaDetik(lockedUntil: string): number {
   const ms = new Date(lockedUntil).getTime() - Date.now();
-  return Math.max(1, Math.ceil(ms / 60000));
+  return Math.max(1, Math.ceil(ms / 1000));
 }
 
 /**
@@ -52,8 +56,10 @@ export async function loginAction(
 
   // Cek apakah akun sedang terkunci karena kebanyakan gagal login
   if (user.locked_until && new Date(user.locked_until).getTime() > Date.now()) {
+    // Waktu tunggu tidak ditulis di teks: form menampilkan hitung mundur dari retryAfter.
     return {
-      error: `Akun dikunci sementara karena terlalu banyak percobaan gagal. Coba lagi dalam ${sisaMenit(user.locked_until)} menit.`,
+      error: "Akun dikunci sementara karena terlalu banyak percobaan gagal.",
+      retryAfter: sisaDetik(user.locked_until),
     };
   }
 
@@ -63,10 +69,16 @@ export async function loginAction(
     if (attempts >= MAX_ATTEMPTS) {
       const lockedUntil = new Date(Date.now() + LOCKOUT_MINUTES * 60000).toISOString();
       await supabaseAdmin.from("users").update({ failed_attempts: 0, locked_until: lockedUntil }).eq("id", user.id);
-      return { error: `Terlalu banyak percobaan gagal. Akun dikunci selama ${LOCKOUT_MINUTES} menit.` };
+      return {
+        error: "Terlalu banyak percobaan gagal. Akun dikunci sementara.",
+        retryAfter: LOCKOUT_MINUTES * 60,
+      };
     }
     await supabaseAdmin.from("users").update({ failed_attempts: attempts }).eq("id", user.id);
-    return { error: "Kata sandi yang Anda masukkan salah." };
+    return {
+      error: "Kata sandi yang Anda masukkan salah.",
+      remaining: MAX_ATTEMPTS - attempts,
+    };
   }
 
   const role = String(user.role || "").toLowerCase();

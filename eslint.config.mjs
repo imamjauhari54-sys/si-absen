@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // File hasil generate Serwist (minified), bukan kode sumber.
+    "public/sw.js",
+    "public/swe-worker-*.js",
   ]),
 ]);
 

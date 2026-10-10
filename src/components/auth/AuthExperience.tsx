@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import AuthLogo from "./AuthLogo";
 import LoginForm from "@/app/login/login-form";
 import CekAbsenForm from "@/app/portal-siswa/cek-absen-form";
+import { checkExistingSessions } from "./session-check";
 import type { AuthTab } from "./types";
 
 const PATH: Record<AuthTab, string> = {
@@ -34,6 +35,12 @@ const DOOR: Record<AuthTab, { blurb: string; cta: string }> = {
     blurb: "Admin atau guru? Masuk untuk mengelola absensi.",
     cta: "Masuk Admin / Guru",
   },
+};
+
+/** Tujuan kalau browser ini sudah punya sesi di sisi tersebut. */
+const DASHBOARD: Record<AuthTab, string> = {
+  masuk: "/dashboard",
+  siswa: "/portal-siswa/dashboard",
 };
 
 const other = (t: AuthTab): AuthTab => (t === "masuk" ? "siswa" : "masuk");
@@ -162,15 +169,20 @@ export default function AuthExperience({
   footer: ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [active, setActive] = useState<AuthTab>(initial);
   const rootRef = useRef<HTMLDivElement>(null);
+  const sessions = useRef({ masuk: false, siswa: false });
   const focusTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Sinkron kalau URL berubah dari luar (tombol back/forward).
-  useEffect(() => {
+  // Disesuaikan saat render, bukan di useEffect, supaya tidak memicu render berantai.
+  const [prevPath, setPrevPath] = useState(pathname);
+  if (pathname !== prevPath) {
+    setPrevPath(pathname);
     const t = tabFromPath(pathname);
     if (t) setActive(t);
-  }, [pathname]);
+  }
 
   // Judul tab browser ikut berganti (tanpa menyentuh suffix template).
   useEffect(() => {
@@ -179,9 +191,23 @@ export default function AuthExperience({
 
   useEffect(() => () => clearTimeout(focusTimer.current), []);
 
+  // Cek sekali di awal: kalau sisi sebelah sudah punya sesi aktif, klik tabnya
+  // langsung diarahkan ke dashboard (tanpa harus refresh dulu).
+  useEffect(() => {
+    checkExistingSessions()
+      .then((r) => {
+        sessions.current = r;
+      })
+      .catch(() => {});
+  }, []);
+
   const go = useCallback(
     (tab: AuthTab) => {
       if (tab === active) return;
+      if (sessions.current[tab]) {
+        router.push(DASHBOARD[tab]);
+        return;
+      }
       setActive(tab);
       window.history.pushState(null, "", PATH[tab]);
 
@@ -196,7 +222,7 @@ export default function AuthExperience({
         }, 700);
       }
     },
-    [active],
+    [active, router],
   );
 
   const blob = (on: boolean) =>

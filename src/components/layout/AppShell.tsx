@@ -57,9 +57,10 @@ export default function AppShell({
     { href: "/dashboard", icon: "fa-house", label: "Dashboard" },
     { href: "/siswa", icon: "fa-users", label: "Data Siswa" },
     { href: "/rekap", icon: "fa-calendar-days", label: "Rekap Absensi" },
+    // Admin: semua kelas. Guru (wali kelas): hanya siswa kelasnya — dibatasi di server.
+    { href: "/scan-absen", icon: "fa-qrcode", label: "Scan QR", badge: "SCAN" },
     ...(isAdmin
       ? [
-          { href: "/scan-absen", icon: "fa-qrcode", label: "Scan QR", badge: "SCAN" },
           {
             label: "Administrasi",
             icon: "fa-toolbox",
@@ -81,6 +82,13 @@ export default function AppShell({
     semuaHalaman.find((i) => pathname === i.href || pathname?.startsWith(i.href + "/"))?.label ?? "SI-ABSEN";
 
   const [manualOpenGroups, setManualOpenGroups] = useState<Record<string, boolean>>({});
+  // Pindah halaman => buka-tutup manual di-reset, jadi submenu yang tidak
+  // sedang aktif otomatis menutup (grup aktif tetap terbuka lewat groupActive).
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    setManualOpenGroups({});
+  }
   function toggleGroup(label: string) {
     setManualOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
   }
@@ -240,7 +248,6 @@ export default function AppShell({
           </div>
 
           <div className="flex items-center gap-3">
-            {isAdmin && (
               <Link
                 href="/scan-absen"
                 target="_blank"
@@ -249,7 +256,6 @@ export default function AppShell({
                 <i className="fas fa-qrcode" />
                 <span className="hidden sm:inline">SCAN QR</span>
               </Link>
-            )}
             <LiveClock />
             <ThemeToggle initialDark={initialDark} />
           </div>

@@ -5,7 +5,16 @@ import { useFormStatus } from "react-dom";
 import { cekAbsenAction, type CekAbsenState } from "@/lib/auth/student-actions";
 import AuthField, { IdCardIcon } from "@/components/auth/AuthField";
 
-const initialState: CekAbsenState = { error: null };
+/** `nisn` diisi di client supaya kolom tidak kosong setelah gagal. */
+type CekAbsenView = CekAbsenState & { nisn?: string };
+
+const initialState: CekAbsenView = { error: null };
+
+async function submitCek(prev: CekAbsenView, formData: FormData): Promise<CekAbsenView> {
+  const nisn = String(formData.get("nisn") ?? "");
+  const result = (await cekAbsenAction(prev, formData)) as CekAbsenView;
+  return { ...result, nisn };
+}
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -27,7 +36,7 @@ function SubmitButton() {
 }
 
 export default function CekAbsenForm() {
-  const [state, formAction] = useActionState(cekAbsenAction, initialState);
+  const [state, formAction] = useActionState(submitCek, initialState);
 
   return (
     <form
@@ -45,6 +54,7 @@ export default function CekAbsenForm() {
           label="NISN"
           icon={<IdCardIcon />}
           required
+          defaultValue={state?.nisn}
           invalid={!!state?.error}
         />
         <p className="text-xs text-slate-400 dark:text-slate-500 pl-1">

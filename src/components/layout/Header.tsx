@@ -12,7 +12,7 @@ interface HeaderProps {
   initialDark: boolean;
 }
 
-export default function Header({ namaSekolah, isAdmin, initialDark }: HeaderProps) {
+export default function Header({ namaSekolah, initialDark }: HeaderProps) {
   const pathname = usePathname();
   const { isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen } = useSidebar();
 
@@ -67,16 +67,14 @@ export default function Header({ namaSekolah, isAdmin, initialDark }: HeaderProp
 
       {/* Right Side Widgets */}
       <div className="flex items-center gap-3">
-        {isAdmin && (
-          <Link
-            href="/scan-absen"
-            target="_blank"
-            className="flex items-center gap-2 px-3 py-1.5 text-xs sm:text-sm font-bold text-emerald-600 bg-emerald-100 border border-emerald-200 rounded-lg hover:bg-emerald-200 dark:text-emerald-400 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:hover:bg-emerald-500/20 transition-colors no-underline shadow-sm"
-          >
-            <i className="fas fa-qrcode" />
-            <span className="hidden sm:inline">SCAN QR</span>
-          </Link>
-        )}
+        <Link
+          href="/scan-absen"
+          target="_blank"
+          className="flex items-center gap-2 px-3 py-1.5 text-xs sm:text-sm font-bold text-emerald-600 bg-emerald-100 border border-emerald-200 rounded-lg hover:bg-emerald-200 dark:text-emerald-400 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:hover:bg-emerald-500/20 transition-colors no-underline shadow-sm"
+        >
+          <i className="fas fa-qrcode" />
+          <span className="hidden sm:inline">SCAN QR</span>
+        </Link>
         <LiveClock />
         <ThemeToggle initialDark={initialDark} />
       </div>

@@ -5,21 +5,25 @@ import { getAbsensiSetting } from "@/lib/data/dashboard";
 import { registerScanner, bumpScannerStats } from "@/lib/data/scanner";
 import { kirimNotifAbsen } from "@/lib/wa/notifikasi";
 import { nowJakarta, hms, jamTitikFormat, addMinutes } from "@/lib/utils/jam";
+import { getKelasWali } from "@/lib/data/wali-kelas";
+import {
+  KETERANGAN_ALPHA_SISTEM,
+  bolehScanSiswa,
+  rencanaKoreksiMasuk,
+  tentukanStatusMasuk,
+  validasiScanId,
+  validasiWaktuScanOffline,
+} from "@/lib/utils/absen-scan";
 
 const TOKEN_RE = /^SIELISA:([a-f0-9]{32,})$/i;
-
-// Scan dari antrean offline membawa waktu scan asli (scan_at). Dibatasi supaya
-// tidak bisa dipakai mengarang waktu: tidak boleh di masa depan, dan maksimal
-// 3 hari ke belakang (lebih lama dari itu catat manual lewat Rekap).
-const SCAN_AT_MAKS_MUNDUR_MS = 3 * 24 * 60 * 60 * 1000;
-const SCAN_AT_TOLERANSI_MASA_DEPAN_MS = 2 * 60 * 1000;
 
 /** Penolakan karena input/aturan bisnis (permanen, tidak perlu dicoba ulang). */
 class ErrorBisnis extends Error {}
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session || session.role !== "admin") {
+  // Admin: semua kelas. Guru: hanya siswa kelas yang diampunya (dicek di server, lihat bolehScanSiswa).
+  if (!session || (session.role !== "admin" && session.role !== "guru")) {
     return NextResponse.json({ status: "error", message: "Unauthorized" }, { status: 403 });
   }
 
@@ -28,25 +32,30 @@ export async function POST(req: NextRequest) {
   const scannerId = String(form.get("scanner_id") || "unknown").trim();
   const offlineQueueCount = Math.max(0, parseInt(String(form.get("offline_queue_count") || "0"), 10) || 0);
 
-  // Waktu scan: default = sekarang. Scan dari antrean offline mengirim scan_at
-  // (waktu scan asli) supaya jam masuk, status terlambat, dan tanggalnya benar —
-  // bukan waktu ketika perangkat kembali online.
+  // Identitas item antrean offline (UUID dari perangkat). Opsional, tapi kalau ada harus valid.
+  const idScan = validasiScanId(String(form.get("scan_id") || ""));
+  if (!idScan.ok) {
+    return NextResponse.json({ status: "error", message: idScan.message }, { status: 400 });
+  }
+  const scanId = idScan.scanId;
+
+  // Waktu scan: default = sekarang. Scan dari antrean offline mengirim scan_at (waktu scan asli) +
+  // device_now (jam perangkat saat dikirim) supaya jam masuk, status terlambat, dan tanggalnya benar —
+  // bukan waktu ketika perangkat kembali online — dan jam perangkat yang salah ikut dikoreksi.
   let waktuScan: Date | null = null;
   const scanAtRaw = String(form.get("scan_at") || "").trim();
   if (scanAtRaw) {
-    const t = new Date(scanAtRaw);
-    const umurMs = Date.now() - t.getTime();
-    if (Number.isNaN(t.getTime()) || umurMs < -SCAN_AT_TOLERANSI_MASA_DEPAN_MS) {
-      return NextResponse.json({ status: "error", message: "Waktu scan offline tidak valid." }, { status: 400 });
+    const v = validasiWaktuScanOffline({
+      scanAtRaw,
+      deviceNowRaw: String(form.get("device_now") || "").trim(),
+      serverNowMs: Date.now(),
+    });
+    if (!v.ok) {
+      return NextResponse.json({ status: "error", message: v.message }, { status: 400 });
     }
-    if (umurMs > SCAN_AT_MAKS_MUNDUR_MS) {
-      return NextResponse.json(
-        { status: "error", message: "Scan offline lebih dari 3 hari — catat manual lewat Rekap." },
-        { status: 400 }
-      );
-    }
-    waktuScan = t;
+    waktuScan = v.waktu;
   }
+  const dariAntrean = waktuScan !== null;
 
   const now = nowJakarta(waktuScan ?? undefined);
   const tanggal = now.toISOString().slice(0, 10);
@@ -66,12 +75,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: "error", message: "LIBUR: Hari Minggu" });
     }
     // Dua query ini saling bebas: jalankan bersamaan (hemat 1 round-trip ke DB).
-    const [{ data: libur }, setting] = await Promise.all([
+    // Kelas wali dibaca dari DB (bukan JWT) dan hanya untuk role guru — ikut paralel, tanpa round-trip tambahan.
+    const [{ data: libur }, setting, kelasWali] = await Promise.all([
       supabaseAdmin.from("hari_libur").select("keterangan").eq("tanggal", tanggal).maybeSingle(),
       getAbsensiSetting(),
+      session.role === "guru" ? getKelasWali(session.userId) : Promise.resolve(null),
     ]);
     if (libur) {
       return NextResponse.json({ status: "error", message: `LIBUR: ${libur.keterangan}` });
+    }
+    if (session.role === "guru" && !kelasWali) {
+      return NextResponse.json({ status: "error", message: "Akun Anda belum terdaftar sebagai wali kelas." });
     }
 
     const jamMasuk = setting.jam_masuk ?? "07:00:00";
@@ -126,11 +140,18 @@ export async function POST(req: NextRequest) {
       sumberScan = "sistem_otomatis";
     }
 
+    // Akses wali kelas: DITOLAK DI SERVER sebelum ada pembacaan/penulisan absensi apa pun.
+    // Pesan sengaja tanpa nama siswa supaya data siswa kelas lain tidak bocor.
+    if (!bolehScanSiswa(session.role, kelasWali, siswa.class)) {
+      return NextResponse.json({ status: "error", message: "Siswa ini bukan kelas Anda." });
+    }
+
     const siswaId = siswa.id;
+    const jamBukaSistem = addMinutes(jamMasuk, -toleransiPagiMenit);
 
     // Anti-double-tap: 30 detik debounce berdasarkan log terakhir
     // Log terakhir & absen hari ini saling bebas -> satu round-trip.
-    const [{ data: lastLog }, { data: absenHariIni }] = await Promise.all([
+    const [{ data: lastLog }, { data: absenHariIni }, { data: scanSudahDiproses }] = await Promise.all([
       supabaseAdmin
         .from("absensi_log")
         .select("created_at")
@@ -141,13 +162,26 @@ export async function POST(req: NextRequest) {
         .maybeSingle(),
       supabaseAdmin
         .from("absensi")
-        .select("id, jam_masuk, jam_pulang, status")
+        .select("id, jam_masuk, jam_pulang, status, keterangan")
         .eq("siswa_id", siswaId)
         .eq("tanggal", tanggal)
         .maybeSingle(),
+      // Item antrean yang sama tidak boleh menimbulkan efek dua kali (kirim ulang setelah balasan hilang, dst).
+      scanId
+        ? supabaseAdmin.from("absensi_log").select("id").eq("scan_id", scanId).maybeSingle()
+        : Promise.resolve({ data: null }),
     ]);
 
-    if (lastLog) {
+    if (scanSudahDiproses) {
+      return NextResponse.json({
+        status: "sudah",
+        nama: siswa.name,
+        keterangan: "Scan offline ini sudah diproses sebelumnya.",
+      });
+    }
+
+    // Debounce hanya untuk scan langsung. Scan dari antrean offline sudah dijaga scan_id + update bersyarat.
+    if (lastLog && !dariAntrean) {
       const selisih = Math.floor((Date.now() - new Date(lastLog.created_at).getTime()) / 1000);
       if (selisih < 30) {
         return NextResponse.json({
@@ -160,7 +194,6 @@ export async function POST(req: NextRequest) {
 
     // KONDISI A: belum ada data -> absen masuk
     if (!absenHariIni) {
-      const jamBukaSistem = addMinutes(jamMasuk, -toleransiPagiMenit);
       if (jamNow < jamBukaSistem) {
         return NextResponse.json({
           status: "error",
@@ -176,7 +209,7 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      const status = jamNow > batasTerlambat ? "terlambat" : "hadir";
+      const status = tentukanStatusMasuk(jamNow, batasTerlambat);
 
       const { error: insErr } = await supabaseAdmin.from("absensi").insert({
         siswa_id: siswaId,
@@ -219,8 +252,9 @@ export async function POST(req: NextRequest) {
         tanggal_absen: tanggal,
         status_lama: "proses",
         status_baru: status,
-        keterangan: `Scan: ${status.toUpperCase()}`,
+        keterangan: `Scan${dariAntrean ? " offline" : ""}: ${status.toUpperCase()}`,
         scanner_id: scannerId,
+        scan_id: scanId,
       });
       const namaSiswa = siswa.name;
       const kelasSiswa = siswa.class;
@@ -230,6 +264,39 @@ export async function POST(req: NextRequest) {
       });
 
       return NextResponse.json({ status, nama: siswa.name, kelas: siswa.class, jam: jamFmt });
+    }
+
+    // KOREKSI "scan paling awal menang": scan offline yang baru tiba bisa lebih awal dari yang sudah
+    // tercatat (scan online perangkat lain, atau alpha otomatis yang terlanjur jalan). Keputusan akhir
+    // diambil ATOMIK di database (fungsi koreksi_absen_masuk: lock baris + cek ulang syarat), jadi dua
+    // perangkat yang sinkron bersamaan tidak saling menimpa. Tidak mengirim WA koreksi; perubahan
+    // dicatat di absensi_log dan tampil di Log Aktivitas.
+    if (dariAntrean) {
+      const rencana = rencanaKoreksiMasuk({ absen: absenHariIni, jamScan: jamNow, jamBuka: jamBukaSistem, jamPulangMulai, batasTerlambat });
+      if (rencana.aksi === "koreksi") {
+        const { data: hasil, error: koreksiErr } = await supabaseAdmin.rpc("koreksi_absen_masuk", {
+          p_siswa_id: siswaId,
+          p_tanggal: tanggal,
+          p_jam: rencana.jamBaru,
+          p_status_baru: rencana.statusBaru,
+          p_ket_alpha_sistem: KETERANGAN_ALPHA_SISTEM,
+          p_scanner_id: scannerId,
+          p_scan_oleh: sumberScan,
+          p_admin_id: session.userId,
+          p_scan_id: scanId,
+        });
+        if (koreksiErr) throw new Error("Gagal koreksi absensi: " + koreksiErr.message);
+        const baris = (Array.isArray(hasil) ? hasil[0] : hasil) as { dikoreksi?: boolean; status_lama?: string } | null;
+        if (baris?.dikoreksi) {
+          return NextResponse.json({
+            status: "sudah",
+            dikoreksi: true,
+            nama: siswa.name,
+            kelas: siswa.class,
+            keterangan: `Dikoreksi: ${baris.status_lama ?? ""} → ${rencana.statusBaru} ${rencana.jamBaru.slice(0, 5)} (scan offline lebih awal)`,
+          });
+        }
+      }
     }
 
     // KONDISI B: data sudah ada
@@ -274,8 +341,9 @@ export async function POST(req: NextRequest) {
       tanggal_absen: tanggal,
       status_lama: absenHariIni.status,
       status_baru: "pulang",
-      keterangan: "Scan: PULANG",
+      keterangan: `Scan${dariAntrean ? " offline" : ""}: PULANG`,
       scanner_id: scannerId,
+      scan_id: scanId,
     });
     const namaSiswa = siswa.name;
     const kelasSiswa = siswa.class;

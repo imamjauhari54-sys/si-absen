@@ -16,6 +16,8 @@ interface SidebarProps {
   isAdmin: boolean;
 }
 
+// Prop isAdmin dipertahankan agar pemanggil tidak berubah; menu Scan QR kini tampil untuk admin & guru.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function Sidebar({ isAdmin }: SidebarProps) {
   const pathname = usePathname();
   const { isCollapsed, isMobileOpen, setIsMobileOpen } = useSidebar();
@@ -24,9 +26,8 @@ export default function Sidebar({ isAdmin }: SidebarProps) {
     { href: "/dashboard", icon: "fa-house", label: "Dashboard" },
     { href: "/siswa", icon: "fa-users", label: "Data Siswa" },
     { href: "/rekap", icon: "fa-calendar-days", label: "Rekap Absensi" },
-    ...(isAdmin
-      ? [{ href: "/scan-absen", icon: "fa-qrcode", label: "Scan QR", badge: "SCAN" }]
-      : []),
+    // Admin: semua kelas. Guru (wali kelas): hanya siswa kelasnya — dibatasi di server.
+    { href: "/scan-absen", icon: "fa-qrcode", label: "Scan QR", badge: "SCAN" },
     { href: "/setting", icon: "fa-gear", label: "Pengaturan" },
   ];
 

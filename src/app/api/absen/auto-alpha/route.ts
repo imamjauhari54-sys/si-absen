@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { todayJakarta } from "@/lib/utils/tanggal";
 import { kirimNotifAlpha } from "@/lib/wa/notifikasi";
+import { KETERANGAN_ALPHA_SISTEM } from "@/lib/utils/absen-scan";
 
 // Notifikasi WA dikirim di after() setelah respons; beri waktu cukup untuk banyak siswa.
 export const maxDuration = 60;
@@ -74,7 +75,7 @@ async function prosesAutoAlpha(req: NextRequest) {
       siswa_id: s.id,
       tanggal: today,
       status: "alpha",
-      keterangan: "Tanpa Keterangan (Sistem)",
+      keterangan: KETERANGAN_ALPHA_SISTEM,
       tapel: setting.tapel,
       semester: setting.semester,
       scan_oleh: "admin",

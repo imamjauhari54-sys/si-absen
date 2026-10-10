@@ -27,6 +27,10 @@ interface OfflineItem {
   status: string;
   timestamp: string;
   scannerId: string;
+  /** Identitas unik item antrean (UUID). Server memakainya agar kirim ulang tidak menggandakan efek. */
+  scanId?: string;
+  /** Akun yang membuat scan. Item akun lain tetap di antrean dan tidak dikirim dengan sesi akun ini. */
+  userId?: number;
 }
 
 interface DitolakSync {
@@ -61,7 +65,29 @@ function setOfflineQueue(scannerId: string, queue: OfflineItem[]) {
   localStorage.setItem(OFFLINE_KEY + scannerId, JSON.stringify(queue));
 }
 
-export default function Scanner({ namaSekolah, liburInfo = null }: { namaSekolah: string; liburInfo?: string | null }) {
+function buatScanId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  // Cadangan untuk konteks non-HTTPS: UUID v4 dari getRandomValues / Math.random.
+  const b = new Uint8Array(16);
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) crypto.getRandomValues(b);
+  else for (let i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256);
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+export default function Scanner({
+  namaSekolah,
+  liburInfo = null,
+  userId,
+  kelasWali = null,
+}: {
+  namaSekolah: string;
+  liburInfo?: string | null;
+  userId: number;
+  kelasWali?: string | null;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const roiCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -170,26 +196,30 @@ export default function Scanner({ namaSekolah, liburInfo = null }: { namaSekolah
 
   // ── OFFLINE QUEUE ──────────────────────────────────────────────────
   const refreshSyncModal = useCallback(() => {
-    const queue = getOfflineQueue(scannerIdRef.current);
+    // Hanya item milik akun yang sedang login (atau item lama tanpa userId).
+    const queue = getOfflineQueue(scannerIdRef.current).filter((i) => i.userId == null || i.userId === userId);
     setSyncCount(queue.length);
     setSyncItems(queue.slice(-3));
-  }, []);
+  }, [userId]);
 
   const addToOfflineQueue = useCallback(
     (data: { token: string | null; siswa_id: number | null; manual: boolean; nama: string; status: string }) => {
       const queue = getOfflineQueue(scannerIdRef.current);
-      queue.push({ ...data, timestamp: new Date().toISOString(), scannerId: scannerIdRef.current });
+      queue.push({ ...data, timestamp: new Date().toISOString(), scannerId: scannerIdRef.current, scanId: buatScanId(), userId });
       setOfflineQueue(scannerIdRef.current, queue);
       refreshSyncModal();
     },
-    [refreshSyncModal]
+    [refreshSyncModal, userId]
   );
 
   const syncOfflineData = useCallback(async () => {
     if (syncingRef.current || !navigator.onLine) return;
     syncingRef.current = true;
 
-    const queue = getOfflineQueue(scannerIdRef.current);
+    // Antrean disimpan per perangkat, bukan per akun. Item milik akun lain (mis. admin) JANGAN
+    // dikirim dengan sesi akun ini (wali kelas): tetap di antrean sampai pemiliknya login lagi.
+    const semua = getOfflineQueue(scannerIdRef.current);
+    const queue = semua.filter((i) => i.userId == null || i.userId === userId);
     if (queue.length === 0) {
       syncingRef.current = false;
       return;
@@ -197,6 +227,7 @@ export default function Scanner({ namaSekolah, liburInfo = null }: { namaSekolah
 
     setSyncStatus("syncing");
     let berhasil = 0;
+    let dikoreksi = 0;
     let sesiHabis = false;
     const ditolak: DitolakSync[] = [];
 
@@ -213,6 +244,9 @@ export default function Scanner({ namaSekolah, liburInfo = null }: { namaSekolah
         // Waktu scan ASLI. Tanpa ini server memakai waktu sinkron, sehingga scan 06.55
         // yang disinkronkan jam 08.10 tercatat terlambat/ditolak.
         fd.append("scan_at", item.timestamp);
+        // Jam perangkat saat dikirim: server memakainya untuk mengoreksi HP dengan jam yang salah.
+        fd.append("device_now", String(Date.now()));
+        if (item.scanId) fd.append("scan_id", item.scanId);
         // -1 karena item ini lagi diproses & bakal di-shift kalau berhasil
         fd.append("offline_queue_count", String(Math.max(0, queue.length - 1)));
 
@@ -226,13 +260,16 @@ export default function Scanner({ namaSekolah, liburInfo = null }: { namaSekolah
         // Gangguan sementara di server: berhenti, coba lagi di putaran berikutnya.
         if (res.status >= 500) break;
 
-        const d = (await res.json().catch(() => null)) as { status?: string; nama?: string; message?: string } | null;
+        const d = (await res.json().catch(() => null)) as { status?: string; nama?: string; message?: string; dikoreksi?: boolean } | null;
         if (!d || !d.status) break; // balasan bukan dari aplikasi (mis. captive portal) -> coba lagi nanti
 
         // Server sudah memutuskan. Item keluar dari antrean, tetapi penolakan TIDAK boleh
         // hilang diam-diam (sebelumnya semua balasan 200 dianggap sukses).
         queue.shift();
-        setOfflineQueue(scannerIdRef.current, queue);
+        const idxSemua = semua.indexOf(item);
+        if (idxSemua >= 0) semua.splice(idxSemua, 1);
+        setOfflineQueue(scannerIdRef.current, semua);
+        if (d.dikoreksi) dikoreksi++;
         if (d.status === "error") {
           ditolak.push({
             nama: d.nama || item.nama,
@@ -255,11 +292,15 @@ export default function Scanner({ namaSekolah, liburInfo = null }: { namaSekolah
       showNotif("error", "🔒", "Sesi habis", "Login ulang. Antrean offline tetap tersimpan.");
     }
 
+    if (dikoreksi > 0) {
+      showNotif("offline", "🔁", "Data dikoreksi", `${dikoreksi} absensi dikoreksi ke jam scan offline yang lebih awal`);
+    }
+
     if (berhasil > 0) {
       setSyncStatus("success");
       playBeep("success");
       setTimeout(() => {
-        if (getOfflineQueue(scannerIdRef.current).length === 0) setSyncStatus(null);
+        if (getOfflineQueue(scannerIdRef.current).filter((i) => i.userId == null || i.userId === userId).length === 0) setSyncStatus(null);
       }, 2000);
     } else {
       setSyncStatus(null);
@@ -267,7 +308,7 @@ export default function Scanner({ namaSekolah, liburInfo = null }: { namaSekolah
 
     syncingRef.current = false;
     refreshSyncModal();
-  }, [playBeep, refreshSyncModal, showNotif]);
+  }, [playBeep, refreshSyncModal, showNotif, userId]);
 
   // ── LAYAR TETAP MENYALA ────────────────────────────────────────────
   // Scanner dipakai berjam-jam; tanpa Wake Lock layar HP/tablet mati sendiri saat idle.
@@ -757,6 +798,11 @@ export default function Scanner({ namaSekolah, liburInfo = null }: { namaSekolah
             <div className="topbar-school">
               <span className="live-dot" />
               {namaSekolah}
+              {kelasWali && (
+                <span style={{ display: "block", fontSize: ".65rem", fontWeight: 700, opacity: 0.85 }}>
+                  Wali Kelas {kelasWali} · hanya siswa kelas Anda
+                </span>
+              )}
             </div>
           </div>
 

@@ -1,6 +1,13 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useState,
+  useSyncExternalStore,
+  ReactNode,
+} from "react";
 
 interface SidebarContextType {
   isCollapsed: boolean;
@@ -11,31 +18,52 @@ interface SidebarContextType {
 
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
+const STORAGE_KEY = "sidebar";
+const listeners = new Set<() => void>();
+let defaultCollapsed: boolean | null = null;
+
+function subscribe(cb: () => void) {
+  listeners.add(cb);
+  window.addEventListener("storage", cb); // sinkron antar tab
+  return () => {
+    listeners.delete(cb);
+    window.removeEventListener("storage", cb);
+  };
+}
+
+function getSnapshot(): boolean {
+  let saved: string | null = null;
+  try {
+    saved = localStorage.getItem(STORAGE_KEY);
+  } catch {
+    // localStorage tidak tersedia -> pakai default
+  }
+  if (saved !== null) return saved === "collapsed";
+  // Belum pernah disimpan:
+  // Desktop (>= 1024px) => OPEN (false), Mobile (< 1024px) => CLOSED (true)
+  // Dihitung sekali saja (seperti sebelumnya, hanya saat load) supaya resize
+  // jendela tidak membalik sidebar saat komponen re-render.
+  if (defaultCollapsed === null) defaultCollapsed = window.innerWidth < 1024;
+  return defaultCollapsed;
+}
+
+// Di server / saat hydration: selalu OPEN (sama seperti state awal sebelumnya).
+function getServerSnapshot(): boolean {
+  return false;
+}
+
 export function SidebarProvider({ children }: { children: ReactNode }) {
-  const [isCollapsed, setIsCollapsedState] = useState(false);
+  const isCollapsed = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  // Load from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem("sidebar");
-    if (saved !== null) {
-      setIsCollapsedState(saved === "collapsed");
-    } else {
-      // Jika saved == null:
-      // Desktop (>= 1024px) => OPEN (isCollapsed = false)
-      // Mobile (< 1024px) => CLOSED (isCollapsed = true)
-      if (window.innerWidth >= 1024) {
-        setIsCollapsedState(false);
-      } else {
-        setIsCollapsedState(true);
-      }
+  const setIsCollapsed = useCallback((collapsed: boolean) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, collapsed ? "collapsed" : "open");
+    } catch {
+      // abaikan
     }
+    listeners.forEach((l) => l());
   }, []);
-
-  const setIsCollapsed = (collapsed: boolean) => {
-    setIsCollapsedState(collapsed);
-    localStorage.setItem("sidebar", collapsed ? "collapsed" : "open");
-  };
 
   return (
     <SidebarContext.Provider
