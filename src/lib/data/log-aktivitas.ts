@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { formatWaktuWib } from "@/lib/utils/tanggal";
 
 export interface LogAktivitasRow {
   id: number;
@@ -22,16 +23,6 @@ export async function catatLog(adminId: number, aksi: string, target: string, ke
   } catch {
     // sengaja diabaikan, logging tidak boleh menggagalkan aksi utama
   }
-}
-
-const BULAN_INDO = ["", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-
-function formatWaktu(iso: string) {
-  const d = new Date(iso);
-  const tgl = String(d.getDate()).padStart(2, "0");
-  const bln = BULAN_INDO[d.getMonth() + 1];
-  const jam = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  return `${tgl} ${bln}, ${jam}`;
 }
 
 export interface LogAktivitasPageResult {
@@ -68,7 +59,7 @@ export async function getLogAktivitasPage(page: number, pageSize: number): Promi
       aksi: row.aksi,
       target: row.target,
       keterangan: row.keterangan,
-      createdAt: formatWaktu(row.created_at),
+      createdAt: formatWaktuWib(row.created_at),
       namaAdmin: admin?.name || "Sistem",
       fotoAdmin: admin?.foto ?? null,
     };

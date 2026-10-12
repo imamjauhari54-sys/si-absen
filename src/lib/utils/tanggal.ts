@@ -82,6 +82,36 @@ export function nowJakarta(): { tanggal: string; jam: string } {
   return { tanggal, jam };
 }
 
+/**
+ * Bagian-bagian waktu dalam WIB (UTC+7) dari timestamp ISO, mis. kolom timestamptz dari Supabase.
+ * TIDAK bergantung zona waktu server: fungsi Vercel berjalan di UTC, jadi getHours()/getDate()
+ * biasa akan menampilkan jam 7 jam lebih awal dan tanggal yang salah untuk kejadian 00.00–06.59 WIB.
+ * Teks tanpa keterangan zona dianggap UTC (default Supabase). Mengembalikan null kalau tidak valid.
+ */
+export function bagianWaktuWib(iso: string): { bulan: number; tanggal: number; jam: number; menit: number } | null {
+  const teks = /T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(iso) ? `${iso}Z` : iso;
+  const ms = new Date(teks).getTime();
+  if (Number.isNaN(ms)) return null;
+  const wib = new Date(ms + 7 * 60 * 60 * 1000);
+  return { bulan: wib.getUTCMonth() + 1, tanggal: wib.getUTCDate(), jam: wib.getUTCHours(), menit: wib.getUTCMinutes() };
+}
+
+const dua = (n: number) => String(n).padStart(2, "0");
+
+/** "12 Okt, 12:00" dalam WIB. `kapital` → "12 OKT, 12:00". Tidak valid → "-". */
+export function formatWaktuWib(iso: string, opsi: { kapital?: boolean } = {}): string {
+  const p = bagianWaktuWib(iso);
+  if (!p) return "-";
+  const bulan = opsi.kapital ? BULAN_SINGKAT[p.bulan].toUpperCase() : BULAN_SINGKAT[p.bulan];
+  return `${dua(p.tanggal)} ${bulan}, ${dua(p.jam)}:${dua(p.menit)}`;
+}
+
+/** "12:00" dalam WIB. Tidak valid → "-". */
+export function formatJamWib(iso: string): string {
+  const p = bagianWaktuWib(iso);
+  return p ? `${dua(p.jam)}:${dua(p.menit)}` : "-";
+}
+
 /** Tambah (atau kurangi, kalau menit negatif) menit ke string waktu "HH:MM:SS". */
 export function tambahMenit(waktu: string, menit: number): string {
   const [h, m, s] = waktu.split(":").map(Number);

@@ -8,6 +8,9 @@ import {
   hariSingkat,
   jamSingkat,
   todayLabel,
+  bagianWaktuWib,
+  formatWaktuWib,
+  formatJamWib,
 } from "./tanggal";
 
 describe("addDaysJakarta", () => {
@@ -105,5 +108,47 @@ describe("jamSingkat", () => {
 
   it("null tetap null (bukan '-' atau string kosong)", () => {
     expect(jamSingkat(null)).toBeNull();
+  });
+});
+
+// Hasilnya HARUS sama di zona waktu proses mana pun (Vercel = UTC, laptop = WIB, dst).
+// Jalankan juga dengan: TZ=UTC / TZ=Asia/Jakarta / TZ=America/Los_Angeles npx vitest run
+describe("formatWaktuWib / formatJamWib", () => {
+  it("12.00 WIB = 05.00 UTC (kasus yang tampil 7 jam lebih awal di produksi)", () => {
+    expect(formatWaktuWib("2026-10-12T05:00:03.120+00:00")).toBe("12 Okt, 12:00");
+    expect(formatJamWib("2026-10-12T05:00:03.120+00:00")).toBe("12:00");
+  });
+
+  it("tanggal ikut maju saat lewat tengah malam WIB", () => {
+    expect(formatWaktuWib("2026-10-12T17:30:00Z")).toBe("13 Okt, 00:30");
+    expect(formatWaktuWib("2026-10-12T17:00:00Z")).toBe("13 Okt, 00:00"); // bukan "24:00"
+  });
+
+  it("pergantian bulan dan tahun", () => {
+    expect(formatWaktuWib("2026-12-31T20:00:00Z")).toBe("01 Jan, 03:00");
+    expect(formatWaktuWib("2026-02-28T18:00:00Z")).toBe("01 Mar, 01:00");
+  });
+
+  it("awal hari UTC = 07.00 WIB", () => {
+    expect(formatJamWib("2026-10-12T00:00:00Z")).toBe("07:00");
+  });
+
+  it("offset non-UTC dihormati", () => {
+    expect(formatJamWib("2026-10-12T12:00:00+07:00")).toBe("12:00");
+  });
+
+  it("teks tanpa zona dianggap UTC", () => {
+    expect(formatJamWib("2026-10-12T05:00:00")).toBe("12:00");
+    expect(formatJamWib("2026-10-12T05:00:00.5")).toBe("12:00");
+  });
+
+  it("opsi kapital untuk bulan", () => {
+    expect(formatWaktuWib("2026-10-12T17:30:00Z", { kapital: true })).toBe("13 OKT, 00:30");
+  });
+
+  it("tidak valid → tanda hubung, bukan 'NaN undefined'", () => {
+    expect(formatWaktuWib("bukan-tanggal")).toBe("-");
+    expect(formatJamWib("")).toBe("-");
+    expect(bagianWaktuWib("xx")).toBeNull();
   });
 });

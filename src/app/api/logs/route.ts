@@ -1,16 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
-
-const BULAN_INDO = ["", "JAN", "FEB", "MAR", "APR", "MEI", "JUN", "JUL", "AGU", "SEP", "OKT", "NOV", "DES"];
-
-function formatWaktu(iso: string) {
-  const d = new Date(iso);
-  const tgl = String(d.getDate()).padStart(2, "0");
-  const bln = BULAN_INDO[d.getMonth() + 1];
-  const jam = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  return `${tgl} ${bln}, ${jam}`;
-}
+import { formatWaktuWib } from "@/lib/utils/tanggal";
 
 export async function GET() {
   const session = await getSession();
@@ -40,7 +31,7 @@ export async function GET() {
       status_lama: row.status_lama,
       status_baru: row.status_baru,
       keterangan: row.keterangan,
-      created_at: formatWaktu(row.created_at),
+      created_at: formatWaktuWib(row.created_at, { kapital: true }),
       nama_admin: admin?.name || `User (ID:${row.admin_id})`,
       foto_admin: admin?.foto ?? null,
       nama_siswa: siswa?.name ?? null,

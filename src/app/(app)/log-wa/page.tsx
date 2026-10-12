@@ -2,21 +2,12 @@ import type { Metadata } from "next";
 import { requireSession } from "@/lib/auth/session";
 import { getWaLogPage, hitungWaGagalTotal } from "@/lib/data/wa-log";
 import Pagination from "@/components/ui/Pagination";
+import { formatWaktuWib } from "@/lib/utils/tanggal";
 
 const PAGE_SIZE = 10;
 
 export const metadata: Metadata = { title: "Log Notifikasi WA" };
 export const dynamic = "force-dynamic";
-
-const BULAN_INDO = ["", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-
-function formatWaktu(iso: string) {
-  const d = new Date(iso);
-  const tgl = String(d.getDate()).padStart(2, "0");
-  const bln = BULAN_INDO[d.getMonth() + 1];
-  const jam = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  return `${tgl} ${bln}, ${jam}`;
-}
 
 const TIPE_LABEL: Record<string, string> = { absen: "Absen", alpha: "Alpha" };
 
@@ -82,7 +73,7 @@ export default async function LogWaPage({
                     {gagal && log.errorMessage && (
                       <p className="text-xs text-red-500 mt-0.5 font-mono break-all">{log.errorMessage}</p>
                     )}
-                    <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">{formatWaktu(log.createdAt)}</p>
+                    <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">{formatWaktuWib(log.createdAt)}</p>
                   </div>
                 </div>
               );

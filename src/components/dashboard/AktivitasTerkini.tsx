@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { RecentScan } from "@/types";
+import { formatJamWib } from "@/lib/utils/tanggal";
 
 const STATUS_CFG: Record<string, [string, string]> = {
   hadir: ["bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400", "Hadir"],
@@ -64,7 +65,7 @@ export default function AktivitasTerkini({
               const [cls, label] = STATUS_CFG[r.status] ?? ["bg-gray-100 text-gray-700", "—"];
               const jam = r.jam_masuk
                 ? r.jam_masuk.slice(0, 5)
-                : new Date(r.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+                : formatJamWib(r.created_at); // jam WIB; toLocaleTimeString memakai zona server (UTC di Vercel)
               return (
                 <div key={i} className="flex items-center gap-3 px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
                   <div className="w-9 h-9 rounded-full flex-shrink-0 bg-indigo-600 flex items-center justify-center text-white font-black text-xs shadow-md">
