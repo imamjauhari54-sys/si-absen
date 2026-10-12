@@ -10,7 +10,11 @@ import {
   getSiswaProfile,
   hitungStatHistory,
 } from "@/lib/data/history";
+import { getKelasSiswaPadaTapel, getRiwayatKelasSiswa } from "@/lib/data/riwayat-kelas";
+import RiwayatKelas from "@/components/history/RiwayatKelas";
 import { formatTglPanjang } from "@/lib/utils/tanggal";
+import { paginasi } from "@/lib/utils/paginasi";
+import Pagination from "@/components/ui/Pagination";
 import HistoryWidgets from "@/components/history/HistoryWidgets";
 import HistoryChart from "@/components/history/HistoryChart";
 import "@/components/history/history.css";
@@ -20,12 +24,14 @@ export const dynamic = "force-dynamic";
 
 const AV_COLORS = "from-indigo-500 to-purple-600";
 
+const PAGE_SIZE = 10;
+
 export default async function HistorySiswaPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tapel?: string; semester?: string; bulan?: string; from?: string }>;
+  searchParams: Promise<{ tapel?: string; semester?: string; bulan?: string; from?: string; page?: string }>;
 }) {
   const session = await requireSession();
   const isAdmin = session.role === "admin";
@@ -49,15 +55,22 @@ export default async function HistorySiswaPage({
     bulan: sp.bulan ?? "",
   };
 
-  const [rows, listTapel, chartData] = await Promise.all([
+  const [rows, listTapel, chartData, kelasPadaTapel, riwayatKelas] = await Promise.all([
     getRiwayatAbsensi(siswaId, filter),
     getListTapel(),
     getChartTren6Bulan(siswaId),
+    getKelasSiswaPadaTapel(siswaId, filter.tapel),
+    getRiwayatKelasSiswa(siswaId),
   ]);
+  // Kelas pada tapel yang sedang dilihat (bisa beda dari kelas sekarang kalau siswa sudah naik).
+  const kelasTampil = kelasPadaTapel ?? siswa.class;
   if (filter.tapel && !listTapel.includes(filter.tapel)) listTapel.push(filter.tapel);
 
   const stat = hitungStatHistory(rows);
   const total = rows.length;
+  // Statistik & grafik memakai SEMUA baris; paginasi hanya memotong tabel di bawah.
+  const pg = paginasi(total, parseInt(sp.page || "1", 10), PAGE_SIZE);
+  const rowsHalaman = rows.slice(pg.dari, pg.sampai);
   const hadirEff = stat.hadir + stat.terlambat;
   const pctHadir = total > 0 ? Math.round((hadirEff / total) * 100) : 0;
   const pctColor = pctHadir >= 85 ? "text-emerald-500" : pctHadir >= 75 ? "text-amber-500" : "text-red-500";
@@ -67,6 +80,14 @@ export default async function HistorySiswaPage({
 
   const qs = new URLSearchParams({ tapel: filter.tapel, semester: filter.semester, bulan: filter.bulan });
   const csvHref = `/api/siswa/${siswaId}/history-csv?${qs.toString()}`;
+  // Filter dibawa apa adanya (termasuk yang kosong, mis. "Semua semester"), supaya pindah halaman
+  // tidak mengembalikan filter ke nilai default.
+  const buildPageHref = (p: number) => {
+    const q = new URLSearchParams({ tapel: filter.tapel, semester: filter.semester, bulan: filter.bulan });
+    if (sp.from) q.set("from", sp.from);
+    if (p > 1) q.set("page", String(p));
+    return `?${q.toString()}`;
+  };
 
   return (
     <div className="w-full px-4 pt-2 mb-14">
@@ -106,7 +127,10 @@ export default async function HistorySiswaPage({
             <h3 className="text-xl font-extrabold text-gray-800 dark:text-white">{siswa.name}</h3>
             <div className="flex flex-wrap gap-2 mt-2">
               <span className="inline-flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 px-3 py-1 rounded-full text-xs font-bold">
-                <i className="fas fa-chalkboard-teacher text-[10px]" /> Kelas {siswa.class}
+                <i className="fas fa-chalkboard-teacher text-[10px]" /> Kelas {kelasTampil}
+                {kelasTampil !== siswa.class && (
+                  <span className="font-medium opacity-70"> (sekarang {siswa.class})</span>
+                )}
               </span>
               {siswa.nisn && (
                 <span className="inline-flex items-center gap-1.5 bg-gray-100 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300 px-3 py-1 rounded-full text-xs font-bold font-mono">
@@ -121,6 +145,12 @@ export default async function HistorySiswaPage({
                 <i className={`fas ${isL ? "fa-mars" : "fa-venus"} text-[10px]`} /> {isL ? "Laki-laki" : "Perempuan"}
               </span>
             </div>
+            <RiwayatKelas
+              riwayat={riwayatKelas}
+              tapelAktif={settingDefault.tapel ?? ""}
+              tapelDilihat={filter.tapel}
+              semester={filter.semester}
+            />
           </div>
           <div className="flex-shrink-0 text-center bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl px-6 py-4 min-w-[100px]">
             <div className={`text-4xl font-black ${pctColor}`}>{pctHadir}%</div>
@@ -212,7 +242,7 @@ export default async function HistorySiswaPage({
               <span className="text-xs font-normal text-gray-500 dark:text-gray-400">({total} hari tercatat)</span>
             </h3>
           </div>
-          <div className="overflow-x-auto" style={{ maxHeight: 420, overflowY: "auto" }}>
+          <div className="overflow-x-auto">
             <table className="w-full text-sm text-left border-collapse">
               <thead className="bg-gray-50 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400 text-[10px] uppercase tracking-wider font-extrabold border-b border-gray-200 dark:border-gray-700/50 sticky top-0 z-10">
                 <tr>
@@ -233,9 +263,9 @@ export default async function HistorySiswaPage({
                     </td>
                   </tr>
                 ) : (
-                  rows.map((d, idx) => (
+                  rowsHalaman.map((d, idx) => (
                     <tr key={idx} className="tbl-row text-gray-700 dark:text-gray-300">
-                      <td className="px-4 py-3 text-center text-xs font-bold text-gray-400">{idx + 1}</td>
+                      <td className="px-4 py-3 text-center text-xs font-bold text-gray-400">{pg.dari + idx + 1}</td>
                       <td className="px-4 py-3 text-xs font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">
                         {formatTglPanjang(d.tanggal)}
                       </td>
@@ -259,6 +289,14 @@ export default async function HistorySiswaPage({
               </tbody>
             </table>
           </div>
+          {total > PAGE_SIZE && (
+            <div className="border-t border-gray-100 dark:border-white/[0.05] px-5 flex flex-col sm:flex-row items-center justify-between gap-1">
+              <span className="text-xs text-gray-500 dark:text-gray-400 pt-4 sm:pt-0">
+                Menampilkan {pg.dari + 1}–{pg.sampai} dari {total} hari
+              </span>
+              <Pagination page={pg.page} totalPages={pg.totalPages} buildHref={buildPageHref} />
+            </div>
+          )}
         </div>
       </div>
     </div>

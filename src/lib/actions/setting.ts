@@ -69,9 +69,8 @@ export async function simpanJadwalAction(_prev: SettingActionState, formData: Fo
   const jm = String(formData.get("jam_masuk") || "07:00");
   const bt = String(formData.get("batas_terlambat") || "07:15");
   const jp = String(formData.get("jam_pulang") || "11:30");
-  const tp = String(formData.get("tapel") || "2025/2026").trim();
-  const smRaw = String(formData.get("semester") || "genap");
-  const sm = smRaw === "ganjil" ? "ganjil" : "genap";
+  // Tapel & semester TIDAK lagi diatur di sini — lihat setPeriodeAktifAction
+  // (src/lib/actions/tapel.ts). Form Jadwal tidak boleh menimpa periode aktif.
 
   const dkRaw = parseInt(String(formData.get("durasi_kunci_menit") || "120"), 10);
   const durasiKunciMenit = Number.isFinite(dkRaw) && dkRaw > 0 ? dkRaw : 120;
@@ -84,8 +83,6 @@ export async function simpanJadwalAction(_prev: SettingActionState, formData: Fo
     jam_masuk: `${jm}:00`,
     batas_terlambat: `${bt}:00`,
     jam_pulang_mulai: `${jp}:00`,
-    tapel: tp,
-    semester: sm,
     durasi_kunci_menit: durasiKunciMenit,
     toleransi_pagi_menit: toleransiPagiMenit,
   };
@@ -126,37 +123,25 @@ export async function resetDataAction(_prev: SettingActionState, formData: FormD
   if (!periode) return { status: "error", message: "Pilih periode terlebih dahulu!" };
   if (konfirmasi !== "HAPUS") return { status: "error", message: "Gagal: Kata konfirmasi 'HAPUS' tidak cocok." };
 
-  // Cari siswa_id yang match filter kelas (opsional)
-  let studentsQuery = supabaseAdmin.from("students").select("id");
-  if (kelasFilter) studentsQuery = studentsQuery.eq("class", kelasFilter);
-  const { data: students } = await studentsQuery;
-  const studentIds = (students ?? []).map((s) => s.id);
-  if (studentIds.length === 0) {
+  if (periode !== "all" && !/^\d{4}-(0[1-9]|1[0-2])$/.test(periode)) {
+    return { status: "error", message: "Format periode tidak valid." };
+  }
+
+  // Satu fungsi database (migrasi 016) = satu transaksi: log dan absensi terhapus bersama atau
+  // tidak sama sekali. Filter kelas memakai riwayat_kelas, jadi "kelas 3 bulan Agustus 2025"
+  // berarti siswa yang SAAT ITU kelas 3 — bukan yang sekarang kebetulan kelas 3.
+  const { data, error } = await supabaseAdmin.rpc("hapus_data_absensi", {
+    p_bulan: periode,
+    p_kelas: kelasFilter || null,
+  });
+  if (error) {
+    return { status: "error", message: "Gagal menghapus data: " + error.message };
+  }
+
+  const hasil = (Array.isArray(data) ? data[0] : data) as { absensi_dihapus?: number } | null;
+  const jumlahDihapus = Number(hasil?.absensi_dihapus ?? 0);
+  if (jumlahDihapus === 0) {
     return { status: "error", message: "Tidak ada data untuk dihapus di periode/kelas yang dipilih." };
-  }
-
-  let absensiQuery = supabaseAdmin.from("absensi").select("siswa_id").in("siswa_id", studentIds);
-  if (periode !== "all") {
-    absensiQuery = absensiQuery.gte("tanggal", `${periode}-01`).lte("tanggal", `${periode}-31`);
-  }
-  const { data: absenRows } = await absensiQuery;
-  const siswaIds = Array.from(new Set((absenRows ?? []).map((r) => r.siswa_id)));
-
-  if (siswaIds.length === 0) {
-    return { status: "error", message: "Tidak ada data untuk dihapus di periode/kelas yang dipilih." };
-  }
-
-  // Hapus log dulu, baru absensi (pola sama seperti PHP aslinya)
-  let logQuery = supabaseAdmin.from("absensi_log").delete().in("siswa_id", siswaIds);
-  if (periode !== "all") logQuery = logQuery.gte("tanggal_absen", `${periode}-01`).lte("tanggal_absen", `${periode}-31`);
-  const { error: err1 } = await logQuery;
-
-  let absDelQuery = supabaseAdmin.from("absensi").delete().in("siswa_id", siswaIds);
-  if (periode !== "all") absDelQuery = absDelQuery.gte("tanggal", `${periode}-01`).lte("tanggal", `${periode}-31`);
-  const { error: err2 } = await absDelQuery;
-
-  if (err1 || err2) {
-    return { status: "error", message: "Gagal menghapus data: " + (err1?.message || err2?.message) };
   }
 
   let message: string;

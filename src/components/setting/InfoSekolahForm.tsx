@@ -5,6 +5,8 @@ import { useFormStatus } from "react-dom";
 import { simpanInfoSekolahAction } from "@/lib/actions/setting";
 import { settingInitialState } from "@/lib/actions/setting-types";
 import NotifModal from "@/components/ui/NotifModal";
+import TapelAktifPanel from "@/components/setting/TapelAktifPanel";
+import type { Semester } from "@/lib/utils/tapel";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -25,12 +27,14 @@ export default function InfoSekolahForm({
   alamat,
   tapel,
   semester,
+  daftarTapel,
   isAdmin,
 }: {
   namaSekolah: string;
   alamat: string;
   tapel: string;
-  semester: string;
+  semester: Semester;
+  daftarTapel: string[];
   isAdmin: boolean;
 }) {
   const [state, formAction] = useActionState(simpanInfoSekolahAction, settingInitialState);
@@ -43,6 +47,7 @@ export default function InfoSekolahForm({
       </h3>
 
       {isAdmin ? (
+        <>
         <form action={formAction} onSubmit={() => setNotifOpen(true)} className="space-y-3">
           <div>
             <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">
@@ -69,18 +74,13 @@ export default function InfoSekolahForm({
             />
           </div>
 
-          <div className="flex justify-between items-center p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-100 dark:border-indigo-800/50">
-            <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">Tapel Aktif</span>
-            <span className="text-xs font-extrabold text-indigo-700 dark:text-indigo-300 text-right">
-              {tapel} <span className="mx-0.5">•</span> {semester.charAt(0).toUpperCase() + semester.slice(1)}
-            </span>
-          </div>
-
           <SubmitButton />
-          <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 leading-relaxed">
-            <i className="fas fa-info-circle mr-1" /> Tahun pelajaran &amp; semester diatur lewat form Jadwal Sekolah di sebelah kiri.
-          </p>
         </form>
+
+        <hr className="border-gray-100 dark:border-gray-700/50 my-4" />
+
+        <TapelAktifPanel tapel={tapel} semester={semester} daftarTapel={daftarTapel} />
+        </>
       ) : (
         <div className="space-y-3">
           <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-700/50">

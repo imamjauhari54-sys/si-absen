@@ -30,7 +30,8 @@ export async function getKelasMasterList(): Promise<string[]> {
 async function _getKelasMasterDetail(): Promise<KelasMasterRow[]> {
   const [{ data: kelas }, { data: siswa }, { data: waliRows }] = await Promise.all([
     supabaseAdmin.from("kelas_master").select("id, nama").order("nama", { ascending: true }),
-    supabaseAdmin.from("students").select("class, jenis_kelamin"),
+    // Hanya siswa AKTIF: lulusan/pindahan tetap menyimpan kelas terakhirnya, jangan ikut dihitung.
+    supabaseAdmin.from("students").select("class, jenis_kelamin").eq("status", "aktif"),
     supabaseAdmin.from("guru_mengajar_kelas").select("class, guru_id").eq("mapel", "Guru Kelas"),
   ]);
 
@@ -113,6 +114,9 @@ export async function renameKelasMaster(id: number, namaBaruMentah: string): Pro
   await Promise.all([
     supabaseAdmin.from("students").update({ class: namaBaru }).eq("class", namaLama),
     supabaseAdmin.from("guru_mengajar_kelas").update({ class: namaBaru }).eq("class", namaLama),
+    // Riwayat kelas menyimpan nama kelas sebagai teks: ikut diganti di SEMUA tapel supaya History
+    // dan Rekap tapel lama memakai nama yang sama. (Rename = koreksi nama, bukan pindah kelas.)
+    supabaseAdmin.from("riwayat_kelas").update({ kelas: namaBaru }).eq("kelas", namaLama),
   ]);
 
   revalidateTag("kelas-master", "max");
@@ -128,7 +132,8 @@ export async function hapusKelasMaster(id: number): Promise<{ error: string | nu
   const { count: jumlahSiswa } = await supabaseAdmin
     .from("students")
     .select("id", { count: "exact", head: true })
-    .eq("class", k.nama);
+    .eq("class", k.nama)
+    .eq("status", "aktif"); // lulusan/pindahan tidak menghalangi penghapusan kelas
   if ((jumlahSiswa ?? 0) > 0) {
     return { error: `Tidak bisa dihapus, masih ada ${jumlahSiswa} siswa di kelas ini. Pindahkan siswanya dulu.` };
   }

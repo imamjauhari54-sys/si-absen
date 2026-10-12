@@ -1,11 +1,12 @@
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { todayJakarta } from "@/lib/utils/tanggal";
 import { ambilSemua } from "@/lib/utils/ambil-semua";
+import { getKelasTapel, getSiswaTapel, tapelUntukBulan, tapelUntukTanggal } from "@/lib/data/riwayat-kelas";
 import type { StatusAbsen } from "@/types";
 
-export async function getSemuaKelasRekap(): Promise<string[]> {
-  const { data } = await supabaseAdmin.from("students").select("class");
-  return Array.from(new Set((data ?? []).map((r) => r.class))).sort();
+/** Daftar kelas pada tapel itu (menurut riwayat kelas), untuk dropdown filter Rekap. */
+export async function getSemuaKelasRekap(tapel: string): Promise<string[]> {
+  return getKelasTapel(tapel);
 }
 
 /**
@@ -64,10 +65,10 @@ export async function getRekapHarian(
   tanggal: string,
   kelasFilter: string
 ): Promise<{ rows: RekapHarianRow[]; stat: StatHarian }> {
-  let studentsQuery = supabaseAdmin.from("students").select("id, name, class");
-  if (kelasFilter) studentsQuery = studentsQuery.eq("class", kelasFilter);
-  const { data: students } = await studentsQuery.order("class").order("name");
-  const list = students ?? [];
+  // Siswa & kelasnya diambil dari riwayat kelas pada tapel tanggal ini, bukan students.class,
+  // supaya rekap tanggal lama tetap menampilkan kelas yang benar setelah siswa naik kelas.
+  const tapel = await tapelUntukTanggal(tanggal);
+  const list = (await getSiswaTapel(tapel, kelasFilter)).map((s) => ({ id: s.siswa_id, name: s.nama, class: s.kelas }));
   if (list.length === 0) return { rows: [], stat: { hadir: 0, terlambat: 0, izin: 0, sakit: 0, alpha: 0 } };
 
   const ids = list.map((s) => s.id);
@@ -204,19 +205,15 @@ export async function getRekapHistoryPage(
 
   const totalHariEfektif = await hitungHariEfektif(tapel, semester);
 
-  let countQuery = supabaseAdmin.from("students").select("id", { count: "exact", head: true });
-  if (kelasFilter) countQuery = countQuery.eq("class", kelasFilter);
-  const { count } = await countQuery;
-  const totalSiswa = count ?? 0;
+  // Daftar siswa = siswa yang punya riwayat kelas di tapel ini (kelasnya pada tapel itu). Daftar
+  // ringan (id, nama, kelas, nisn) diambil seluruhnya lalu dipotong per halaman di sini; yang
+  // berat (agregat absensi) tetap hanya dihitung untuk siswa di halaman yang tampil.
+  const semuaSiswa = await getSiswaTapel(tapel, kelasFilter);
+  const totalSiswa = semuaSiswa.length;
   const totalPages = Math.max(1, Math.ceil(totalSiswa / pageSize));
   const pageAman = Math.min(Math.max(1, page), totalPages);
   const from = (pageAman - 1) * pageSize;
-  const to = from + pageSize - 1;
-
-  let studentsQuery = supabaseAdmin.from("students").select("id, name, class, nisn");
-  if (kelasFilter) studentsQuery = studentsQuery.eq("class", kelasFilter);
-  const { data: students } = await studentsQuery.order("class").order("name").range(from, to);
-  const list = students ?? [];
+  const list = semuaSiswa.slice(from, from + pageSize).map((s) => ({ id: s.siswa_id, name: s.nama, class: s.kelas, nisn: s.nisn }));
   if (list.length === 0) return { rows: [], totalHariEfektif, totalSiswa, totalPages, page: pageAman };
 
   const ids = list.map((s) => s.id);
@@ -251,10 +248,7 @@ export async function getRekapHistory(
 
   const totalHariEfektif = await hitungHariEfektif(tapel, semester);
 
-  let studentsQuery = supabaseAdmin.from("students").select("id, name, class, nisn");
-  if (kelasFilter) studentsQuery = studentsQuery.eq("class", kelasFilter);
-  const { data: students } = await studentsQuery.order("class").order("name");
-  const list = students ?? [];
+  const list = (await getSiswaTapel(tapel, kelasFilter)).map((s) => ({ id: s.siswa_id, name: s.nama, class: s.kelas, nisn: s.nisn }));
   if (list.length === 0) return { rows: [], totalHariEfektif };
 
   const ids = list.map((s) => s.id);
@@ -347,10 +341,8 @@ export async function getRekapBulanan(
   const [y, m] = bulanYYYYMM.split("-").map(Number);
   const tk = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); // hari terakhir bulan itu
 
-  let studentsQuery = supabaseAdmin.from("students").select("id, name, class");
-  if (kelasFilter) studentsQuery = studentsQuery.eq("class", kelasFilter);
-  const { data: students } = await studentsQuery.order("class").order("name");
-  const list = students ?? [];
+  const tapel = await tapelUntukBulan(bulanYYYYMM);
+  const list = (await getSiswaTapel(tapel, kelasFilter)).map((s) => ({ id: s.siswa_id, name: s.nama, class: s.kelas }));
   if (list.length === 0) return { rows: [], tglList };
 
   const ids = list.map((s) => s.id);

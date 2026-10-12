@@ -97,16 +97,12 @@ export default function JadwalForm({
   jamMasuk,
   batasTerlambat,
   jamPulang,
-  tapel,
-  semester,
   durasiKunciMenit,
   toleransiPagiMenit,
 }: {
   jamMasuk: string;
   batasTerlambat: string;
   jamPulang: string;
-  tapel: string;
-  semester: string;
   durasiKunciMenit: number;
   toleransiPagiMenit: number;
 }) {
@@ -116,7 +112,6 @@ export default function JadwalForm({
   const [prevPulang, setPrevPulang] = useState(jamPulang);
   const [prevDurasiKunci, setPrevDurasiKunci] = useState(durasiKunciMenit);
   const [prevToleransiPagi, setPrevToleransiPagi] = useState(toleransiPagiMenit);
-  const [semesterPilih, setSemesterPilih] = useState(semester);
   const [notifOpen, setNotifOpen] = useState(false);
 
   return (
@@ -176,19 +171,6 @@ export default function JadwalForm({
               <TimeInput24 name="jam_pulang" defaultValue={jamPulang} onChange={setPrevPulang} />
               <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5 ml-1">Batas perpindahan scan masuk ke pulang</p>
             </div>
-            <div>
-              <label className="flex items-center gap-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 mb-2">
-                <i className="fas fa-graduation-cap text-purple-500 opacity-80" /> Tahun Pelajaran
-              </label>
-              <input
-                type="text"
-                name="tapel"
-                defaultValue={tapel}
-                placeholder="Misal: 2025/2026"
-                className="inp-modern w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-xl text-sm focus:border-indigo-500 outline-none font-bold"
-              />
-              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5 ml-1">Digunakan untuk informasi cetak/dashboard</p>
-            </div>
           </div>
 
           <hr className="border-gray-100 dark:border-gray-700/50 my-5" />
@@ -230,29 +212,6 @@ export default function JadwalForm({
               <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5 ml-1">
                 Scan absen masuk paling awal boleh <strong className="text-orange-500">{prevToleransiPagi} menit</strong> sebelum <strong>Jam Masuk Sekolah</strong>
               </p>
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <label className="flex items-center gap-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 mb-2">
-              <i className="fas fa-calendar-half text-pink-500 opacity-80" /> Semester Aktif
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              {(["ganjil", "genap"] as const).map((opt) => (
-                <label key={opt} className="relative cursor-pointer group">
-                  <input
-                    type="radio"
-                    name="semester"
-                    value={opt}
-                    checked={semesterPilih === opt}
-                    onChange={() => setSemesterPilih(opt)}
-                    className="peer hidden"
-                  />
-                  <div className="px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 font-bold text-sm text-center transition-all peer-checked:border-indigo-500 peer-checked:bg-indigo-50 peer-checked:dark:bg-indigo-900/20 peer-checked:text-indigo-600 peer-checked:dark:text-indigo-400 group-hover:border-indigo-300">
-                    Semester {opt === "ganjil" ? "Ganjil" : "Genap"}
-                  </div>
-                </label>
-              ))}
             </div>
           </div>
 

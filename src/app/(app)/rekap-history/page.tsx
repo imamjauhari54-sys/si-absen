@@ -35,7 +35,7 @@ export default async function RekapHistoryPage({
 
   const [listTapel, semuaKelas, hasil] = await Promise.all([
     getListTapel(),
-    getSemuaKelasRekap(),
+    getSemuaKelasRekap(tapel),
     getRekapHistoryPage(tapel, semester, kelasFilter, pageParam, PAGE_SIZE),
   ]);
   if (tapel && !listTapel.includes(tapel)) listTapel.push(tapel);

@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getLiburSet } from "@/lib/data/hari-libur";
+import { getDaftarTapel } from "@/lib/data/tapel";
 import type { StatusAbsen } from "@/types";
 
 export interface SiswaHistoryProfile {
@@ -77,7 +78,15 @@ export function hitungStatHistory(rows: RiwayatRow[]): StatHistory {
   return stat;
 }
 
+/**
+ * Daftar tapel untuk dropdown filter. Sumber utama: master tahun_pelajaran (migrasi 015).
+ * Kalau master gagal dibaca / kosong (mis. migrasi belum dijalankan), jatuh ke cara lama:
+ * tapel yang pernah punya absensi.
+ */
 export async function getListTapel(): Promise<string[]> {
+  const master = await getDaftarTapel();
+  if (master.length > 0) return master;
+
   const { data } = await supabaseAdmin.from("absensi").select("tapel").order("tapel", { ascending: false });
   return Array.from(new Set((data ?? []).map((r) => r.tapel).filter(Boolean))) as string[];
 }

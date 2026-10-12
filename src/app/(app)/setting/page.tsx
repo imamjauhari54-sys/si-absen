@@ -3,6 +3,9 @@ import { requireSession } from "@/lib/auth/session";
 import { getAbsensiSetting } from "@/lib/data/dashboard";
 import { getSettingValue } from "@/lib/data/settings";
 import { getDistinctBulanAbsensi } from "@/lib/data/rekap";
+import { getDaftarTapel } from "@/lib/data/tapel";
+import { todayJakarta } from "@/lib/utils/tanggal";
+import { tapelDariTanggal, urutkanTapelTerbaru, type Semester } from "@/lib/utils/tapel";
 import JadwalForm from "@/components/setting/JadwalForm";
 import ResetDataModal from "@/components/setting/ResetDataModal";
 import InfoSekolahForm from "@/components/setting/InfoSekolahForm";
@@ -15,11 +18,12 @@ export default async function SettingPage() {
   const session = await requireSession();
   const isAdmin = session.role === "admin";
 
-  const [setting, namaSekolah, alamat, daftarBulan, waEnabled, waGatewayUrl, waApiKey] = await Promise.all([
+  const [setting, namaSekolah, alamat, daftarBulan, daftarTapelMaster, waEnabled, waGatewayUrl, waApiKey] = await Promise.all([
     getAbsensiSetting(),
     getSettingValue("nama_sekolah", "SI-ABSEN"),
     getSettingValue("alamat_sekolah", ""),
     isAdmin ? getDistinctBulanAbsensi() : Promise.resolve([]),
+    isAdmin ? getDaftarTapel() : Promise.resolve([] as string[]),
     getSettingValue("wa_enabled", "false"),
     getSettingValue("wa_gateway_url", ""),
     getSettingValue("wa_api_key", ""),
@@ -28,8 +32,10 @@ export default async function SettingPage() {
   const jamMasuk = (setting.jam_masuk ?? "07:00:00").slice(0, 5);
   const batasTerlambat = (setting.batas_terlambat ?? "07:15:00").slice(0, 5);
   const jamPulang = (setting.jam_pulang_mulai ?? "11:30:00").slice(0, 5);
-  const tapel = setting.tapel ?? "2025/2026";
-  const semester = setting.semester === "ganjil" ? "ganjil" : "genap";
+  const tapel = setting.tapel ?? tapelDariTanggal(todayJakarta());
+  const semester: Semester = setting.semester === "ganjil" ? "ganjil" : "genap";
+  // Tapel aktif selalu ada di daftar, walau master belum terisi (mis. migrasi 015 belum jalan).
+  const daftarTapel = urutkanTapelTerbaru([...daftarTapelMaster, tapel]);
   const durasiKunciMenit = setting.durasi_kunci_menit ?? 120;
   const toleransiPagiMenit = setting.toleransi_pagi_menit ?? 60;
 
@@ -50,8 +56,6 @@ export default async function SettingPage() {
               jamMasuk={jamMasuk}
               batasTerlambat={batasTerlambat}
               jamPulang={jamPulang}
-              tapel={tapel}
-              semester={semester}
               durasiKunciMenit={durasiKunciMenit}
               toleransiPagiMenit={toleransiPagiMenit}
             />
@@ -97,7 +101,7 @@ export default async function SettingPage() {
 
         {/* KANAN: SIDEBAR INFO */}
         <div className="space-y-6">
-          <InfoSekolahForm namaSekolah={namaSekolah} alamat={alamat} tapel={tapel} semester={semester} isAdmin={isAdmin} />
+          <InfoSekolahForm namaSekolah={namaSekolah} alamat={alamat} tapel={tapel} semester={semester} daftarTapel={daftarTapel} isAdmin={isAdmin} />
 
           {isAdmin && <WaSettingForm enabled={waEnabled === "true"} gatewayUrl={waGatewayUrl} apiKey={waApiKey} />}
         </div>

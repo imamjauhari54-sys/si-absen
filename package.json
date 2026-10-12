@@ -2,15 +2,17 @@
   "name": "si-absen-next",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build --webpack",
-    "start": "next start",
-    "lint": "eslint",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
-  },
+ "scripts": {
+  "dev": "next dev",
+  "build": "next build --webpack",
+  "start": "next start",
+  "lint": "eslint",
+  "typecheck": "tsc --noEmit",
+  "test": "vitest run",
+  "test:watch": "vitest",
+  "test:coverage": "vitest run --coverage",
+  "predeploy": "npm run lint && npm run typecheck && npm run test && npm run build"
+},
   "dependencies": {
     "@serwist/next": "^9.5.12",
     "@supabase/supabase-js": "^2.110.7",

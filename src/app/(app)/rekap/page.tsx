@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { getHariLiburMap } from "@/lib/data/hari-libur";
 import { getRekapBulanan, getRekapHarian, getSemuaKelasRekap } from "@/lib/data/rekap";
+import { tapelUntukBulan, tapelUntukTanggal } from "@/lib/data/riwayat-kelas";
 import { isoWeekday, todayJakarta, addDaysJakarta } from "@/lib/utils/tanggal";
 import RekapWidgets from "@/components/rekap/RekapWidgets";
 import HarianTable from "@/components/rekap/HarianTable";
@@ -60,7 +61,9 @@ export default async function RekapPage({
     }
   }
 
-  const semuaKelas = await getSemuaKelasRekap();
+  // Dropdown kelas mengikuti tapel dari periode yang dilihat (kelas pada tapel itu, bukan kelas sekarang).
+  const tapelRekap = view === "harian" ? await tapelUntukTanggal(tglFilter) : await tapelUntukBulan(bulanFilter);
+  const semuaKelas = await getSemuaKelasRekap(tapelRekap);
 
   const headerTitle =
     view === "harian" ? headerHarian(tglFilter) : `Bulan ${BULAN_ID[Number(bulanFilter.slice(5, 7))]} ${bulanFilter.slice(0, 4)}`;
@@ -86,6 +89,7 @@ export default async function RekapPage({
           </h2>
           <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm font-medium">
             Periode: <strong className="text-indigo-600 dark:text-indigo-400">{headerTitle}</strong>
+            <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">Tapel {tapelRekap}</span>
           </p>
         </div>
 

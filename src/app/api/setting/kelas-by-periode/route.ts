@@ -12,22 +12,17 @@ export async function GET(req: NextRequest) {
   if (!periode) {
     return NextResponse.json({ success: false, error: "Periode wajib diisi" }, { status: 400 });
   }
-
-  // Ambil siswa_id yang punya absensi di periode ini, lalu kelasnya (dua query,
-  // hindari join eksplisit biar tidak bergantung nama relasi FK Supabase).
-  let absensiQuery = supabaseAdmin.from("absensi").select("siswa_id");
-  if (periode !== "all") {
-    absensiQuery = absensiQuery.gte("tanggal", `${periode}-01`).lte("tanggal", `${periode}-31`);
-  }
-  const { data: absenRows } = await absensiQuery;
-  const siswaIds = Array.from(new Set((absenRows ?? []).map((r) => r.siswa_id)));
-
-  if (siswaIds.length === 0) {
-    return NextResponse.json({ success: true, kelas: [], count: 0 });
+  if (periode !== "all" && !/^\d{4}-(0[1-9]|1[0-2])$/.test(periode)) {
+    return NextResponse.json({ success: false, error: "Format periode tidak valid" }, { status: 400 });
   }
 
-  const { data: students } = await supabaseAdmin.from("students").select("class").in("id", siswaIds);
-  const kelasList = Array.from(new Set((students ?? []).map((s) => s.class).filter(Boolean))).sort();
+  // Kelas yang punya absensi pada periode itu, menurut kelas siswa PADA SAAT ITU (riwayat_kelas,
+  // migrasi 016) — bukan kelas sekarang, supaya tetap benar setelah kenaikan kelas.
+  const { data, error } = await supabaseAdmin.rpc("kelas_by_periode", { p_bulan: periode });
+  if (error) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
 
+  const kelasList = ((data ?? []) as { kelas: string }[]).map((r) => r.kelas);
   return NextResponse.json({ success: true, kelas: kelasList, count: kelasList.length });
 }

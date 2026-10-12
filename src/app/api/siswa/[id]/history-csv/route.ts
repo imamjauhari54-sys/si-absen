@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { getRiwayatAbsensi, getSiswaProfile } from "@/lib/data/history";
+import { getKelasSiswaPadaTapel } from "@/lib/data/riwayat-kelas";
 import { formatTglPanjang } from "@/lib/utils/tanggal";
 
 function csvEscape(val: string): string {
@@ -36,12 +37,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     bulan: searchParams.get("bulan") ?? "",
   };
 
-  const rows = await getRiwayatAbsensi(siswaId, filter);
+  const [rows, kelasPadaTapel] = await Promise.all([
+    getRiwayatAbsensi(siswaId, filter),
+    getKelasSiswaPadaTapel(siswaId, filter.tapel),
+  ]);
 
   let csv = "\uFEFF"; // BOM biar Excel baca UTF-8 dengan benar
   csv += "sep=,\r\n";
   csv += toCsvLine(["Nama Siswa", "Kelas", "NISN"]);
-  csv += toCsvLine([siswa.name, siswa.class, siswa.nisn ?? ""]);
+  csv += toCsvLine([siswa.name, kelasPadaTapel ?? siswa.class, siswa.nisn ?? ""]);
   csv += "\r\n";
   csv += toCsvLine(["No", "Tanggal", "Status", "Jam Masuk", "Jam Pulang", "Keterangan"]);
 

@@ -1,7 +1,8 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { addDaysJakarta, hariSingkat, isoWeekday } from "@/lib/utils/tanggal";
+import { addDaysJakarta, hariSingkat, isoWeekday, todayJakarta } from "@/lib/utils/tanggal";
+import { semesterDariTanggal, tapelDariTanggal } from "@/lib/utils/tapel";
 import { ambilSemua } from "@/lib/utils/ambil-semua";
 import { getLiburSet } from "@/lib/data/hari-libur";
 import type { AbsensiSetting, RecentScan, StatusAbsen, Student, TrenHarian } from "@/types";
@@ -47,8 +48,9 @@ async function _getAbsensiSetting(): Promise<AbsensiSetting> {
     jam_masuk: data?.jam_masuk ?? "07:00:00",
     batas_terlambat: data?.batas_terlambat ?? "07:15:00",
     jam_pulang_mulai: data?.jam_pulang_mulai ?? "11:30:00",
-    tapel: data?.tapel ?? "2025/2026",
-    semester: data?.semester ?? "genap",
+    // Fallback (baris setting belum ada): turunkan dari kalender, bukan tahun yang di-hardcode.
+    tapel: data?.tapel ?? tapelDariTanggal(todayJakarta()),
+    semester: data?.semester ?? semesterDariTanggal(todayJakarta()),
     durasi_kunci_menit: data?.durasi_kunci_menit ?? 120,
     toleransi_pagi_menit: data?.toleransi_pagi_menit ?? 60,
   };
