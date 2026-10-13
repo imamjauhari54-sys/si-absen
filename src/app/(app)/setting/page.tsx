@@ -11,6 +11,7 @@ import JadwalForm from "@/components/setting/JadwalForm";
 import ResetDataModal from "@/components/setting/ResetDataModal";
 import InfoSekolahForm from "@/components/setting/InfoSekolahForm";
 import WaSettingForm from "@/components/setting/WaSettingForm";
+import PageTitle from "@/components/ui/PageTitle";
 
 export const metadata: Metadata = { title: "Pengaturan" };
 export const dynamic = "force-dynamic";
@@ -44,17 +45,22 @@ export default async function SettingPage() {
   const toleransiPagiMenit = setting.toleransi_pagi_menit ?? 60;
 
   return (
-    <div className="w-full px-4 pt-2 mb-14">
+    <div className="w-full max-w-[1600px] px-4 pt-2 mb-14">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4 reveal">
-        <div>
-          <h2 className="text-2xl font-extrabold text-gray-800 dark:text-white tracking-tight">Pengaturan Sistem</h2>
-          <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm font-medium">Konfigurasi jam operasional sekolah dan parameter absensi</p>
-        </div>
+        <PageTitle icon="fa-gear" title="Pengaturan Sistem">
+          Konfigurasi jam operasional sekolah dan parameter absensi
+        </PageTitle>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* KIRI: FORM + ZONA BAHAYA */}
-        <div className="lg:col-span-2 reveal">
+      {/*
+        Susunan layar lebar (xl): baris 1 = Jadwal | (Info Sekolah di atas Zona Bahaya) supaya kedua
+        kolom hampir sama tinggi; baris 2 = Notifikasi WhatsApp selebar penuh. Di bawah xl semuanya
+        ditumpuk satu kolom dan Zona Bahaya memakai order-last, jadi tindakan penghapusan data
+        selalu paling akhir di HP. Lebar mengikuti halaman lain (w-full, rata kiri); batas 1600px
+        hanya mencegah isian melebar tanpa batas di monitor ultra-lebar atau saat browser di-zoom out.
+      */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="reveal xl:h-full">
           {isAdmin ? (
             <JadwalForm
               jamMasuk={jamMasuk}
@@ -64,7 +70,7 @@ export default async function SettingPage() {
               toleransiPagiMenit={toleransiPagiMenit}
             />
           ) : (
-            <div className="section-card p-6 shadow-sm mb-6">
+            <div className="section-card p-6 shadow-sm xl:h-full">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg">
                   <i className="fas fa-stopwatch" />
@@ -100,15 +106,23 @@ export default async function SettingPage() {
               </div>
             </div>
           )}
-          {isAdmin && <ResetDataModal daftarBulan={daftarBulan} />}
         </div>
 
-        {/* KANAN: SIDEBAR INFO */}
-        <div className="space-y-6">
+        <div className="contents xl:flex xl:flex-col xl:gap-6">
           <InfoSekolahForm namaSekolah={namaSekolah} alamat={alamat} tapel={tapel} semester={semester} daftarTapel={daftarTapel} isAdmin={isAdmin} />
 
-          {isAdmin && <WaSettingForm enabled={waEnabled === "true"} gatewayUrl={waGatewayUrl} apiKey={waApiKey} notif={notif} />}
+          {isAdmin && (
+            <div className="order-last xl:order-none xl:flex-1">
+              <ResetDataModal daftarBulan={daftarBulan} />
+            </div>
+          )}
         </div>
+
+        {isAdmin && (
+          <div className="xl:col-span-2">
+            <WaSettingForm enabled={waEnabled === "true"} gatewayUrl={waGatewayUrl} apiKey={waApiKey} notif={notif} />
+          </div>
+        )}
       </div>
     </div>
   );

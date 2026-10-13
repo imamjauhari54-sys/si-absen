@@ -116,8 +116,8 @@ export default function JadwalForm({
 
   return (
     <>
-      <form action={formAction} onSubmit={() => setNotifOpen(true)}>
-        <div className="section-card p-6 shadow-sm">
+      <form action={formAction} onSubmit={() => setNotifOpen(true)} className="xl:h-full">
+        <div className="section-card p-6 shadow-sm flex flex-col xl:h-full">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg">
               <i className="fas fa-stopwatch" />
@@ -215,7 +215,9 @@ export default function JadwalForm({
             </div>
           </div>
 
-          <SubmitButton />
+          <div className="mt-auto">
+            <SubmitButton />
+          </div>
         </div>
       </form>
 

@@ -41,10 +41,18 @@ export default function InfoSekolahForm({
   const [notifOpen, setNotifOpen] = useState(false);
 
   return (
-    <div className="section-card p-5 shadow-sm reveal">
-      <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-        <i className="fas fa-school text-indigo-500" /> Info Sekolah
-      </h3>
+    <div className="section-card p-6 shadow-sm reveal">
+      <div className="flex items-center gap-3 mb-2">
+        <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg">
+          <i className="fas fa-school" />
+        </div>
+        <div>
+          <h3 className="text-base font-extrabold text-gray-800 dark:text-white">Info Sekolah</h3>
+          <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-widest mt-0.5">Identitas sekolah &amp; tahun pelajaran</p>
+        </div>
+      </div>
+
+      <hr className="border-gray-100 dark:border-gray-700/50 my-5" />
 
       {isAdmin ? (
         <>
@@ -77,7 +85,7 @@ export default function InfoSekolahForm({
           <SubmitButton />
         </form>
 
-        <hr className="border-gray-100 dark:border-gray-700/50 my-4" />
+        <hr className="border-gray-100 dark:border-gray-700/50 my-5" />
 
         <TapelAktifPanel tapel={tapel} semester={semester} daftarTapel={daftarTapel} />
         </>

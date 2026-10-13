@@ -77,6 +77,16 @@ body {
   box-shadow: 0 0 0 1px rgba(255,255,255,0.04) inset;
 }
 
+/* Varian Zona Bahaya: ditulis SETELAH .section-card (sama-sama di luar @layer) supaya warnanya menang. */
+.section-card.section-card-danger {
+  background: rgba(254, 242, 242, 0.6); /* red-50 */
+  border-color: #fecaca; /* red-200 */
+}
+.dark .section-card.section-card-danger {
+  background: rgba(127, 29, 29, 0.12); /* red-900 */
+  border-color: rgba(248, 113, 113, 0.28);
+}
+
 /* Sidebar nav item */
 .nav-item {
   display: flex; align-items: center; gap: .75rem;

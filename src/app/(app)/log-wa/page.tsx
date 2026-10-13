@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth/session";
 import { getWaLogPage, hitungWaGagalTotal } from "@/lib/data/wa-log";
 import Pagination from "@/components/ui/Pagination";
 import { formatWaktuWib } from "@/lib/utils/tanggal";
+import PageTitle from "@/components/ui/PageTitle";
 
 const PAGE_SIZE = 10;
 
@@ -29,14 +30,13 @@ export default async function LogWaPage({
   return (
     <div className="w-full px-4 pt-2 mb-14">
       <div className="mb-6 reveal">
-        <h2 className="text-2xl font-extrabold text-gray-800 dark:text-white tracking-tight">Log Notifikasi WA</h2>
-        <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm font-medium">
+        <PageTitle icon="fa-comment-slash" title="Log Notifikasi WA">
           Riwayat percobaan kirim notifikasi WhatsApp ke orang tua. Total{" "}
           <strong className="text-gray-700 dark:text-gray-200">{total}</strong> percobaan.
           {jumlahGagal > 0 && (
             <span className="ml-1 text-red-500 font-bold">{jumlahGagal} gagal di antaranya.</span>
           )}
-        </p>
+        </PageTitle>
       </div>
 
       <div className="section-card shadow-sm overflow-hidden reveal">

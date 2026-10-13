@@ -9,6 +9,7 @@ import SiswaTable from "@/components/siswa/SiswaTable";
 import TambahSiswaButton from "@/components/siswa/TambahSiswaButton";
 import ImportSiswaButton from "@/components/siswa/ImportSiswaButton";
 import Pagination from "@/components/ui/Pagination";
+import PageTitle from "@/components/ui/PageTitle";
 
 const PAGE_SIZE = 10;
 
@@ -46,18 +47,14 @@ export default async function SiswaPage({
     <div className="w-full px-4 pt-2 mb-14">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4 reveal">
-        <div>
-          <h2 className="text-2xl font-extrabold text-gray-800 dark:text-white tracking-tight">
-            Data Siswa
-            <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-1">
-              — {kelasFilter ? `Kelas ${kelasFilter}` : "Semua Kelas"}
-            </span>
-          </h2>
-          <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm font-medium">
-            Total <strong className="text-gray-700 dark:text-gray-200">{stat.total}</strong> siswa ·{" "}
+        <PageTitle
+          icon="fa-users"
+          title="Data Siswa"
+          suffix={<>— {kelasFilter ? `Kelas ${kelasFilter}` : "Semua Kelas"}</>}
+        >
+          Total <strong className="text-gray-700 dark:text-gray-200">{stat.total}</strong> siswa ·{" "}
             <strong className="text-emerald-500">{stat.berqr}</strong> Token QR aktif
-          </p>
-        </div>
+        </PageTitle>
 
         <div className="flex flex-wrap justify-end gap-2">
           {isAdmin && <TambahSiswaButton semuaKelas={kelasMaster} />}

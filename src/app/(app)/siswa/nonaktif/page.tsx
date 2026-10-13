@@ -5,6 +5,7 @@ import { requireSession } from "@/lib/auth/session";
 import { getInactiveStudentsPage } from "@/lib/data/siswa";
 import SiswaNonaktifTable from "@/components/siswa/SiswaNonaktifTable";
 import Pagination from "@/components/ui/Pagination";
+import PageTitle from "@/components/ui/PageTitle";
 
 const PAGE_SIZE = 10;
 
@@ -29,22 +30,19 @@ export default async function SiswaNonaktifPage({
   return (
     <div className="w-full px-4 pt-2 mb-14">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4 reveal">
-        <div>
-          <div className="flex items-center gap-2">
-            <Link
+        <div className="flex items-start gap-3">
+          <Link
               href="/siswa"
-              className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition no-underline"
+              className="mt-1 w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition no-underline"
               title="Kembali ke Data Siswa"
             >
               <i className="fas fa-arrow-left text-xs" />
             </Link>
-            <h2 className="text-2xl font-extrabold text-gray-800 dark:text-white tracking-tight">Siswa Nonaktif</h2>
-          </div>
-          <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm font-medium">
+          <PageTitle icon="fa-user-slash" title="Siswa Nonaktif">
             Siswa berstatus <strong className="text-gray-700 dark:text-gray-200">lulus</strong> atau{" "}
             <strong className="text-gray-700 dark:text-gray-200">pindah</strong> — riwayat absensinya tetap tersimpan.
             Total <strong className="text-gray-700 dark:text-gray-200">{total}</strong> siswa.
-          </p>
+          </PageTitle>
         </div>
       </div>
 

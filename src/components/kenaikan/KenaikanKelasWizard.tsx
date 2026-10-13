@@ -391,7 +391,7 @@ export default function KenaikanKelasWizard({
                 disabled={jalan.pending || konfirmasi !== KONFIRMASI_KENAIKAN}
                 className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-2xl text-[11px] font-bold uppercase transition shadow-lg flex items-center justify-center gap-2"
               >
-                {jalan.pending ? <i className="fas fa-spinner fa-spin" /> : <>Jalankan Kenaikan</>}
+                {jalan.pending ? "Memproses..." : "Jalankan Kenaikan"}
               </button>
             </div>
           </form>
@@ -410,7 +410,7 @@ export default function KenaikanKelasWizard({
               Tidak
             </button>
             <button type="submit" disabled={batal.pending} className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white rounded-2xl text-[11px] font-bold uppercase transition shadow-lg flex items-center justify-center gap-2">
-              {batal.pending ? <i className="fas fa-spinner fa-spin" /> : "Ya, batalkan"}
+              {batal.pending ? "Memproses..." : "Ya, batalkan"}
             </button>
           </form>
         </Modal>

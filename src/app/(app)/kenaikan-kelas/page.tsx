@@ -7,6 +7,7 @@ import { getDaftarTapel } from "@/lib/data/tapel";
 import { todayJakarta } from "@/lib/utils/tanggal";
 import { tapelDariTanggal, type Semester } from "@/lib/utils/tapel";
 import KenaikanKelasWizard from "@/components/kenaikan/KenaikanKelasWizard";
+import PageTitle from "@/components/ui/PageTitle";
 
 export const metadata: Metadata = { title: "Kenaikan Kelas" };
 export const dynamic = "force-dynamic";
@@ -26,12 +27,11 @@ export default async function KenaikanKelasPage() {
   ]);
 
   return (
-    <div className="w-full max-w-4xl px-4 pt-2 mb-14">
+    <div className="w-full px-4 pt-2 mb-14">
       <div className="mb-6 reveal">
-        <h2 className="text-2xl font-extrabold text-gray-800 dark:text-white tracking-tight">Kenaikan Kelas</h2>
-        <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm font-medium">
+        <PageTitle icon="fa-graduation-cap" title="Kenaikan Kelas">
           Mulai tahun ajaran baru: naikkan kelas, luluskan kelas akhir, dan pindahkan tahun pelajaran aktif sekaligus dalam satu langkah.
-        </p>
+        </PageTitle>
       </div>
 
       {!siap ? (

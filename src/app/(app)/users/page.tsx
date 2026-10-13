@@ -6,6 +6,7 @@ import { getKelasMasterList } from "@/lib/data/kelas";
 import UserTable from "@/components/users/UserTable";
 import TambahUserButton from "@/components/users/TambahUserButton";
 import Pagination from "@/components/ui/Pagination";
+import PageTitle from "@/components/ui/PageTitle";
 
 const PAGE_SIZE = 10;
 
@@ -36,12 +37,9 @@ export default async function UsersPage({
     <div className="w-full px-4 pt-2 mb-14">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4 reveal">
-        <div>
-          <h2 className="text-2xl font-extrabold text-gray-800 dark:text-white tracking-tight">Manajemen Pengguna</h2>
-          <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm font-medium">
-            Kelola akun Admin dan Guru yang bisa login ke SI-ABSEN
-          </p>
-        </div>
+        <PageTitle icon="fa-user-shield" title="Manajemen Pengguna">
+          Kelola akun Admin dan Guru yang bisa login ke SI-ABSEN
+        </PageTitle>
         <TambahUserButton semuaKelas={semuaKelas} currentUserId={session.userId} />
       </div>
 

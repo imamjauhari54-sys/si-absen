@@ -10,6 +10,7 @@ import HarianTable from "@/components/rekap/HarianTable";
 import BulananTable from "@/components/rekap/BulananTable";
 import HariLiburModal from "@/components/rekap/HariLiburModal";
 import PrintButton from "@/components/rekap/PrintButton";
+import PageTitle from "@/components/ui/PageTitle";
 
 export const metadata: Metadata = { title: "Rekap Absensi" };
 export const dynamic = "force-dynamic";
@@ -80,18 +81,14 @@ export default async function RekapPage({
 
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4 reveal no-print">
-        <div>
-          <h2 className="text-2xl font-extrabold text-gray-800 dark:text-white tracking-tight">
-            Rekap Absensi
-            <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-1">
-              — {kelasFilter ? `Kelas ${kelasFilter}` : "Semua Kelas"}
-            </span>
-          </h2>
-          <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm font-medium">
-            Periode: <strong className="text-indigo-600 dark:text-indigo-400">{headerTitle}</strong>
+        <PageTitle
+          icon="fa-calendar-days"
+          title="Rekap Absensi"
+          suffix={<>— {kelasFilter ? `Kelas ${kelasFilter}` : "Semua Kelas"}</>}
+        >
+          Periode: <strong className="text-indigo-600 dark:text-indigo-400">{headerTitle}</strong>
             <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">Tapel {tapelRekap}</span>
-          </p>
-        </div>
+        </PageTitle>
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex bg-gray-100 dark:bg-[#151a28] p-1 rounded-xl border border-gray-200 dark:border-gray-800 shadow-inner">

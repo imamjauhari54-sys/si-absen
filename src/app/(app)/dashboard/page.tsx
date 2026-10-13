@@ -22,6 +22,7 @@ import AlphaBerturutAlert from "@/components/dashboard/AlphaBerturutAlert";
 import WaGagalBanner from "@/components/dashboard/WaGagalBanner";
 import AlphaModal from "@/components/dashboard/AlphaModal";
 import LogAktivitasModal from "@/components/dashboard/LogAktivitasModal";
+import PageTitle from "@/components/ui/PageTitle";
 
 export const metadata: Metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic"; // data absensi berubah tiap saat, jangan di-cache
@@ -60,14 +61,12 @@ export default async function DashboardPage() {
     <div className="w-full mb-14 px-4 pt-2">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4 reveal">
-        <div>
-          <h2 className="text-2xl font-extrabold text-gray-800 dark:text-white tracking-tight">
-            Dashboard Kehadiran
-            <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-1">
-              — {isAdmin ? "Semua Kelas" : `Kelas ${kelas}`}
-            </span>
-          </h2>
-          <div className="text-gray-500 dark:text-gray-400 mt-1 text-sm flex flex-wrap items-center gap-x-1">
+        <PageTitle
+          icon="fa-house"
+          title="Dashboard Kehadiran"
+          suffix={<>— {isAdmin ? "Semua Kelas" : `Kelas ${kelas}`}</>}
+        >
+          <div className="flex flex-wrap items-center gap-x-1">
             <span>
               Halo, <strong className="text-gray-700 dark:text-gray-200">{session.nama.split(" ")[0]}</strong> 👋
             </span>
@@ -77,7 +76,7 @@ export default async function DashboardPage() {
             </span>
             {isAdmin && <LogAktivitasModal />}
           </div>
-        </div>
+        </PageTitle>
 
         <div className="flex items-stretch border border-gray-200 dark:border-[#2a2d4b] rounded-xl overflow-hidden shadow-sm bg-white dark:bg-[#1e2235]">
           <div className="px-5 py-3 flex flex-col justify-center items-center border-r border-gray-200 dark:border-[#2a2d4b]">

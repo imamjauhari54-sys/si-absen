@@ -18,6 +18,7 @@ import Pagination from "@/components/ui/Pagination";
 import HistoryWidgets from "@/components/history/HistoryWidgets";
 import HistoryChart from "@/components/history/HistoryChart";
 import "@/components/history/history.css";
+import PageTitle from "@/components/ui/PageTitle";
 
 export const metadata: Metadata = { title: "History Absensi" };
 export const dynamic = "force-dynamic";
@@ -100,10 +101,9 @@ export default async function HistorySiswaPage({
           >
             <i className="fas fa-arrow-left" />
           </Link>
-          <div>
-            <h2 className="text-2xl font-extrabold text-gray-800 dark:text-white tracking-tight">History Absensi</h2>
-            <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">Riwayat kehadiran lengkap per siswa</p>
-          </div>
+          <PageTitle icon="fa-calendar-check" title="History Absensi">
+            Riwayat kehadiran lengkap per siswa
+          </PageTitle>
         </div>
         <a
           href={csvHref}

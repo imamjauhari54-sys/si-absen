@@ -173,7 +173,7 @@ export default function DaftarDevice({ initialDevices }: { initialDevices: ScanD
                           className="text-emerald-500 hover:text-emerald-600 text-xs flex-shrink-0"
                           title="Simpan"
                         >
-                          <i className={savingEdit ? "fas fa-spinner fa-spin" : "fas fa-check"} />
+                          <i className={savingEdit ? "fas fa-check opacity-40" : "fas fa-check"} />
                         </button>
                         <button
                           onClick={() => setEditId(null)}
@@ -269,7 +269,7 @@ export default function DaftarDevice({ initialDevices }: { initialDevices: ScanD
                   disabled={deleting}
                   className="flex-1 py-3.5 bg-red-600 hover:bg-red-700 disabled:opacity-70 text-white rounded-2xl text-[10px] font-bold transition-all uppercase tracking-widest shadow-lg shadow-red-500/20"
                 >
-                  {deleting ? <i className="fas fa-spinner fa-spin" /> : "Ya, Hapus"}
+                  {deleting ? "Menghapus..." : "Ya, Hapus"}
                 </button>
               </div>
             </div>

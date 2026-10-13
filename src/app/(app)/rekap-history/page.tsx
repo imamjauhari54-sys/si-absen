@@ -5,6 +5,7 @@ import { getAbsensiSetting } from "@/lib/data/dashboard";
 import { getRekapHistoryPage, getSemuaKelasRekap } from "@/lib/data/rekap";
 import { getListTapel } from "@/lib/data/history";
 import Pagination from "@/components/ui/Pagination";
+import PageTitle from "@/components/ui/PageTitle";
 
 const PAGE_SIZE = 10;
 
@@ -57,10 +58,9 @@ export default async function RekapHistoryPage({
           >
             <i className="fas fa-arrow-left" />
           </Link>
-          <div>
-            <h2 className="text-2xl font-extrabold text-gray-800 dark:text-white tracking-tight">History Absensi</h2>
-            <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">Arsip data kehadiran per semester</p>
-          </div>
+          <PageTitle icon="fa-box-archive" title="History Absensi">
+            Arsip data kehadiran per semester
+          </PageTitle>
         </div>
 
         <a

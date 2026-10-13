@@ -24,7 +24,7 @@ function SubmitButton() {
       disabled={pending}
       className="flex-1 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white rounded-2xl text-[11px] font-bold uppercase transition shadow-lg hover:shadow-red-500/30"
     >
-      {pending ? <i className="fas fa-spinner fa-spin" /> : "Hapus Data"}
+      {pending ? "Menghapus..." : "Hapus Data"}
     </button>
   );
 }
@@ -68,8 +68,8 @@ export default function ResetDataModal({ daftarBulan }: { daftarBulan: string[] 
 
   return (
     <>
-      <div className="section-card p-6 mt-6 border-red-100 dark:border-red-900/30 bg-red-50/30 dark:bg-red-900/5 reveal">
-        <div className="flex items-center gap-3 mb-4">
+      <div className="section-card section-card-danger p-6 shadow-sm reveal flex flex-col xl:h-full">
+        <div className="flex items-center gap-3 mb-2">
           <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 flex items-center justify-center text-lg">
             <i className="fas fa-radiation" />
           </div>
@@ -78,12 +78,15 @@ export default function ResetDataModal({ daftarBulan }: { daftarBulan: string[] 
             <p className="text-[10px] text-red-500 dark:text-red-400 uppercase tracking-widest mt-0.5 font-bold">Hapus atau bersihkan data absensi</p>
           </div>
         </div>
-        <p className="text-xs text-gray-600 dark:text-gray-400 mb-5 leading-relaxed">
+
+        <hr className="border-red-100 dark:border-red-900/30 my-5" />
+
+        <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-5 leading-relaxed">
           Gunakan fitur ini untuk membersihkan data absensi hasil uji coba atau menghapus data lama yang sudah tidak diperlukan. Data yang dihapus tidak dapat dikembalikan.
         </p>
         <button
           onClick={bukaModal}
-          className="w-full py-3 bg-white dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 hover:bg-red-600 hover:text-white dark:hover:bg-red-600 dark:hover:text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
+          className="mt-auto w-full py-3 bg-white dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 hover:bg-red-600 hover:text-white dark:hover:bg-red-600 dark:hover:text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
         >
           <i className="fas fa-trash-alt" /> Bersihkan Database Absensi
         </button>
