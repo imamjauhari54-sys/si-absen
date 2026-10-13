@@ -19,25 +19,42 @@ export interface WaLogRow {
  * jangan sampai ikut menggagalkan proses absensi utama — cukup console.error
  * biar ketauan di server log.
  */
-export async function catatWaLog(params: {
+export interface WaLogInput {
   siswaId: number;
   namaSiswa: string;
   nomorHp: string | null;
   tipe: TipeWaLog;
   status: "terkirim" | "gagal";
   errorMessage?: string;
-}): Promise<void> {
+}
+
+function keBaris(params: WaLogInput) {
+  return {
+    siswa_id: params.siswaId,
+    nama_siswa: params.namaSiswa,
+    nomor_hp: params.nomorHp,
+    tipe: params.tipe,
+    status: params.status,
+    error_message: params.errorMessage ?? null,
+  };
+}
+
+export async function catatWaLog(params: WaLogInput): Promise<void> {
   try {
-    await supabaseAdmin.from("wa_log").insert({
-      siswa_id: params.siswaId,
-      nama_siswa: params.namaSiswa,
-      nomor_hp: params.nomorHp,
-      tipe: params.tipe,
-      status: params.status,
-      error_message: params.errorMessage ?? null,
-    });
+    await supabaseAdmin.from("wa_log").insert(keBaris(params));
   } catch (e) {
     console.error("[wa_log] gagal mencatat log WA:", e);
+  }
+}
+
+/** Catat banyak percobaan sekaligus (mis. hasil kirim massal auto-alpha) — satu insert per 500 baris. */
+export async function catatWaLogBanyak(daftar: WaLogInput[]): Promise<void> {
+  for (let i = 0; i < daftar.length; i += 500) {
+    try {
+      await supabaseAdmin.from("wa_log").insert(daftar.slice(i, i + 500).map(keBaris));
+    } catch (e) {
+      console.error("[wa_log] gagal mencatat log WA (massal):", e);
+    }
   }
 }
 

@@ -4,6 +4,7 @@ import { getAbsensiSetting } from "@/lib/data/dashboard";
 import { getSettingValue } from "@/lib/data/settings";
 import { getDistinctBulanAbsensi } from "@/lib/data/rekap";
 import { getDaftarTapel } from "@/lib/data/tapel";
+import { JENIS_NOTIF, parseNotif } from "@/lib/wa/jenis-notifikasi";
 import { todayJakarta } from "@/lib/utils/tanggal";
 import { tapelDariTanggal, urutkanTapelTerbaru, type Semester } from "@/lib/utils/tapel";
 import JadwalForm from "@/components/setting/JadwalForm";
@@ -18,7 +19,7 @@ export default async function SettingPage() {
   const session = await requireSession();
   const isAdmin = session.role === "admin";
 
-  const [setting, namaSekolah, alamat, daftarBulan, daftarTapelMaster, waEnabled, waGatewayUrl, waApiKey] = await Promise.all([
+  const [setting, namaSekolah, alamat, daftarBulan, daftarTapelMaster, waEnabled, waGatewayUrl, waApiKey, ...notifMentah] = await Promise.all([
     getAbsensiSetting(),
     getSettingValue("nama_sekolah", "SI-ABSEN"),
     getSettingValue("alamat_sekolah", ""),
@@ -27,7 +28,10 @@ export default async function SettingPage() {
     getSettingValue("wa_enabled", "false"),
     getSettingValue("wa_gateway_url", ""),
     getSettingValue("wa_api_key", ""),
+    ...JENIS_NOTIF.map((j) => (isAdmin ? getSettingValue(j.settingKey, "") : Promise.resolve(""))),
   ]);
+  // Bawaan server dipakai untuk jenis yang belum pernah disimpan (hanya Alpha yang aktif).
+  const notif = parseNotif(Object.fromEntries(JENIS_NOTIF.map((j, i) => [j.kunci, notifMentah[i]])));
 
   const jamMasuk = (setting.jam_masuk ?? "07:00:00").slice(0, 5);
   const batasTerlambat = (setting.batas_terlambat ?? "07:15:00").slice(0, 5);
@@ -103,7 +107,7 @@ export default async function SettingPage() {
         <div className="space-y-6">
           <InfoSekolahForm namaSekolah={namaSekolah} alamat={alamat} tapel={tapel} semester={semester} daftarTapel={daftarTapel} isAdmin={isAdmin} />
 
-          {isAdmin && <WaSettingForm enabled={waEnabled === "true"} gatewayUrl={waGatewayUrl} apiKey={waApiKey} />}
+          {isAdmin && <WaSettingForm enabled={waEnabled === "true"} gatewayUrl={waGatewayUrl} apiKey={waApiKey} notif={notif} />}
         </div>
       </div>
     </div>

@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { setSettingValue } from "@/lib/data/settings";
 import { resetWaConfigCache } from "@/lib/wa/notifikasi";
+import { JENIS_NOTIF } from "@/lib/wa/jenis-notifikasi";
 import type { SettingActionState } from "./setting-types";
 
 export async function simpanInfoSekolahAction(_prev: SettingActionState, formData: FormData): Promise<SettingActionState> {
@@ -40,18 +41,41 @@ export async function simpanWaSettingAction(_prev: SettingActionState, formData:
   if (session.role !== "admin") return { status: "error", message: "Akses ditolak! Hanya admin yang dapat mengubah pengaturan ini." };
 
   const enabled = formData.get("wa_enabled") === "1";
+  // Saat notifikasi dimatikan, form tidak menampilkan kolom URL/API key sehingga tidak ikut terkirim.
+  // Dulu itu menyimpan teks kosong dan MENGHAPUS kredensial gateway yang sudah tersimpan; sekarang
+  // kolom yang tidak dikirim dibiarkan apa adanya.
+  const adaKolomGateway = formData.has("wa_gateway_url") && formData.has("wa_api_key");
   const gatewayUrl = String(formData.get("wa_gateway_url") || "").trim();
   const apiKey = String(formData.get("wa_api_key") || "").trim();
 
   if (enabled && (!gatewayUrl || !apiKey)) {
     return { status: "error", message: "URL Gateway dan API Key wajib diisi kalau notifikasi WA diaktifkan." };
   }
+  if (adaKolomGateway && gatewayUrl) {
+    let protokolOk = false;
+    try {
+      const p = new URL(gatewayUrl).protocol;
+      protokolOk = p === "https:" || p === "http:";
+    } catch {
+      protokolOk = false;
+    }
+    if (!protokolOk) {
+      return { status: "error", message: "URL Gateway tidak valid. Gunakan alamat lengkap, misalnya https://api.fonnte.com/send." };
+    }
+  }
 
-  const results = await Promise.all([
-    setSettingValue("wa_enabled", enabled ? "true" : "false"),
-    setSettingValue("wa_gateway_url", gatewayUrl),
-    setSettingValue("wa_api_key", apiKey),
-  ]);
+  const tulis: Promise<{ error: string | null }>[] = [setSettingValue("wa_enabled", enabled ? "true" : "false")];
+  if (adaKolomGateway) {
+    tulis.push(setSettingValue("wa_gateway_url", gatewayUrl), setSettingValue("wa_api_key", apiKey));
+  }
+  // Jenis notifikasi: hanya disimpan kalau form memang mengirimkannya (penanda notif_ada), supaya
+  // form lama / permintaan tanpa kolom ini tidak mematikan semuanya secara tidak sengaja.
+  if (formData.get("notif_ada") === "1") {
+    for (const j of JENIS_NOTIF) {
+      tulis.push(setSettingValue(j.settingKey, formData.get(`notif_${j.kunci}`) === "1" ? "true" : "false"));
+    }
+  }
+  const results = await Promise.all(tulis);
   const err = results.find((r) => r.error);
   if (err?.error) return { status: "error", message: err.error };
 
