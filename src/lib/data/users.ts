@@ -134,3 +134,13 @@ export async function cekWajibGantiPassword(userId: number): Promise<boolean> {
     revalidate: 60,
   })(userId);
 }
+
+async function _getNipUser(username: string): Promise<string | null> {
+  const { data } = await supabaseAdmin.from("users").select("nip").eq("username", username).maybeSingle();
+  return ((data as { nip?: string | null } | null)?.nip ?? null) || null;
+}
+
+/** NIP milik user (untuk modal Edit Profil). Di-cache, di-invalidate lewat tag user-<username> saat profil disimpan. */
+export async function getNipUser(username: string): Promise<string | null> {
+  return unstable_cache(_getNipUser, ["nip-user"], { tags: [`user-${username}`], revalidate: 300 })(username);
+}

@@ -5,6 +5,29 @@
    di versi PHP (yang pakai Tailwind CDN). */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Tailwind v4 preflight mengubah cursor tombol jadi default. Kembalikan pointer untuk
+   semua elemen yang bisa diklik; yang disabled tetap not-allowed. Ditaruh di layer base
+   supaya utility seperti cursor-default / cursor-not-allowed di komponen tetap menang. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="menuitem"],
+  a[href],
+  summary,
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="file"]:not(:disabled),
+  label[for] {
+    cursor: pointer;
+  }
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
+
+
 :root {
   --bg-base: #f1f5f9;
   --bg-card: #ffffff;

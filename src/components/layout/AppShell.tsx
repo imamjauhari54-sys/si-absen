@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Portal from "@/components/ui/Portal";
+import EditProfilModal from "./EditProfilModal";
 import ThemeToggle from "./ThemeToggle";
 import LiveClock from "./LiveClock";
 import LogoutModal from "./LogoutModal";
@@ -33,6 +35,8 @@ export default function AppShell({
   guruNama,
   guruRole,
   guruFoto,
+  guruUsername,
+  guruNip,
   initialDark,
   children,
 }: {
@@ -41,6 +45,8 @@ export default function AppShell({
   guruNama: string;
   guruRole: string;
   guruFoto: string | null;
+  guruUsername: string;
+  guruNip: string | null;
   initialDark: boolean;
   children: React.ReactNode;
 }) {
@@ -100,6 +106,36 @@ export default function AppShell({
     setManualOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
   }
 
+  // Dropdown profil (foto + nama di sidebar). Dirender lewat Portal karena <aside>
+  // memakai overflow-hidden + transform, sehingga elemen absolut/fixed di dalamnya terpotong.
+  const [profilOpen, setProfilOpen] = useState(false);
+  const [editProfilOpen, setEditProfilOpen] = useState(false);
+  const [profilPos, setProfilPos] = useState({ left: 0, bottom: 0 });
+  const profilBtnRef = useRef<HTMLButtonElement>(null);
+
+  function toggleProfil() {
+    if (!profilOpen && profilBtnRef.current) {
+      const r = profilBtnRef.current.getBoundingClientRect();
+      setProfilPos({ left: r.left, bottom: window.innerHeight - r.top + 8 });
+    }
+    setProfilOpen((v) => !v);
+  }
+
+  useEffect(() => {
+    if (!profilOpen) return;
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setProfilOpen(false);
+    };
+    document.addEventListener("keydown", onEsc);
+    return () => document.removeEventListener("keydown", onEsc);
+  }, [profilOpen]);
+
+  function bukaModalKeluar() {
+    setProfilOpen(false);
+    // LogoutModal mendengarkan klik pada elemen ber-id ini (lihat tombol tersembunyi di sidebar).
+    document.getElementById("btn-buka-modal-keluar")?.click();
+  }
+
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       {/* SIDEBAR */}
@@ -116,7 +152,7 @@ export default function AppShell({
         <div className={`px-4 py-5 border-b ${collapsed ? "md:px-0" : ""}`} style={{ borderColor: "var(--border)" }}>
           <div className={`flex items-center gap-2.5 ${centerInRail}`}>
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-600 to-cyan-500 flex items-center justify-center text-white shadow-md flex-shrink-0">
-              <i className="fa-solid fa-qrcode text-sm" />
+              <i className="fa-solid fa-qrcode text-2xl leading-none block" />
             </div>
             <div className={`overflow-hidden ${hideInRail}`}>
               <div className="text-sm font-extrabold leading-tight truncate">SI-ABSEN</div>
@@ -144,7 +180,9 @@ export default function AppShell({
                   >
                     <i className={`fas ${item.icon} nav-icon`} />
                     <span className={`flex-1 text-left ${hideInRail}`}>{item.label}</span>
-                    <i className={`fas fa-chevron-down text-[10px] transition-transform ${hideInRail} ${expanded ? "rotate-180" : ""}`} />
+                    <span className={`inline-flex items-center ${hideInRail}`}>
+                      <i className={`fas fa-chevron-down text-[10px] transition-transform ${expanded ? "rotate-180" : ""}`} />
+                    </span>
                   </button>
                   {expanded && (
                     <div className={`ml-3 pl-3 border-l border-gray-200 dark:border-white/10 mt-1 space-y-1 ${collapsed ? "md:ml-0 md:pl-0 md:border-l-0" : ""}`}>
@@ -190,40 +228,36 @@ export default function AppShell({
           })}
         </nav>
 
-        <div className={`p-3 border-t flex items-center gap-2 ${collapsed ? "md:flex-col md:px-2" : ""}`} style={{ borderColor: "var(--border)" }}>
-          <Link
-            href="/setting"
-            onClick={() => setSidebarOpen(false)}
-            className="flex-shrink-0 inline-flex"
-            title={`${guruNama} (${guruRole})`}
+        <div className={`p-3 border-t ${collapsed ? "md:px-2" : ""}`} style={{ borderColor: "var(--border)" }}>
+          <button
+            ref={profilBtnRef}
+            type="button"
+            onClick={toggleProfil}
+            aria-haspopup="menu"
+            aria-expanded={profilOpen}
+            title={collapsed ? guruNama : undefined}
+            className={`w-full flex items-center gap-2.5 rounded-xl p-1.5 text-sm transition-colors hover:bg-gray-100 dark:hover:bg-white/5 ${centerInRail}`}
           >
             {guruFoto ? (
               <img
                 src={guruFoto}
                 alt={guruNama}
-                className="rounded-full object-cover hover:ring-2 hover:ring-teal-500/50 transition-all"
+                className="rounded-full object-cover flex-shrink-0 max-w-none"
                 style={{ width: "2.25rem", height: "2.25rem" }}
               />
             ) : (
               <div
-                className="rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-black hover:ring-2 hover:ring-teal-500/50 transition-all"
+                className="rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-black flex-shrink-0"
                 style={{ width: "2.25rem", height: "2.25rem" }}
               >
                 {guruNama.charAt(0).toUpperCase()}
               </div>
             )}
-          </Link>
-          <button
-            type="button"
-            id="btn-buka-modal-keluar"
-            title={collapsed ? "Keluar" : undefined}
-            className={`nav-item flex-1 relative z-10 cursor-pointer text-red-500 hover:!bg-red-500/10 hover:!text-red-500 ${
-              collapsed ? "md:flex-none md:w-full md:justify-center md:px-0" : ""
-            }`}
-          >
-            <i className="fas fa-right-from-bracket nav-icon" />
-            <span className={hideInRail}>Keluar</span>
+            <span className={`flex-1 text-left truncate font-bold ${hideInRail}`}>{guruNama}</span>
           </button>
+
+          {/* Pemicu modal keluar (tersembunyi): LogoutModal memasang listener pada id ini saat mount */}
+          <button type="button" id="btn-buka-modal-keluar" className="hidden" aria-hidden="true" tabIndex={-1} />
         </div>
       </aside>
 
@@ -280,6 +314,71 @@ export default function AppShell({
           <DevFooter className="inline-block" />
         </footer>
       </div>
+
+      {profilOpen && (
+        <Portal>
+          <div className="fixed inset-0 z-[59]" onClick={() => setProfilOpen(false)} />
+          <div
+            role="menu"
+            className="fixed z-[60] w-56 rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1e2235] shadow-xl overflow-hidden"
+            style={{ left: profilPos.left, bottom: profilPos.bottom }}
+          >
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 dark:border-white/10">
+              {guruFoto ? (
+                <img src={guruFoto} alt={guruNama} className="rounded-full object-cover flex-shrink-0" style={{ width: "2.5rem", height: "2.5rem" }} />
+              ) : (
+                <div className="rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-black flex-shrink-0" style={{ width: "2.5rem", height: "2.5rem" }}>
+                  {guruNama.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="text-sm font-extrabold truncate text-gray-900 dark:text-white">{guruNama}</div>
+                <div className="text-xs truncate text-gray-500 dark:text-gray-400">{guruRole}</div>
+              </div>
+            </div>
+            <div className="p-2 space-y-0.5">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setProfilOpen(false);
+                  setSidebarOpen(false);
+                  setEditProfilOpen(true);
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 text-left"
+              >
+                <i className="far fa-user w-4 text-center" /> Edit Profil
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => setProfilOpen(false)}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 text-left"
+              >
+                <i className="far fa-circle-question w-4 text-center" /> Bantuan
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={bukaModalKeluar}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold text-red-500 hover:bg-red-500/10 text-left"
+              >
+                <i className="fas fa-right-from-bracket w-4 text-center" /> Keluar Sistem
+              </button>
+            </div>
+          </div>
+        </Portal>
+      )}
+
+      {editProfilOpen && (
+        <EditProfilModal
+          nama={guruNama}
+          username={guruUsername}
+          nip={guruNip}
+          foto={guruFoto}
+          onClose={() => setEditProfilOpen(false)}
+        />
+      )}
 
       <LogoutModal nama={guruNama} role={guruRole} foto={guruFoto} />
     </div>
