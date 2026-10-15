@@ -100,7 +100,7 @@ export interface StatHariIni {
  */
 const getSiswaKelasUntukDashboard = cache(async (kelas: string, isAdmin: boolean) => {
   if (isAdmin || !kelas) return null;
-  const { data } = await supabaseAdmin.from("students").select("id, name, class, foto").eq("class", kelas);
+  const { data } = await supabaseAdmin.from("students").select("id, name, class, foto").eq("class", kelas).eq("status", "aktif");
   return data ?? [];
 });
 
@@ -117,7 +117,7 @@ export async function getStatistikHariIni(
   if (studentIds) {
     totalSiswa = studentIds.length;
   } else {
-    const { count } = await supabaseAdmin.from("students").select("id", { count: "exact", head: true });
+    const { count } = await supabaseAdmin.from("students").select("id", { count: "exact", head: true }).eq("status", "aktif");
     totalSiswa = count ?? 0;
   }
 
@@ -224,6 +224,7 @@ export async function getBelumAbsen(
     const { data: allStudents } = await supabaseAdmin
       .from("students")
       .select("id, name, class, foto")
+      .eq("status", "aktif")
       .order("class")
       .order("name");
     students = allStudents ?? [];

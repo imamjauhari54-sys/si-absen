@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
+import { getKelasWaliSesi } from "@/lib/auth/akses-kelas";
+import { putuskanAksesSiswa } from "@/lib/utils/absen-scan";
 import { getRiwayatAbsensi, getSiswaProfile } from "@/lib/data/history";
 import { getKelasSiswaPadaTapel } from "@/lib/data/riwayat-kelas";
 import { formatTglPanjang } from "@/lib/utils/tanggal";
@@ -23,12 +25,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const siswaId = parseInt(id, 10);
   if (!siswaId) return NextResponse.json({ message: "ID siswa tidak valid" }, { status: 400 });
 
-  const siswa = await getSiswaProfile(siswaId);
-  if (!siswa) return NextResponse.json({ message: "Siswa tidak ditemukan" }, { status: 404 });
-
-  if (session.role !== "admin" && siswa.class !== session.kelas) {
-    return NextResponse.json({ message: "Akses ditolak" }, { status: 403 });
+  const [siswa, kelasWali] = await Promise.all([getSiswaProfile(siswaId), getKelasWaliSesi(session)]);
+  const putusan = putuskanAksesSiswa(session.role, kelasWali, siswa);
+  if (!putusan.ok) {
+    return NextResponse.json({ message: putusan.message }, { status: putusan.status });
   }
+  if (!siswa) return NextResponse.json({ message: "Siswa tidak ditemukan" }, { status: 404 }); // penyempit tipe
 
   const { searchParams } = req.nextUrl;
   const filter = {

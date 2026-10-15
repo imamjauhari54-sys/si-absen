@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
+import { getBatasKelas } from "@/lib/auth/akses-kelas";
 import { getRekapHistory } from "@/lib/data/rekap";
 
 function csvEscape(val: string): string {
@@ -17,7 +18,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const tapel = searchParams.get("tapel") ?? "";
   const semester = searchParams.get("semester") ?? "";
-  const kelasFilter = session.role === "admin" ? searchParams.get("kelas") ?? "" : session.kelas || "";
+  const batas = await getBatasKelas(session);
+  if (!batas.semua && !batas.kelas) return NextResponse.json({ message: "Akses ditolak" }, { status: 403 });
+  const kelasFilter = batas.semua ? searchParams.get("kelas") ?? "" : batas.kelas!;
 
   const { rows } = await getRekapHistory(tapel, semester, kelasFilter);
 

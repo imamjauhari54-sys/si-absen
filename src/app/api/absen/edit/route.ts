@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
+import { assertBolehAksesSiswa } from "@/lib/auth/akses-kelas";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { addDaysJakarta, isoWeekday } from "@/lib/utils/tanggal";
 
@@ -16,11 +17,9 @@ async function prosesSatuTanggal(
   adminId: number,
   namaAdmin: string
 ): Promise<{ ok: boolean; message?: string }> {
-  let jamMasukDb: string | null = null;
-  if (statusBaru === "hadir" || statusBaru === "terlambat") {
-    const nowWib = new Date(Date.now() + 7 * 60 * 60 * 1000);
-    jamMasukDb = nowWib.toISOString().slice(11, 19);
-  }
+  // Edit manual TIDAK membuat atau mengubah jam. jam_masuk dan jam_pulang hanya berasal dari scan
+  // (lihat scan-absen/proses). Dulu jam_masuk diisi "jam sekarang" dan menimpa jam scan asli, dan
+  // untuk tanggal lampau jamnya jadi jam saat edit. Baris baru lewat edit manual: jam kosong.
 
   const { data: settingRow } = await supabaseAdmin.from("absensi_setting").select("tapel, semester").limit(1).maybeSingle();
   const tapel = settingRow?.tapel ?? "2025/2026";
@@ -37,7 +36,7 @@ async function prosesSatuTanggal(
 
   let dbError: string | null = null;
   if (dataLama) {
-    const updatePayload: Record<string, unknown> = { status: statusBaru, keterangan, jam_masuk: jamMasukDb };
+    const updatePayload: Record<string, unknown> = { status: statusBaru, keterangan };
     if (lampiranUrl !== null) updatePayload.lampiran = lampiranUrl || null;
     const { error } = await supabaseAdmin.from("absensi").update(updatePayload).eq("siswa_id", siswaId).eq("tanggal", tanggal);
     if (error) dbError = error.message;
@@ -47,7 +46,6 @@ async function prosesSatuTanggal(
       tanggal,
       status: statusBaru,
       keterangan,
-      jam_masuk: jamMasukDb,
       lampiran: lampiranUrl || null,
       tapel,
       semester,
@@ -107,6 +105,13 @@ export async function POST(req: NextRequest) {
   }
   if (tanggalSampai < tanggalDari) {
     return NextResponse.json({ status: "error", message: '"Sampai Tanggal" tidak boleh lebih awal dari "Dari Tanggal".' });
+  }
+
+  // Otorisasi per siswa: guru hanya boleh mengubah siswa di kelas wali-nya (dibaca dari DB).
+  // Dicek SEBELUM query/tulis apa pun dan sebelum loop rentang tanggal.
+  const akses = await assertBolehAksesSiswa(session, siswaId);
+  if (!akses.ok) {
+    return NextResponse.json({ status: "error", message: akses.message }, { status: akses.status });
   }
 
   // Kumpulkan semua tanggal dalam rentang, sekaligus tandai mana yang harus

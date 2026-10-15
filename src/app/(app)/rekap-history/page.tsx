@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
+import { kelasHalamanAtauRedirect } from "@/lib/auth/akses-kelas";
 import { getAbsensiSetting } from "@/lib/data/dashboard";
 import { getRekapHistoryPage, getSemuaKelasRekap } from "@/lib/data/rekap";
 import { getListTapel } from "@/lib/data/history";
@@ -25,7 +26,8 @@ export default async function RekapHistoryPage({
 }) {
   const session = await requireSession();
   const isAdmin = session.role === "admin";
-  const guruKelas = session.kelas || "";
+  // Guru: kelas dari DB, fail-closed (tanpa kelas -> /tanpa-kelas). Admin: "" = semua kelas.
+  const guruKelas = await kelasHalamanAtauRedirect(session);
 
   const sp = await searchParams;
   const settingDefault = await getAbsensiSetting();

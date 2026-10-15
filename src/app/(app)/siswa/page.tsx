@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
+import { kelasHalamanAtauRedirect } from "@/lib/auth/akses-kelas";
 import { getSettingValue } from "@/lib/data/settings";
 import { getStudentsPage } from "@/lib/data/siswa";
 import { getKelasMasterList } from "@/lib/data/kelas";
@@ -23,7 +24,8 @@ export default async function SiswaPage({
 }) {
   const session = await requireSession();
   const isAdmin = session.role === "admin";
-  const guruKelas = session.kelas || "";
+  // Guru: kelas dari DB, fail-closed (tanpa kelas -> /tanpa-kelas). Admin: "" = semua kelas.
+  const guruKelas = await kelasHalamanAtauRedirect(session);
 
   const params = await searchParams;
   const kelasFilter = isAdmin ? params.kelas ?? "" : guruKelas;

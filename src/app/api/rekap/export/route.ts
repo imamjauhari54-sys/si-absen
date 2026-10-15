@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
+import { getBatasKelas } from "@/lib/auth/akses-kelas";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { daftarTanggalBulan, getRekapBulanan, getRekapHarian } from "@/lib/data/rekap";
 import { getHariLiburMap } from "@/lib/data/hari-libur";
@@ -18,8 +19,9 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = req.nextUrl;
   const view = searchParams.get("view") === "bulanan" ? "bulanan" : "harian";
-  const isAdmin = session.role === "admin";
-  const kelasFilter = isAdmin ? searchParams.get("kelas") ?? "" : session.kelas || "";
+  const batas = await getBatasKelas(session);
+  if (!batas.semua && !batas.kelas) return NextResponse.json({ message: "Akses ditolak" }, { status: 403 });
+  const kelasFilter = batas.semua ? searchParams.get("kelas") ?? "" : batas.kelas!;
 
   let csv = "\uFEFF";
   csv += "sep=,\r\n";

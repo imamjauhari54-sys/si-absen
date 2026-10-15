@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   KETERANGAN_ALPHA_SISTEM,
   bolehScanSiswa,
+  putuskanAksesSiswa,
   rencanaKoreksiMasuk,
   tentukanStatusMasuk,
   validasiScanId,
@@ -143,5 +144,29 @@ describe("validasiScanId", () => {
   it("menolak ID yang bukan UUID (mis. disisipi teks)", () => {
     expect(validasiScanId("abc").ok).toBe(false);
     expect(validasiScanId("3f2504e0-4f89-41d3-9a0c-0305e82c3301; drop table").ok).toBe(false);
+  });
+});
+
+describe("putuskanAksesSiswa (otorisasi per siswa)", () => {
+  it("admin boleh siswa mana pun; siswa tidak ada -> 404", () => {
+    expect(putuskanAksesSiswa("admin", null, { class: "6" })).toEqual({ ok: true });
+    expect(putuskanAksesSiswa("admin", null, null)).toMatchObject({ ok: false, status: 404 });
+  });
+  it("guru boleh siswa kelasnya sendiri", () => {
+    expect(putuskanAksesSiswa("guru", "5", { class: "5" })).toEqual({ ok: true });
+  });
+  it("guru ditolak untuk kelas lain", () => {
+    expect(putuskanAksesSiswa("guru", "5", { class: "6" })).toMatchObject({ ok: false, status: 403 });
+  });
+  it("guru tanpa kelas wali (null) ditolak semua", () => {
+    expect(putuskanAksesSiswa("guru", null, { class: "5" })).toMatchObject({ ok: false, status: 403 });
+  });
+  it("guru: siswa tidak ada dijawab sama persis dengan kelas lain (anti-enumerasi)", () => {
+    const tidakAda = putuskanAksesSiswa("guru", "5", null);
+    const kelasLain = putuskanAksesSiswa("guru", "5", { class: "6" });
+    expect(tidakAda).toEqual(kelasLain);
+  });
+  it("role tak dikenal ditolak", () => {
+    expect(putuskanAksesSiswa("siswa", "5", { class: "5" })).toMatchObject({ ok: false, status: 403 });
   });
 });

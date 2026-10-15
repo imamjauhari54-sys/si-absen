@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import React, { Suspense } from "react";
 import { requireSession } from "@/lib/auth/session";
+import { assertBolehAksesSiswa, getBatasKelas } from "@/lib/auth/akses-kelas";
 import { getSettingValue } from "@/lib/data/settings";
 import { getStudentsForPrint } from "@/lib/data/siswa";
 import IdCardVisual from "@/components/siswa/IdCardVisual";
@@ -15,17 +16,25 @@ export default async function CetakIdCardPage({
 }: {
   searchParams: Promise<{ id?: string; kelas?: string; q?: string; print?: string }>;
 }) {
-  await requireSession(); // admin & guru sama-sama boleh cetak
+  const session = await requireSession(); // admin & guru boleh cetak, tapi guru HANYA kelasnya
 
   const params = await searchParams;
   const singleId = params.id ? parseInt(params.id, 10) : undefined;
-  const kelasFilter = params.kelas ?? "";
   const search = (params.q ?? "").trim();
+
+  // Guru: kelas dipaksa dari DB (parameter ?kelas= dari URL diabaikan). Guru tanpa kelas -> daftar kosong.
+  const batas = await getBatasKelas(session);
+  const kelasFilter = batas.semua ? (params.kelas ?? "") : (batas.kelas ?? "");
+  const bolehLanjut = batas.semua || !!batas.kelas;
+
+  // Cetak satu siswa: cek akses SEBELUM getStudentsForPrint (fungsi itu bisa membuat token baru).
+  const aksesSatu = singleId ? await assertBolehAksesSiswa(session, singleId) : null;
+  const bolehCetak = bolehLanjut && (aksesSatu === null || aksesSatu.ok);
 
   const [namaSekolah, alamat, list] = await Promise.all([
     getSettingValue("nama_sekolah", "SI-ABSEN"),
     getSettingValue("alamat_sekolah", ""),
-    getStudentsForPrint({ id: singleId, kelas: kelasFilter, search }),
+    bolehCetak ? getStudentsForPrint({ id: singleId, kelas: kelasFilter, search }) : Promise.resolve([]),
   ]);
 
   const infoFilter = kelasFilter ? `Kelas ${kelasFilter}` : "Semua Kelas";

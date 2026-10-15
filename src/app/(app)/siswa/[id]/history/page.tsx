@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
+import { getKelasWaliSesi } from "@/lib/auth/akses-kelas";
+import { putuskanAksesSiswa } from "@/lib/utils/absen-scan";
 import { getAbsensiSetting } from "@/lib/data/dashboard";
 import {
   getChartTren6Bulan,
@@ -36,7 +38,6 @@ export default async function HistorySiswaPage({
 }) {
   const session = await requireSession();
   const isAdmin = session.role === "admin";
-  const guruKelas = session.kelas || "";
 
   const { id } = await params;
   const siswaId = parseInt(id, 10);
@@ -47,7 +48,9 @@ export default async function HistorySiswaPage({
 
   const siswa = await getSiswaProfile(siswaId);
   if (!siswa) redirect(backUrl);
-  if (!isAdmin && siswa.class !== guruKelas) redirect("/siswa");
+  // Kelas wali dibaca dari DB (bukan JWT yang bisa basi sampai 8 jam).
+  const kelasWali = await getKelasWaliSesi(session);
+  if (!putuskanAksesSiswa(session.role, kelasWali, siswa).ok) redirect("/siswa");
 
   const settingDefault = await getAbsensiSetting();
   const filter = {

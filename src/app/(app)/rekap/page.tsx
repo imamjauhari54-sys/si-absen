@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
+import { kelasHalamanAtauRedirect } from "@/lib/auth/akses-kelas";
 import { getHariLiburMap } from "@/lib/data/hari-libur";
 import { getRekapBulanan, getRekapHarian, getSemuaKelasRekap } from "@/lib/data/rekap";
 import { tapelUntukBulan, tapelUntukTanggal } from "@/lib/data/riwayat-kelas";
@@ -37,7 +38,8 @@ export default async function RekapPage({
 }) {
   const session = await requireSession();
   const isAdmin = session.role === "admin";
-  const guruKelas = session.kelas || "";
+  // Guru: kelas dari DB, fail-closed (tanpa kelas -> /tanpa-kelas). Admin: "" = semua kelas.
+  const guruKelas = await kelasHalamanAtauRedirect(session);
 
   const sp = await searchParams;
   const view = sp.view === "bulanan" ? "bulanan" : "harian";

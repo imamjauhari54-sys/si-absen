@@ -24,6 +24,29 @@ export function bolehScanSiswa(role: string, kelasWali: string | null, kelasSisw
   return kelasWali.trim().toLowerCase() === String(kelasSiswa ?? "").trim().toLowerCase();
 }
 
+export type KeputusanAksesSiswa = { ok: true } | { ok: false; status: 403 | 404; message: string };
+
+/**
+ * Keputusan akses ke SATU siswa (edit absensi, cetak ID card, history, dst.). Murni tanpa I/O.
+ * Untuk guru, "siswa tidak ada" dan "siswa kelas lain" sengaja dijawab SAMA (403 + pesan sama)
+ * supaya ID siswa tidak bisa ditebak-tebak (enumerasi). Hanya admin yang dapat 404.
+ */
+export function putuskanAksesSiswa(
+  role: string,
+  kelasWali: string | null,
+  siswa: { class: string } | null
+): KeputusanAksesSiswa {
+  if (!siswa) {
+    return role === "admin"
+      ? { ok: false, status: 404, message: "Siswa tidak ditemukan" }
+      : { ok: false, status: 403, message: "Siswa ini bukan kelas Anda." };
+  }
+  if (!bolehScanSiswa(role, kelasWali, siswa.class)) {
+    return { ok: false, status: 403, message: "Siswa ini bukan kelas Anda." };
+  }
+  return { ok: true };
+}
+
 // ── VALIDASI DATA ANTREAN OFFLINE ───────────────────────────────────
 
 export const SCAN_MAKS_MUNDUR_MS = 3 * 24 * 60 * 60 * 1000; // 3 hari

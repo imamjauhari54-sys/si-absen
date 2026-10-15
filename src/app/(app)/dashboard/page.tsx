@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requireSession } from "@/lib/auth/session";
+import { kelasHalamanAtauRedirect } from "@/lib/auth/akses-kelas";
 import {
   cekHariLibur,
   getAbsensiSetting,
@@ -32,7 +33,8 @@ const MIN_HARI_ALERT = 3;
 export default async function DashboardPage() {
   const session = await requireSession();
   const isAdmin = session.role === "admin";
-  const kelas = session.kelas || "";
+  // Guru: kelas dari DB, fail-closed. Sebelumnya kelas kosong membuat dashboard guru menampilkan SEMUA siswa.
+  const kelas = await kelasHalamanAtauRedirect(session);
   const today = todayJakarta();
 
   const [setting, { isLibur, pesanLibur }, { totalSiswa, stat }] = await Promise.all([
