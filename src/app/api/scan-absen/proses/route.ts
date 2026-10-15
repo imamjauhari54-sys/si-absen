@@ -8,7 +8,9 @@ import { nowJakarta, hms, jamTitikFormat, addMinutes } from "@/lib/utils/jam";
 import { getKelasWali } from "@/lib/data/wali-kelas";
 import {
   KETERANGAN_ALPHA_SISTEM,
+  STATUS_BOLEH_PULANG,
   bolehScanSiswa,
+  putuskanScanPulang,
   rencanaKoreksiMasuk,
   tentukanStatusMasuk,
   validasiScanId,
@@ -299,7 +301,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // KONDISI B: data sudah ada
+    // KONDISI B: data sudah ada. Status diperiksa DULU: hanya hadir/terlambat yang boleh lanjut ke
+    // alur pulang. alpha/izin/sakit tidak diubah, tidak diberi jam_pulang, tidak membuat log
+    // aktivitas, dan tidak memicu WA pulang. Dikembalikan sebagai "error" (bukan "sudah") supaya
+    // scanner menampilkan penolakan, dan scan dari antrean offline masuk daftar ditolak.
+    const keputusanPulang = putuskanScanPulang(absenHariIni.status);
+    if (!keputusanPulang.ok) {
+      return NextResponse.json({
+        status: "error",
+        nama: siswa.name,
+        message: keputusanPulang.message,
+      });
+    }
+
     if (absenHariIni.jam_pulang) {
       return NextResponse.json({
         status: "sudah",
@@ -325,6 +339,8 @@ export async function POST(req: NextRequest) {
       .update({ jam_pulang: jamNow })
       .eq("id", absenHariIni.id)
       .is("jam_pulang", null)
+      // Pengaman race: status bisa berubah (mis. diedit jadi alpha) sejak dibaca di atas.
+      .in("status", [...STATUS_BOLEH_PULANG])
       .select("id");
     if (updErr) throw new Error("Gagal simpan absen pulang: " + updErr.message);
     if (!terupdate || terupdate.length === 0) {

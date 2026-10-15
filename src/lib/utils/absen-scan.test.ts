@@ -3,6 +3,7 @@ import {
   KETERANGAN_ALPHA_SISTEM,
   bolehScanSiswa,
   putuskanAksesSiswa,
+  putuskanScanPulang,
   rencanaKoreksiMasuk,
   tentukanStatusMasuk,
   validasiScanId,
@@ -168,5 +169,24 @@ describe("putuskanAksesSiswa (otorisasi per siswa)", () => {
   });
   it("role tak dikenal ditolak", () => {
     expect(putuskanAksesSiswa("siswa", "5", { class: "5" })).toMatchObject({ ok: false, status: 403 });
+  });
+});
+
+describe("putuskanScanPulang", () => {
+  it("hadir dan terlambat boleh diproses sebagai scan pulang", () => {
+    expect(putuskanScanPulang("hadir")).toEqual({ ok: true });
+    expect(putuskanScanPulang("terlambat")).toEqual({ ok: true });
+  });
+  it("alpha, izin, sakit ditolak dengan pesan yang menyebut statusnya", () => {
+    for (const s of ["alpha", "izin", "sakit"]) {
+      const r = putuskanScanPulang(s);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.message).toContain(s.toUpperCase());
+    }
+  });
+  it("status kosong/tak dikenal ditolak (whitelist, bukan blacklist)", () => {
+    expect(putuskanScanPulang(null).ok).toBe(false);
+    expect(putuskanScanPulang(undefined).ok).toBe(false);
+    expect(putuskanScanPulang("libur").ok).toBe(false);
   });
 });

@@ -14,6 +14,28 @@ export function tentukanStatusMasuk(jam: string, batasTerlambat: string): Status
   return jam > batasTerlambat ? "terlambat" : "hadir";
 }
 
+// ── SCAN PULANG ─────────────────────────────────────────────────────
+
+/** Hanya status ini yang boleh diproses sebagai scan pulang (siswa memang hadir hari itu). */
+export const STATUS_BOLEH_PULANG = ["hadir", "terlambat"] as const;
+
+export type KeputusanScanPulang = { ok: true } | { ok: false; message: string };
+
+/**
+ * Menentukan apakah scan pada hari yang SUDAH punya record absensi boleh dicatat sebagai absen
+ * pulang. Hanya hadir/terlambat yang boleh. alpha, izin, dan sakit tidak boleh berubah hanya
+ * karena siswa scan (mis. alpha dari cron 12.00 lalu scan jam 12.30 tidak mendapat jam pulang).
+ * Murni tanpa I/O supaya bisa dites tanpa database.
+ */
+export function putuskanScanPulang(status: string | null | undefined): KeputusanScanPulang {
+  if ((STATUS_BOLEH_PULANG as readonly string[]).includes(String(status))) return { ok: true };
+  const label = status ? String(status).toUpperCase() : "TIDAK DIKETAHUI";
+  return {
+    ok: false,
+    message: `Akses Ditolak! Hari ini tercatat ${label}. Scan tidak mengubah status absensi.`,
+  };
+}
+
 // ── AKSES WALI KELAS ────────────────────────────────────────────────
 
 /** Admin boleh semua kelas. Guru hanya boleh siswa di kelas yang diampunya (wali kelas). */

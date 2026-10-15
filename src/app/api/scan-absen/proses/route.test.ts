@@ -11,25 +11,32 @@ const h = vi.hoisted(() => {
     rpcCalls: [] as { name: string; args: Row }[],
     afterTasks: [] as (() => unknown)[],
     onBeforeInsertAbsensi: null as null | (() => void),
+    onBeforeUpdateAbsensi: null as null | (() => void),
   };
   return { state, kirimNotifAbsen: vi.fn(async () => {}), registerScanner: vi.fn(async () => {}), bumpScannerStats: vi.fn(async () => {}) };
 });
 
 class Q {
   private filters: [string, unknown][] = [];
+  private ins: [string, unknown[]][] = [];
   private op: "select" | "insert" | "update" = "select";
   private payload: Row = {};
   constructor(private table: string) {}
   select() { return this; }
   eq(c: string, v: unknown) { this.filters.push([c, v]); return this; }
   is(c: string, v: unknown) { this.filters.push([c, v]); return this; }
+  in(c: string, vs: unknown[]) { this.ins.push([c, vs]); return this; }
   order() { return this; }
   limit() { return this; }
   insert(row: Row) { this.op = "insert"; this.payload = row; return this; }
   update(v: Row) { this.op = "update"; this.payload = v; return this; }
   private rows() {
     const t = (h.state.db[this.table] ??= []);
-    return t.filter((r) => this.filters.every(([c, v]) => (v === null ? r[c] == null : r[c] === v)));
+    return t.filter(
+      (r) =>
+        this.filters.every(([c, v]) => (v === null ? r[c] == null : r[c] === v)) &&
+        this.ins.every(([c, vs]) => vs.includes(r[c]))
+    );
   }
   private exec(): { data: Row[] | null; error: { code?: string; message: string } | null } {
     const tabel = (h.state.db[this.table] ??= []);
@@ -43,6 +50,7 @@ class Q {
       return { data: null, error: null };
     }
     if (this.op === "update") {
+      if (this.table === "absensi") h.state.onBeforeUpdateAbsensi?.();
       const kena = this.rows();
       kena.forEach((r) => Object.assign(r, this.payload));
       return { data: kena.map((r) => ({ id: r.id })), error: null };
@@ -124,6 +132,7 @@ beforeEach(() => {
   h.state.rpcCalls = [];
   h.state.afterTasks = [];
   h.state.onBeforeInsertAbsensi = null;
+  h.state.onBeforeUpdateAbsensi = null;
   h.state.db = {
     hari_libur: [],
     students: [
@@ -256,6 +265,147 @@ describe("scan paling awal menang (sinkronisasi antrean offline)", () => {
     expect(absensi()).toHaveLength(1);
     expect(h.state.db.absensi_log.filter((l) => l.scan_id === "33333333-3333-4333-8333-333333333333")).toHaveLength(1);
     expect(h.kirimNotifAbsen).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("scan pulang hanya untuk hadir/terlambat", () => {
+  const scanLangsung = () => kirim({ token: `SIELISA:${TOKEN_5}`, scanner_id: "HP-ADMIN" });
+  const baris = (status: string, extra: Row = {}) => ({
+    id: 1, siswa_id: 501, tanggal: "2026-10-08", status, jam_masuk: null, jam_pulang: null, keterangan: null, ...extra,
+  });
+
+  it("alpha dari cron 12.00 lalu scan 12.30 -> ditolak, tanpa jam pulang, tanpa log, tanpa WA", async () => {
+    absensi().push(baris("alpha", { keterangan: "Tanpa Keterangan (Sistem)" }));
+    vi.setSystemTime(T("12:30"));
+    const r = await scanLangsung();
+    expect(r.status).toBe(200);
+    expect(r.body.status).toBe("error");
+    expect(r.body.message).toContain("ALPHA");
+    expect(absensi()[0]).toMatchObject({ status: "alpha", jam_pulang: null, keterangan: "Tanpa Keterangan (Sistem)" });
+    expect(h.state.db.absensi_log).toHaveLength(0);
+    await jalankanAfter();
+    expect(h.kirimNotifAbsen).not.toHaveBeenCalled();
+  });
+
+  it("izin, sakit, dan alpha manual: scan setelah jam pulang tidak mengubah apa pun", async () => {
+    for (const [status, ket] of [["izin", "Acara keluarga"], ["sakit", "Demam"], ["alpha", "Tidak ada kabar"]] as const) {
+      h.state.db.absensi = [baris(status, { keterangan: ket })];
+      h.state.db.absensi_log = [];
+      h.state.afterTasks = [];
+      vi.setSystemTime(T("12:30"));
+      const r = await scanLangsung();
+      expect(r.body.status).toBe("error");
+      expect(r.body.message).toContain(status.toUpperCase());
+      expect(absensi()[0]).toMatchObject({ status, jam_pulang: null, keterangan: ket });
+      expect(h.state.db.absensi_log).toHaveLength(0);
+      await jalankanAfter();
+      expect(h.kirimNotifAbsen).not.toHaveBeenCalled();
+    }
+  });
+
+  it("alpha/izin/sakit scan SEBELUM jam pulang -> ditolak, bukan pesan 'Hadir masuk · null'", async () => {
+    for (const status of ["alpha", "izin", "sakit"]) {
+      h.state.db.absensi = [baris(status)];
+      vi.setSystemTime(T("09:00"));
+      const r = await scanLangsung();
+      expect(r.body.status).toBe("error");
+      expect(JSON.stringify(r.body)).not.toContain("null");
+      expect(absensi()[0]).toMatchObject({ status, jam_pulang: null });
+    }
+  });
+
+  it("jalur manual (pilih siswa) tidak melewati aturan yang sama", async () => {
+    absensi().push(baris("izin", { keterangan: "Acara keluarga" }));
+    vi.setSystemTime(T("12:30"));
+    const r = await kirim({ manual: "1", siswa_id: "501", scanner_id: "HP-ADMIN" });
+    expect(r.body.status).toBe("error");
+    expect(absensi()[0]).toMatchObject({ status: "izin", jam_pulang: null });
+    expect(h.state.db.absensi_log).toHaveLength(0);
+  });
+
+  it("scan offline tersinkron setelah jam pulang untuk alpha sistem -> ditolak (tidak dikoreksi, tidak dapat jam pulang)", async () => {
+    absensi().push(baris("alpha", { keterangan: "Tanpa Keterangan (Sistem)" }));
+    vi.setSystemTime(T("13:00"));
+    const r = await kirim({
+      token: `SIELISA:${TOKEN_5}`, scanner_id: "HP-ADMIN",
+      scan_at: T("12:45").toISOString(), device_now: String(Date.now()),
+      scan_id: "55555555-5555-4555-8555-555555555555",
+    });
+    expect(r.body.status).toBe("error");
+    expect(r.body.dikoreksi).toBeUndefined();
+    expect(absensi()[0]).toMatchObject({ status: "alpha", jam_pulang: null });
+    expect(h.state.db.absensi_log).toHaveLength(0);
+    await jalankanAfter();
+    expect(h.kirimNotifAbsen).not.toHaveBeenCalled();
+  });
+
+  it("race: status diubah jadi alpha setelah dibaca, sebelum UPDATE -> jam_pulang tetap kosong, tanpa log/WA", async () => {
+    absensi().push(baris("hadir", { jam_masuk: "07:00:00" }));
+    h.state.onBeforeUpdateAbsensi = () => { absensi()[0].status = "alpha"; };
+    vi.setSystemTime(T("12:00"));
+    await scanLangsung();
+    expect(absensi()[0]).toMatchObject({ status: "alpha", jam_pulang: null });
+    expect(h.state.db.absensi_log).toHaveLength(0);
+    await jalankanAfter();
+    expect(h.kirimNotifAbsen).not.toHaveBeenCalled();
+  });
+
+  // ── Alur normal yang HARUS tetap berjalan ──
+  it("hadir scan setelah jam pulang -> tercatat pulang + log + WA pulang (tidak berubah)", async () => {
+    absensi().push(baris("hadir", { jam_masuk: "07:00:00" }));
+    vi.setSystemTime(T("11:45"));
+    const r = await scanLangsung();
+    expect(r.body).toMatchObject({ status: "pulang", nama: "Budi (5)" });
+    expect(absensi()[0]).toMatchObject({ status: "hadir", jam_pulang: "11:45:00" });
+    expect(h.state.db.absensi_log).toHaveLength(1);
+    expect(h.state.db.absensi_log[0]).toMatchObject({ status_lama: "hadir", status_baru: "pulang" });
+    await jalankanAfter();
+    expect(h.kirimNotifAbsen).toHaveBeenCalledTimes(1);
+    expect(h.kirimNotifAbsen).toHaveBeenCalledWith(501, "Budi (5)", "5", "pulang", "11:45:00");
+  });
+
+  it("terlambat scan setelah jam pulang -> tercatat pulang, status tetap terlambat", async () => {
+    absensi().push(baris("terlambat", { jam_masuk: "07:25:00" }));
+    vi.setSystemTime(T("12:00"));
+    const r = await scanLangsung();
+    expect(r.body.status).toBe("pulang");
+    expect(absensi()[0]).toMatchObject({ status: "terlambat", jam_pulang: "12:00:00" });
+    await jalankanAfter();
+    expect(h.kirimNotifAbsen).toHaveBeenCalledWith(501, "Budi (5)", "5", "pulang", "12:00:00");
+  });
+
+  it("hadir yang sudah pulang lalu scan lagi -> 'Selesai', tanpa log/WA tambahan", async () => {
+    absensi().push(baris("hadir", { jam_masuk: "07:00:00", jam_pulang: "11:40:00" }));
+    vi.setSystemTime(T("12:00"));
+    const r = await scanLangsung();
+    expect(r.body.status).toBe("sudah");
+    expect(r.body.keterangan).toContain("Sudah absen pulang");
+    expect(absensi()[0].jam_pulang).toBe("11:40:00");
+    expect(h.state.db.absensi_log).toHaveLength(0);
+    await jalankanAfter();
+    expect(h.kirimNotifAbsen).not.toHaveBeenCalled();
+  });
+
+  it("hadir scan sebelum jam pulang -> 'Belum jam pulang' (tidak berubah)", async () => {
+    absensi().push(baris("hadir", { jam_masuk: "07:00:00" }));
+    vi.setSystemTime(T("09:00"));
+    const r = await scanLangsung();
+    expect(r.body.status).toBe("sudah");
+    expect(r.body.keterangan).toContain("Belum jam pulang");
+    expect(absensi()[0].jam_pulang).toBeNull();
+  });
+
+  it("belum ada record: scan pagi tetap tercatat hadir; scan setelah jam pulang tetap ditolak", async () => {
+    vi.setSystemTime(T("07:05"));
+    expect((await scanLangsung()).body.status).toBe("hadir");
+    expect(absensi()).toHaveLength(1);
+
+    h.state.db.absensi = [];
+    vi.setSystemTime(T("12:00"));
+    const r = await scanLangsung();
+    expect(r.body.status).toBe("error");
+    expect(r.body.message).toContain("dianggap tidak hadir");
+    expect(absensi()).toHaveLength(0);
   });
 });
 
