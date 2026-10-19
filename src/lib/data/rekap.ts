@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { todayJakarta } from "@/lib/utils/tanggal";
+import { formatWaktuWib, todayJakarta } from "@/lib/utils/tanggal";
 import { ambilSemua } from "@/lib/utils/ambil-semua";
 import { getKelasTapel, getSiswaTapel, tapelUntukBulan, tapelUntukTanggal } from "@/lib/data/riwayat-kelas";
 import type { StatusAbsen } from "@/types";
@@ -37,6 +37,25 @@ export async function getDistinctBulanAbsensi(): Promise<string[]> {
 
 export type StatusHarian = StatusAbsen | "kosong";
 
+/** Kondisi baris SEBELUM edit manual terakhir (yang akan dikembalikan oleh Pulihkan). null = barisnya belum ada. */
+export interface SebelumEdit {
+  status: StatusAbsen;
+  jam_masuk: string | null;
+  jam_pulang: string | null;
+  keterangan: string | null;
+  lampiran: boolean;
+}
+
+/** Ada pada baris yang edit manual terakhirnya MASIH bisa dipulihkan sekarang. */
+export interface InfoPulihkan {
+  /** ID edit yang akan dipulihkan (o_edit_id). Dikirim kembali saat Pulihkan agar yang dipulihkan persis edit yang dilihat pengguna. */
+  editId: number;
+  dieditOleh: string | null;
+  dieditPada: string; // sudah diformat WIB
+  batasPulihkan: string; // sudah diformat WIB
+  sebelum: SebelumEdit | null;
+}
+
 export interface RekapHarianRow {
   id: number;
   name: string;
@@ -46,6 +65,7 @@ export interface RekapHarianRow {
   jam_pulang: string | null;
   keterangan: string | null;
   lampiran: string | null;
+  pulihkan: InfoPulihkan | null;
 }
 
 export interface StatHarian {
@@ -63,7 +83,8 @@ export interface StatHarian {
  */
 export async function getRekapHarian(
   tanggal: string,
-  kelasFilter: string
+  kelasFilter: string,
+  opsi: { denganPulihkan?: boolean } = {}
 ): Promise<{ rows: RekapHarianRow[]; stat: StatHarian }> {
   // Siswa & kelasnya diambil dari riwayat kelas pada tapel tanggal ini, bukan students.class,
   // supaya rekap tanggal lama tetap menampilkan kelas yang benar setelah siswa naik kelas.
@@ -78,6 +99,8 @@ export async function getRekapHarian(
     .eq("tanggal", tanggal)
     .in("siswa_id", ids);
   const absenMap = new Map((absenRows ?? []).map((r) => [r.siswa_id, r]));
+  // Info tombol Pulihkan hanya diminta halaman Rekap (ekspor CSV tidak memerlukannya).
+  const pulihkanMap = opsi.denganPulihkan ? await getInfoPulihkan(tanggal, ids) : new Map<number, InfoPulihkan>();
 
   const today = todayJakarta();
   const defaultStatus: StatusHarian = tanggal < today ? "alpha" : "kosong";
@@ -96,10 +119,58 @@ export async function getRekapHarian(
       jam_pulang: a?.jam_pulang ?? null,
       keterangan: a?.keterangan ?? null,
       lampiran: a?.lampiran ?? null,
+      pulihkan: pulihkanMap.get(s.id) ?? null,
     };
   });
 
   return { rows, stat };
+}
+
+/**
+ * Siswa yang edit manual terakhirnya pada `tanggal` masih bisa dipulihkan. Syaratnya diputuskan di
+ * database (fungsi daftar_bisa_pulihkan, migrasi 019) supaya identik dengan yang dicek saat Pulihkan.
+ * Kalau migrasinya belum dijalankan, tombol Pulihkan tidak muncul dan halaman tetap berfungsi.
+ */
+async function getInfoPulihkan(tanggal: string, siswaIds: number[]): Promise<Map<number, InfoPulihkan>> {
+  const hasil = new Map<number, InfoPulihkan>();
+  const { data, error } = await supabaseAdmin.rpc("daftar_bisa_pulihkan", { p_tanggal: tanggal, p_siswa_ids: siswaIds });
+  if (error) {
+    console.error("[getInfoPulihkan]", error.message);
+    return hasil;
+  }
+  type Baris = {
+    o_siswa_id: number;
+    o_edit_id: number;
+    o_diedit_at: string;
+    o_editor_nama: string | null;
+    o_batas: string;
+    o_sebelum: Record<string, string | null> | null;
+  };
+  for (const r of (data ?? []) as Baris[]) {
+    // Tanpa ID edit yang valid tombol Pulihkan tidak boleh muncul (gagal tertutup).
+    const editId = Number(r.o_edit_id);
+    if (!Number.isSafeInteger(editId) || editId <= 0) {
+      console.error("[getInfoPulihkan] o_edit_id tidak valid:", r.o_edit_id);
+      continue;
+    }
+    const j = r.o_sebelum;
+    hasil.set(r.o_siswa_id, {
+      editId,
+      dieditOleh: r.o_editor_nama,
+      dieditPada: formatWaktuWib(r.o_diedit_at),
+      batasPulihkan: formatWaktuWib(r.o_batas),
+      sebelum: j
+        ? {
+            status: j.status as StatusAbsen,
+            jam_masuk: j.jam_masuk ?? null,
+            jam_pulang: j.jam_pulang ?? null,
+            keterangan: j.keterangan ?? null,
+            lampiran: !!j.lampiran,
+          }
+        : null,
+    });
+  }
+  return hasil;
 }
 
 // ── BULANAN ─────────────────────────────────────────────────────────────

@@ -23,6 +23,8 @@ const AKSI_ICON: Record<string, { icon: string; warna: string }> = {
   ganti_periode: { icon: "fa-calendar-check", warna: "text-violet-500 bg-violet-50 dark:bg-violet-900/20" },
   kenaikan_kelas: { icon: "fa-graduation-cap", warna: "text-indigo-500 bg-indigo-50 dark:bg-indigo-900/20" },
   batal_kenaikan_kelas: { icon: "fa-rotate-left", warna: "text-rose-500 bg-rose-50 dark:bg-rose-900/20" },
+  edit_absensi: { icon: "fa-pen-to-square", warna: "text-violet-500 bg-violet-50 dark:bg-violet-900/20" },
+  pulihkan_absensi: { icon: "fa-rotate-left", warna: "text-amber-500 bg-amber-50 dark:bg-amber-900/20" },
   import_siswa: { icon: "fa-file-import", warna: "text-blue-500 bg-blue-50 dark:bg-blue-900/20" },
 };
 

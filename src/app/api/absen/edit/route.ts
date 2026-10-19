@@ -2,73 +2,32 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { assertBolehAksesSiswa } from "@/lib/auth/akses-kelas";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { addDaysJakarta, isoWeekday } from "@/lib/utils/tanggal";
+import {
+  KODE_SQL_RIWAYAT_KELAS_KOSONG,
+  parseIdPositif,
+  parseLampiranForm,
+  statusValid,
+  susunTanggalEdit,
+  tanggalValid,
+  validasiHasilEdit,
+} from "@/lib/utils/absen-edit";
 
-const STATUS_VALID = ["hadir", "terlambat", "izin", "sakit", "alpha"];
-const MAX_RENTANG_HARI = 92; // ~3 bulan, jaga-jaga input keliru
-
-/** Proses 1 tanggal saja — dipanggil per hari dari loop rentang di bawah. */
-async function prosesSatuTanggal(
-  siswaId: number,
-  tanggal: string,
-  statusBaru: string,
-  keterangan: string,
-  lampiranUrl: string | null,
-  adminId: number,
-  namaAdmin: string
-): Promise<{ ok: boolean; message?: string }> {
-  // Edit manual TIDAK membuat atau mengubah jam. jam_masuk dan jam_pulang hanya berasal dari scan
-  // (lihat scan-absen/proses). Dulu jam_masuk diisi "jam sekarang" dan menimpa jam scan asli, dan
-  // untuk tanggal lampau jamnya jadi jam saat edit. Baris baru lewat edit manual: jam kosong.
-
-  const { data: settingRow } = await supabaseAdmin.from("absensi_setting").select("tapel, semester").limit(1).maybeSingle();
-  const tapel = settingRow?.tapel ?? "2025/2026";
-  const semester = settingRow?.semester ?? "genap";
-
-  const { data: dataLama } = await supabaseAdmin
-    .from("absensi")
-    .select("status")
-    .eq("siswa_id", siswaId)
-    .eq("tanggal", tanggal)
-    .maybeSingle();
-
-  const statusLama = dataLama?.status ?? "Belum Absen";
-
-  let dbError: string | null = null;
-  if (dataLama) {
-    const updatePayload: Record<string, unknown> = { status: statusBaru, keterangan };
-    if (lampiranUrl !== null) updatePayload.lampiran = lampiranUrl || null;
-    const { error } = await supabaseAdmin.from("absensi").update(updatePayload).eq("siswa_id", siswaId).eq("tanggal", tanggal);
-    if (error) dbError = error.message;
-  } else {
-    const { error } = await supabaseAdmin.from("absensi").insert({
-      siswa_id: siswaId,
-      tanggal,
-      status: statusBaru,
-      keterangan,
-      lampiran: lampiranUrl || null,
-      tapel,
-      semester,
-      scan_oleh: namaAdmin,
-    });
-    if (error) dbError = error.message;
-  }
-
-  if (dbError) return { ok: false, message: dbError };
-
-  if (statusLama !== statusBaru) {
-    await supabaseAdmin.from("absensi_log").insert({
-      admin_id: adminId,
-      siswa_id: siswaId,
-      tanggal_absen: tanggal,
-      status_lama: statusLama,
-      status_baru: statusBaru,
-      keterangan,
-    });
-  }
-
-  return { ok: true };
-}
+/**
+ * Edit manual absensi (admin: semua siswa; guru: hanya siswa kelas wali-nya).
+ *
+ * Seluruh penulisan dikerjakan di database oleh fungsi edit_manual_absensi (migrasi 019) dalam SATU
+ * transaksi: kondisi sebelum edit disimpan sebagai snapshot (dasar tombol Pulihkan), jam diatur
+ * sesuai status, dan log dicatat. Konsekuensinya rentang tanggal bersifat semua-atau-tidak-sama-sekali.
+ *
+ * Periode (tapel & semester) TIDAK ditentukan di sini dan TIDAK memakai setting aktif: database
+ * menentukannya per tanggal. Baris yang sudah ada mempertahankan periodenya; baris baru memakai
+ * periode dari data absensi tanggal itu, atau kalender bila tidak ada. Jika siswa tidak punya
+ * riwayat_kelas pada tapel itu, database menolak dengan EM001 dan route ini menjawab HTTP 422.
+ *
+ * Aturan jam: hadir/terlambat mempertahankan jam yang ada; izin/sakit/alpha mengosongkannya; edit
+ * manual tidak pernah membuat jam. scan_oleh tidak pernah diisi/diubah oleh edit manual. Edit manual
+ * TIDAK mengirim notifikasi WhatsApp (sengaja tidak ada pemanggilan ke lib/wa di route ini).
+ */
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -82,85 +41,121 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "error", message: "Invalid Action" });
   }
 
-  const siswaId = parseInt(String(form.get("siswa_id") || "0"), 10);
+  const siswaId = parseIdPositif(form.get("siswa_id")); // integer positif ketat; "1abc" ditolak
   const tanggalDari = String(form.get("tanggal") || "");
   // Opsional — kalau kosong, dianggap cuma 1 hari (sama seperti tanggalDari).
   const tanggalSampai = String(form.get("tanggal_sampai") || "") || tanggalDari;
   const statusBaru = String(form.get("status") || "");
   const keterangan = String(form.get("keterangan") || "").trim();
 
-  // lampiran_url: kosong = tidak diubah, "__HAPUS__" = hapus lampiran lama,
-  // URL Cloudinary = simpan sebagai lampiran baru.
-  const lampiranRaw = String(form.get("lampiran_url") || "").trim();
-  let lampiranUrl: string | null = null; // null = jangan ubah kolom lampiran
-  if (lampiranRaw === "__HAPUS__") {
-    lampiranUrl = "";
-  } else if (lampiranRaw) {
-    const valid = /^https:\/\/[^/]*\.?cloudinary\.com\//.test(lampiranRaw);
-    lampiranUrl = valid ? lampiranRaw : null;
-  }
-
-  if (!siswaId || !tanggalDari || !STATUS_VALID.includes(statusBaru)) {
+  if (siswaId === null || !tanggalValid(tanggalDari) || !statusValid(statusBaru)) {
     return NextResponse.json({ status: "error", message: "Data status tidak valid" });
+  }
+  if (!tanggalValid(tanggalSampai)) {
+    return NextResponse.json({ status: "error", message: "Format tanggal tidak valid." });
   }
   if (tanggalSampai < tanggalDari) {
     return NextResponse.json({ status: "error", message: '"Sampai Tanggal" tidak boleh lebih awal dari "Dari Tanggal".' });
   }
 
+  // lampiran_url: kosong = tidak diubah (null), "__HAPUS__" = hapus lampiran lama (""), selain itu harus
+  // URL Cloudinary milik aplikasi ini. URL yang tidak valid DITOLAK (tidak lagi diam-diam dianggap "tidak diubah").
+  const lampiran = parseLampiranForm(String(form.get("lampiran_url") || ""), process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME);
+  if (!lampiran.ok) {
+    return NextResponse.json({ status: "error", message: lampiran.message }, { status: lampiran.httpStatus });
+  }
+  const lampiranUrl = lampiran.nilai;
+
   // Otorisasi per siswa: guru hanya boleh mengubah siswa di kelas wali-nya (dibaca dari DB).
-  // Dicek SEBELUM query/tulis apa pun dan sebelum loop rentang tanggal.
+  // Dicek SEBELUM query/tulis apa pun.
   const akses = await assertBolehAksesSiswa(session, siswaId);
   if (!akses.ok) {
     return NextResponse.json({ status: "error", message: akses.message }, { status: akses.status });
   }
 
-  // Kumpulkan semua tanggal dalam rentang, sekaligus tandai mana yang harus
-  // dilewati (Minggu / hari libur) tanpa menggagalkan seluruh proses.
-  const { data: liburRows } = await supabaseAdmin
+  // Minggu / hari libur dilewati tanpa menggagalkan seluruh proses. Kalau query hari libur GAGAL, proses
+  // dihentikan (tidak boleh dilanjutkan dengan daftar libur kosong, nanti tanggal libur dianggap hari kerja).
+  const { data: liburRows, error: liburError } = await supabaseAdmin
     .from("hari_libur")
     .select("tanggal")
     .gte("tanggal", tanggalDari)
     .lte("tanggal", tanggalSampai);
-  const liburSet = new Set((liburRows ?? []).map((r) => r.tanggal));
-
-  const daftarTanggal: string[] = [];
-  let cur = tanggalDari;
-  let pengaman = 0;
-  while (cur <= tanggalSampai) {
-    daftarTanggal.push(cur);
-    cur = addDaysJakarta(cur, 1);
-    pengaman++;
-    if (pengaman > MAX_RENTANG_HARI) {
-      return NextResponse.json({ status: "error", message: `Rentang tanggal terlalu panjang (maks ${MAX_RENTANG_HARI} hari).` });
-    }
+  if (liburError || !liburRows) {
+    console.error("[absen/edit] gagal membaca hari_libur:", liburError?.message ?? "data kosong tanpa error");
+    return NextResponse.json(
+      { status: "error", message: "Gagal memeriksa data hari libur. Tidak ada perubahan yang disimpan, silakan coba lagi." },
+      { status: 500 }
+    );
   }
+  const liburSet = new Set<string>((liburRows as { tanggal: string }[]).map((r) => r.tanggal));
 
-  const diproses: string[] = [];
-  const dilewati: string[] = [];
-  for (const tgl of daftarTanggal) {
-    if (isoWeekday(tgl) === 7 || liburSet.has(tgl)) {
-      dilewati.push(tgl);
-      continue;
-    }
-    const hasil = await prosesSatuTanggal(siswaId, tgl, statusBaru, keterangan, lampiranUrl, session.userId, session.nama || "Guru");
-    if (!hasil.ok) {
-      return NextResponse.json({ status: "error", message: "Gagal DB: " + hasil.message });
-    }
-    diproses.push(tgl);
+  const rencana = susunTanggalEdit(tanggalDari, tanggalSampai, liburSet);
+  if (!rencana.ok) {
+    return NextResponse.json({ status: "error", message: rencana.message });
   }
-
-  if (diproses.length === 0) {
+  if (rencana.diproses.length === 0) {
     return NextResponse.json({
       status: "error",
       message: "Semua tanggal di rentang ini adalah hari Minggu/libur — tidak ada yang diproses.",
     });
   }
 
+  const { data, error } = await supabaseAdmin.rpc("edit_manual_absensi", {
+    p_siswa_id: siswaId,
+    p_tanggal: rencana.diproses,
+    p_status: statusBaru,
+    p_keterangan: keterangan,
+    p_lampiran: lampiranUrl,
+    p_editor_id: session.userId,
+    p_editor_nama: session.nama || session.username,
+  });
+  if (error) {
+    // Siswa tidak punya riwayat_kelas pada tapel hasil penentuan: bukan kegagalan server, jelaskan penyebabnya.
+    if (error.code === KODE_SQL_RIWAYAT_KELAS_KOSONG) {
+      return NextResponse.json(
+        {
+          status: "error",
+          kode: "riwayat_kelas_kosong",
+          message: error.message || "Siswa tidak memiliki riwayat kelas pada tapel untuk tanggal ini. Tidak ada perubahan yang disimpan.",
+          ...(error.hint ? { saran: error.hint } : {}),
+        },
+        { status: 422 }
+      );
+    }
+    // Detail hanya ke log server; browser menerima pesan umum yang aman.
+    console.error("[absen/edit] RPC edit_manual_absensi gagal:", { code: error.code, message: error.message, details: error.details, hint: error.hint });
+    return NextResponse.json({ status: "error", message: "Gagal menyimpan perubahan. Silakan coba lagi." }, { status: 500 });
+  }
+
+  // RPC sukses belum tentu hasilnya utuh: wajib satu baris per tanggal yang dikirim. Kalau tidak, jangan menjawab "ok".
+  const cek = validasiHasilEdit(data, rencana.diproses);
+  if (!cek.ok) {
+    console.error("[absen/edit] hasil RPC edit_manual_absensi tidak sesuai:", cek.alasan);
+    return NextResponse.json(
+      {
+        status: "error",
+        message: "Hasil dari database tidak lengkap, sehingga hasil edit tidak dapat dipastikan. Muat ulang Rekap untuk memeriksa datanya sebelum mengulang.",
+      },
+      { status: 500 }
+    );
+  }
+
+  const hasil = cek.baris;
+  const diubah = hasil.filter((r) => r.o_diubah).length;
+  const barisBaru = hasil.filter((r) => r.o_periode_baru).length;
+  // Tanggal baris baru yang tapel/semesternya terpaksa dari kalender (tidak ada data absensi pada tanggal itu).
+  const periodeKalender = hasil
+    .filter((r) => r.o_periode_baru && (r.o_periode_baru.sumber_tapel === "kalender" || r.o_periode_baru.sumber_semester === "kalender"))
+    .map((r) => r.o_tanggal);
+
   return NextResponse.json({
     status: "ok",
     message: "Berhasil",
-    diproses: diproses.length,
-    dilewati: dilewati.length,
-    tanggalDiproses: diproses,
+    diproses: rencana.diproses.length,
+    diubah,
+    dilewati: rencana.dilewati.length,
+    tanggalDiproses: rencana.diproses,
+    barisBaru,
+    periodeKalender,
   });
 }

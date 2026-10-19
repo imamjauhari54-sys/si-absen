@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import "./rekap.css";
-import type { RekapHarianRow, StatusHarian } from "@/lib/data/rekap";
+import type { RekapHarianRow, SebelumEdit, StatusHarian } from "@/lib/data/rekap";
 import Portal from "@/components/ui/Portal";
 import NotifModal from "@/components/ui/NotifModal";
 import LampiranUploader from "@/components/rekap/LampiranUploader";
@@ -26,8 +27,26 @@ const ST_OPTS: { st: StatusHarian; icon: string; color: string; emoji: string; l
 ];
 const KET_ALPHA_DEFAULT = "Tanpa Keterangan";
 
+/** Ringkasan kondisi sebelum edit, mis. "Hadir · masuk 07:15 · pulang 14:00". null = barisnya belum ada. */
+function ringkasSebelum(s: SebelumEdit | null): string {
+  if (!s) return "Belum ada data absensi (baris hasil edit akan dihapus)";
+  const bagian = [s.status.charAt(0).toUpperCase() + s.status.slice(1)];
+  if (s.jam_masuk) bagian.push(`masuk ${s.jam_masuk.slice(0, 5)}`);
+  if (s.jam_pulang) bagian.push(`pulang ${s.jam_pulang.slice(0, 5)}`);
+  if (s.keterangan) bagian.push(`ket: ${s.keterangan}`);
+  if (s.lampiran) bagian.push("ada lampiran");
+  return bagian.join(" · ");
+}
+
 export default function HarianTable({ rows: initialRows, tanggal }: { rows: RekapHarianRow[]; tanggal: string }) {
+  const router = useRouter();
   const [rows, setRows] = useState(initialRows);
+  // Sinkronkan ke data server terbaru (setelah router.refresh) tanpa effect: pola "sesuaikan state saat prop berubah".
+  const [rowsAsal, setRowsAsal] = useState(initialRows);
+  if (initialRows !== rowsAsal) {
+    setRowsAsal(initialRows);
+    setRows(initialRows);
+  }
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<RekapHarianRow | null>(null);
   const [tglDari, setTglDari] = useState("");
@@ -36,11 +55,16 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
   const [ket, setKet] = useState("");
   const [lampiranUrl, setLampiranUrl] = useState<string | null>(null); // null = tidak diubah
   const [saving, setSaving] = useState(false);
+  const [memulihkan, setMemulihkan] = useState<RekapHarianRow | null>(null);
+  const [prosesPulihkan, setProsesPulihkan] = useState(false);
   const [notif, setNotif] = useState<{ status: "ok" | "error"; message: string } | null>(null);
 
   useEffect(() => {
     function onEsc(e: KeyboardEvent) {
-      if (e.key === "Escape") setEditing(null);
+      if (e.key === "Escape") {
+        setEditing(null);
+        setMemulihkan(null);
+      }
     }
     document.addEventListener("keydown", onEsc);
     return () => document.removeEventListener("keydown", onEsc);
@@ -86,14 +110,9 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
       const data = await res.json();
 
       if (data.status === "ok") {
-        // Update baris di tabel kalau tanggal yang lagi ditampilkan (tanggal
-        // prop) termasuk dalam rentang yang barusan diedit.
-        const akhir = tglSampai || tglDari;
-        if (tglDari <= tanggal && tanggal <= akhir) {
-          setRows((prev) =>
-            prev.map((r) => (r.id === editing.id ? { ...r, status: selSt, keterangan: ket || null } : r))
-          );
-        }
+        // Ambil ulang dari server: jam ikut berubah menurut status (izin/sakit/alpha mengosongkan jam)
+        // dan tombol Pulihkan perlu muncul, jadi tidak cukup menambal status di sisi klien.
+        router.refresh();
         setEditing(null);
         const pesan =
           data.diproses > 1
@@ -109,6 +128,29 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
       setNotif({ status: "error", message: "Terjadi kesalahan jaringan. Silakan coba lagi." });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function pulihkanEdit() {
+    // `memulihkan` adalah baris yang tersimpan saat tombol Pulihkan DIKLIK (bukan dibaca ulang dari `rows`), jadi
+    // editId di bawah adalah edit yang sama dengan yang ditampilkan di modal dan dikonfirmasi pengguna.
+    if (!memulihkan?.pulihkan) return;
+    setProsesPulihkan(true);
+    try {
+      const fd = new FormData();
+      fd.append("siswa_id", String(memulihkan.id));
+      fd.append("tanggal", tanggal);
+      fd.append("edit_id", String(memulihkan.pulihkan.editId));
+      const res = await fetch("/api/absen/pulihkan", { method: "POST", body: fd });
+      const data = await res.json();
+      setMemulihkan(null);
+      // Berhasil atau ditolak (mis. data sudah diubah proses lain): ambil ulang supaya tampilan sesuai kondisi sebenarnya.
+      router.refresh();
+      setNotif({ status: data.status === "ok" ? "ok" : "error", message: data.message || "Terjadi kesalahan." });
+    } catch {
+      setNotif({ status: "error", message: "Terjadi kesalahan jaringan. Silakan coba lagi." });
+    } finally {
+      setProsesPulihkan(false);
     }
   }
 
@@ -189,6 +231,15 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
                         >
                           <i className="fas fa-pen" /> Edit
                         </button>
+                        {row.pulihkan && (
+                          <button
+                            onClick={() => setMemulihkan(row)}
+                            title={`Kembalikan seperti sebelum diedit (batas ${row.pulihkan.batasPulihkan} WIB)`}
+                            className="inline-flex items-center gap-1.5 ml-2 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-400 rounded-lg text-xs font-bold transition"
+                          >
+                            <i className="fas fa-rotate-left" /> Pulihkan
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -299,6 +350,11 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
                     <i className="fas fa-robot" /> Keterangan otomatis diisi untuk status Alpha
                   </p>
                 )}
+                {(selSt === "izin" || selSt === "sakit" || selSt === "alpha") && (
+                  <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 flex items-center gap-1">
+                    <i className="fas fa-info-circle text-indigo-400" /> Jam masuk &amp; pulang akan dikosongkan untuk status ini
+                  </p>
+                )}
               </div>
             </div>
 
@@ -320,6 +376,54 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
             </div>
           </div>
         </div>
+        </Portal>
+      )}
+
+      {memulihkan?.pulihkan && (
+        <Portal>
+          <div
+            className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm no-print"
+            onClick={(e) => e.target === e.currentTarget && !prosesPulihkan && setMemulihkan(null)}
+          >
+            <div className="modal-inner bg-white dark:bg-[#1e2535] rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700/60 w-full max-w-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50 bg-gray-50 dark:bg-gray-800/30">
+                <span className="text-xs font-extrabold text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                  <i className="fas fa-rotate-left text-amber-500" /> Pulihkan Edit Manual
+                </span>
+              </div>
+              <div className="p-5 space-y-3 text-sm text-gray-700 dark:text-gray-300">
+                <p>
+                  Kembalikan data <strong className="text-gray-900 dark:text-white">{memulihkan.name}</strong> pada tanggal ini
+                  seperti <strong>sebelum</strong> diedit?
+                </p>
+                <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-xs">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Akan dikembalikan ke</div>
+                  {ringkasSebelum(memulihkan.pulihkan.sebelum)}
+                </div>
+                <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                  Diedit oleh {memulihkan.pulihkan.dieditOleh ?? "-"} · {memulihkan.pulihkan.dieditPada} WIB. Bisa dipulihkan
+                  sampai {memulihkan.pulihkan.batasPulihkan} WIB.
+                </p>
+              </div>
+              <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700/50 flex gap-3 bg-gray-50 dark:bg-gray-800/30">
+                <button
+                  onClick={() => setMemulihkan(null)}
+                  disabled={prosesPulihkan}
+                  className="flex-1 px-4 py-2.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 disabled:opacity-60 text-gray-700 dark:text-gray-200 rounded-xl text-sm font-bold transition"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={pulihkanEdit}
+                  disabled={prosesPulihkan}
+                  className="flex-1 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white rounded-xl text-sm font-bold shadow-sm transition flex items-center justify-center gap-2 active:scale-95"
+                >
+                  {prosesPulihkan ? <i className="fas fa-spinner fa-spin" /> : <i className="fas fa-rotate-left" />}
+                  {prosesPulihkan ? "Memulihkan..." : "Pulihkan"}
+                </button>
+              </div>
+            </div>
+          </div>
         </Portal>
       )}
 
