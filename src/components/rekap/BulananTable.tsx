@@ -18,10 +18,10 @@ const LEG: { k: string; cls: string; lbl: string }[] = [
 
 const CS_MAP: Record<StatusBulanan, string> = {
   hadir: "cs-hadir", terlambat: "cs-terlambat", izin: "cs-izin", sakit: "cs-sakit",
-  alpha: "cs-alpha", libur: "cs-libur", kosong: "cs-kosong",
+  alpha: "cs-alpha", libur: "cs-libur", kosong: "cs-kosong", nonaktif: "cs-kosong",
 };
 const LBL_MAP: Record<StatusBulanan, string> = {
-  hadir: "H", terlambat: "T", izin: "I", sakit: "S", alpha: "A", libur: "L", kosong: "-",
+  hadir: "H", terlambat: "T", izin: "I", sakit: "S", alpha: "A", libur: "L", kosong: "-", nonaktif: "×",
 };
 const HARI_SHORT: Record<string, string> = { Mon: "Sn", Tue: "Sl", Wed: "Rb", Thu: "Km", Fri: "Jm", Sat: "Sb" };
 
@@ -41,6 +41,7 @@ const DETAIL_STYLE: Record<StatusBulanan, React.CSSProperties> = {
   alpha: { background: "rgba(239,68,68,.15)", color: "#ef4444" },
   libur: { background: "rgba(100,116,139,.1)", color: "#94a3b8" },
   kosong: { background: "transparent", color: "#cbd5e1", border: "1px dashed #cbd5e1" },
+  nonaktif: { background: "transparent", color: "#cbd5e1", border: "1px dashed #cbd5e1" },
 };
 
 function hariPendek(tgl: string): string {
@@ -143,7 +144,10 @@ export default function BulananTable({
                     <td className="sticky-no bg-white dark:bg-[#1e2535] text-center text-xs font-bold text-gray-400 py-2">{i + 1}</td>
                     <td className="sticky-nama bg-white dark:bg-[#1e2535] font-bold text-gray-800 dark:text-gray-100 py-2 pr-3">
                       <span className="nama-cetak">{row.nama}</span>
-                      <div className="text-[10px] font-normal text-gray-400 dark:text-gray-500">Kelas {row.kelas}</div>
+                      <div className="text-[10px] font-normal text-gray-400 dark:text-gray-500">
+                        Kelas {row.kelas}
+                        {row.labelKeluar && <span className="ml-1.5 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-bold">{row.labelKeluar}</span>}
+                      </div>
                     </td>
                     {tglList.map((tgl) => {
                       const st = row.d[tgl] ?? "alpha";
@@ -207,7 +211,10 @@ export default function BulananTable({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-bold text-gray-800 dark:text-gray-100 text-sm truncate">{row.nama}</div>
-                    <div className="text-[10px] text-gray-400">Kelas {row.kelas}</div>
+                    <div className="text-[10px] text-gray-400">
+                      Kelas {row.kelas}
+                      {row.labelKeluar && <span className="ml-1.5 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-bold">{row.labelKeluar}</span>}
+                    </div>
                   </div>
                   <div className="text-gray-400 transition-transform duration-300" style={{ transform: isOpen ? "rotate(180deg)" : undefined }}>
                     <i className="fas fa-chevron-down text-xs" />

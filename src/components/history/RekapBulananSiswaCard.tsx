@@ -11,7 +11,7 @@ const LEG: { k: string; cls: string; lbl: string }[] = [
 ];
 
 const LBL_MAP: Record<StatusBulanan, string> = {
-  hadir: "H", terlambat: "T", izin: "I", sakit: "S", alpha: "A", libur: "L", kosong: "-",
+  hadir: "H", terlambat: "T", izin: "I", sakit: "S", alpha: "A", libur: "L", kosong: "-", nonaktif: "×",
 };
 
 const DETAIL_STYLE: Record<StatusBulanan, React.CSSProperties> = {
@@ -22,6 +22,7 @@ const DETAIL_STYLE: Record<StatusBulanan, React.CSSProperties> = {
   alpha: { background: "rgba(239,68,68,.15)", color: "#ef4444" },
   libur: { background: "rgba(100,116,139,.1)", color: "#94a3b8" },
   kosong: { background: "transparent", color: "#cbd5e1", border: "1px dashed #cbd5e1" },
+  nonaktif: { background: "transparent", color: "#cbd5e1", border: "1px dashed #cbd5e1" },
 };
 
 const HARI_SHORT: Record<string, string> = { Mon: "Sn", Tue: "Sl", Wed: "Rb", Thu: "Km", Fri: "Jm", Sat: "Sb" };

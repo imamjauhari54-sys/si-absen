@@ -200,7 +200,10 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
                   return (
                     <tr key={row.id} className={`tbl-row text-gray-700 dark:text-gray-300 ${visibilityCls}`}>
                       <td className="px-5 py-3 text-center text-xs font-bold text-gray-400">{i + 1}</td>
-                      <td className="px-5 py-3 font-bold text-gray-800 dark:text-gray-200">{row.name}</td>
+                      <td className="px-5 py-3 font-bold text-gray-800 dark:text-gray-200">
+                        {row.name}
+                        {row.labelKeluar && <span className="ml-2 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-bold">{row.labelKeluar}</span>}
+                      </td>
                       <td className="px-5 py-3 text-center">
                         <span className="bg-gray-100 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded text-xs font-bold">
                           {row.class}

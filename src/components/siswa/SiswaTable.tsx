@@ -8,6 +8,7 @@ import IdCardVisual from "./IdCardVisual";
 import SiswaFormModal from "./SiswaFormModal";
 import Portal from "@/components/ui/Portal";
 import NotifModal from "@/components/ui/NotifModal";
+import { todayJakarta } from "@/lib/utils/tanggal";
 
 const AV_COLORS = [
   "from-indigo-500 to-purple-600",
@@ -39,9 +40,11 @@ export default function SiswaTable({
   const [deleting, setDeleting] = useState(false);
   const [notif, setNotif] = useState<{ status: "ok" | "error"; message: string } | null>(null);
   const [alasanNonaktif, setAlasanNonaktif] = useState<"lulus" | "pindah">("lulus");
+  const [tanggalKeluar, setTanggalKeluar] = useState("");
 
   function bukaKonfirmasiHapus(s: StudentFull) {
     setAlasanNonaktif("lulus");
+    setTanggalKeluar(todayJakarta());
     setConfirmHapus(s);
   }
 
@@ -61,6 +64,7 @@ export default function SiswaTable({
     try {
       const form = new FormData();
       form.set("alasan", alasanNonaktif);
+      form.set("tanggal", tanggalKeluar);
       const res = await fetch(`/api/siswa/${confirmHapus.id}/nonaktifkan`, { method: "POST", body: form });
       const data = await res.json();
       const nama = confirmHapus.name;
@@ -316,6 +320,23 @@ export default function SiswaTable({
                 dipindah ke daftar <strong>Siswa Nonaktif</strong> dan tidak muncul lagi di Data Siswa. Riwayat absensinya tetap
                 tersimpan, dan status ini bisa dibatalkan (diaktifkan lagi) kapan saja.
               </p>
+
+              <div className="text-left mb-4">
+                <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 px-1">
+                  Tanggal keluar
+                </div>
+                <input
+                  type="date"
+                  value={tanggalKeluar}
+                  max={todayJakarta()}
+                  disabled={deleting}
+                  onChange={(e) => setTanggalKeluar(e.target.value)}
+                  className="w-full py-2.5 px-3 rounded-xl text-xs font-bold border bg-gray-100 dark:bg-[#282d45] border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200"
+                />
+                <p className="text-[10px] text-gray-400 mt-1.5 px-1 leading-relaxed">
+                  Hari pertama siswa tidak lagi dihitung di rekap. Absensi sebelum tanggal ini tetap tersimpan.
+                </p>
+              </div>
 
               <div className="text-left mb-8">
                 <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 px-1">

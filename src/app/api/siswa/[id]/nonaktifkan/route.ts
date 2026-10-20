@@ -3,6 +3,8 @@ import { revalidateTag } from "next/cache";
 import { getSession } from "@/lib/auth/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { catatLog } from "@/lib/data/log-aktivitas";
+import { parseTanggalKeluar } from "@/lib/utils/tanggal-keluar";
+import { formatTglIndo, todayJakarta } from "@/lib/utils/tanggal";
 
 const ALASAN_VALID = ["lulus", "pindah"] as const;
 
@@ -29,21 +31,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ status: "error", message: "Alasan tidak valid. Pilih Lulus atau Pindah." });
   }
 
+  const tanggal = parseTanggalKeluar(form.get("tanggal"), todayJakarta());
+  if (!tanggal.ok) return NextResponse.json({ status: "error", message: tanggal.message });
+
   const { data: siswa } = await supabaseAdmin.from("students").select("name, class, status").eq("id", siswaId).maybeSingle();
   if (!siswa) return NextResponse.json({ status: "error", message: "Siswa tidak ditemukan." });
   if (siswa.status !== "aktif") {
     return NextResponse.json({ status: "error", message: "Siswa ini sudah berstatus non-aktif." });
   }
 
-  const { error } = await supabaseAdmin.from("students").update({ status: alasan }).eq("id", siswaId);
-  if (error) return NextResponse.json({ status: "error", message: error.message });
+  // Migrasi 020: status + tanggal keluar dalam satu transaksi. Kalau fungsinya belum ada (migrasi belum
+  // dijalankan), jatuh ke cara lama supaya Nonaktifkan tetap berfungsi — tanggal keluar tidak tersimpan.
+  const { error: errRpc } = await supabaseAdmin.rpc("nonaktifkan_siswa", {
+    p_id: siswaId,
+    p_alasan: alasan,
+    p_tanggal: tanggal.value,
+  });
+  if (errRpc) {
+    if (errRpc.code !== "PGRST202") return NextResponse.json({ status: "error", message: errRpc.message });
+    const { error } = await supabaseAdmin.from("students").update({ status: alasan }).eq("id", siswaId);
+    if (error) return NextResponse.json({ status: "error", message: error.message });
+  }
 
   const labelAlasan = alasan === "lulus" ? "Lulus" : "Pindah";
+  const ket = tanggal.value ? `, tanggal keluar ${formatTglIndo(tanggal.value)}` : "";
   await catatLog(
     session.userId,
     "nonaktifkan_siswa",
     siswa.name,
-    `Menonaktifkan siswa "${siswa.name}" (Kelas ${siswa.class}) — alasan: ${labelAlasan}.`
+    `Menonaktifkan siswa "${siswa.name}" (Kelas ${siswa.class}) — alasan: ${labelAlasan}${ket}.`
   );
   revalidateTag("siswa", "max");
 

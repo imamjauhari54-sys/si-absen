@@ -2,6 +2,8 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { formatWaktuWib, todayJakarta } from "@/lib/utils/tanggal";
 import { ambilSemua } from "@/lib/utils/ambil-semua";
 import { getKelasTapel, getSiswaTapel, tapelUntukBulan, tapelUntukTanggal } from "@/lib/data/riwayat-kelas";
+import { getAbsensiSetting } from "@/lib/data/dashboard";
+import { labelKeluar, perluCekData, saringSiswaRekap, sudahKeluarPada } from "@/lib/utils/siswa-harian";
 import type { StatusAbsen } from "@/types";
 
 /** Daftar kelas pada tapel itu (menurut riwayat kelas), untuk dropdown filter Rekap. */
@@ -60,6 +62,8 @@ export interface RekapHarianRow {
   id: number;
   name: string;
   class: string;
+  /** Mis. "Pindah · 12 Okt 2026" untuk siswa yang sudah keluar; null untuk siswa aktif. */
+  labelKeluar: string | null;
   status: StatusHarian;
   jam_masuk: string | null;
   jam_pulang: string | null;
@@ -77,6 +81,17 @@ export interface StatHarian {
 }
 
 /**
+ * Id semua siswa yang TIDAK berstatus aktif (lulus/pindah). Dipaginasi (batas 1000 baris PostgREST)
+ * dan tanpa .in() berisi ribuan id, jadi aman untuk sekolah besar. Dipakai bersama saringSiswaRekap().
+ */
+async function ambilNonaktifIds(): Promise<Set<number>> {
+  const rows = await ambilSemua<{ id: number }>((dari, sampai) =>
+    supabaseAdmin.from("students").select("id").neq("status", "aktif").order("id").range(dari, sampai)
+  );
+  return new Set(rows.map((r) => r.id));
+}
+
+/**
  * Port dari query VIEW HARIAN rekap.php: semua siswa (LEFT JOIN absensi),
  * status default 'alpha' kalau tanggal < hari ini, atau 'kosong' kalau
  * hari ini/masa depan dan belum ada record.
@@ -89,16 +104,39 @@ export async function getRekapHarian(
   // Siswa & kelasnya diambil dari riwayat kelas pada tapel tanggal ini, bukan students.class,
   // supaya rekap tanggal lama tetap menampilkan kelas yang benar setelah siswa naik kelas.
   const tapel = await tapelUntukTanggal(tanggal);
-  const list = (await getSiswaTapel(tapel, kelasFilter)).map((s) => ({ id: s.siswa_id, name: s.nama, class: s.kelas }));
-  if (list.length === 0) return { rows: [], stat: { hadir: 0, terlambat: 0, izin: 0, sakit: 0, alpha: 0 } };
+  const semua = (await getSiswaTapel(tapel, kelasFilter)).map((s) => ({
+    id: s.siswa_id,
+    name: s.nama,
+    class: s.kelas,
+    nonaktif_pada: s.nonaktif_pada,
+    labelKeluar: labelKeluar(s.alasan_nonaktif, s.nonaktif_pada),
+  }));
+  const kosongStat: StatHarian = { hadir: 0, terlambat: 0, izin: 0, sakit: 0, alpha: 0 };
+  if (semua.length === 0) return { rows: [], stat: kosongStat };
 
-  const ids = list.map((s) => s.id);
-  const { data: absenRows } = await supabaseAdmin
-    .from("absensi")
-    .select("siswa_id, status, jam_masuk, jam_pulang, keterangan, lampiran")
-    .eq("tanggal", tanggal)
-    .in("siswa_id", ids);
+  const idsSemua = semua.map((s) => s.id);
+  const [{ data: absenRows }, nonaktifIds, setting] = await Promise.all([
+    supabaseAdmin
+      .from("absensi")
+      .select("siswa_id, status, jam_masuk, jam_pulang, keterangan, lampiran")
+      .eq("tanggal", tanggal)
+      .in("siswa_id", idsSemua),
+    ambilNonaktifIds(),
+    getAbsensiSetting(),
+  ]);
   const absenMap = new Map((absenRows ?? []).map((r) => [r.siswa_id, r]));
+
+  // Siswa yang sudah keluar hanya tampil sebelum tanggal keluarnya atau kalau punya absensi pada
+  // tanggal ini (lihat siswa-harian.ts), supaya jumlahnya cocok dengan Data Siswa dan tanpa alpha palsu.
+  const list = saringSiswaRekap(semua, {
+    tapelRekap: tapel,
+    tapelAktif: setting.tapel,
+    nonaktifIds,
+    adaAbsenIds: new Set(absenMap.keys()),
+    awalPeriode: tanggal,
+  });
+  if (list.length === 0) return { rows: [], stat: kosongStat };
+  const ids = list.map((s) => s.id);
   // Info tombol Pulihkan hanya diminta halaman Rekap (ekspor CSV tidak memerlukannya).
   const pulihkanMap = opsi.denganPulihkan ? await getInfoPulihkan(tanggal, ids) : new Map<number, InfoPulihkan>();
 
@@ -114,6 +152,7 @@ export async function getRekapHarian(
       id: s.id,
       name: s.name,
       class: s.class,
+      labelKeluar: s.labelKeluar,
       status,
       jam_masuk: a?.jam_masuk ?? null,
       jam_pulang: a?.jam_pulang ?? null,
@@ -175,12 +214,14 @@ async function getInfoPulihkan(tanggal: string, siswaIds: number[]): Promise<Map
 
 // ── BULANAN ─────────────────────────────────────────────────────────────
 
-export type StatusBulanan = StatusAbsen | "libur" | "kosong";
+/** "nonaktif" = hari setelah siswa keluar (tanggal >= nonaktif_pada) tanpa record absensi; tidak dihitung. */
+export type StatusBulanan = StatusAbsen | "libur" | "kosong" | "nonaktif";
 
 export interface RekapBulananRow {
   id: number;
   nama: string;
   kelas: string;
+  labelKeluar: string | null;
   hadir: number;
   terlambat: number;
   izin: number;
@@ -279,7 +320,16 @@ export async function getRekapHistoryPage(
   // Daftar siswa = siswa yang punya riwayat kelas di tapel ini (kelasnya pada tapel itu). Daftar
   // ringan (id, nama, kelas, nisn) diambil seluruhnya lalu dipotong per halaman di sini; yang
   // berat (agregat absensi) tetap hanya dihitung untuk siswa di halaman yang tampil.
-  const semuaSiswa = await getSiswaTapel(tapel, kelasFilter);
+  const semuaDasar = await getSiswaTapel(tapel, kelasFilter);
+  // Di tapel aktif, siswa lulus/pindah hanya ikut kalau punya absensi pada semester ini. Agregat
+  // dihitung dulu hanya untuk mereka (jumlahnya kecil) supaya total & paginasi tetap benar.
+  const [nonaktifIds, setting] = await Promise.all([ambilNonaktifIds(), getAbsensiSetting()]);
+  const dasar = semuaDasar.map((s) => ({ ...s, id: s.siswa_id }));
+  const opsiSaring = { tapelRekap: tapel, tapelAktif: setting.tapel, nonaktifIds };
+  const kandidat = dasar.filter((s) => perluCekData(s, opsiSaring)).map((s) => s.id);
+  const agregatKandidat =
+    kandidat.length > 0 ? await ambilAgregatSemester(tapel, semester, kandidat) : new Map<number, Record<string, number>>();
+  const semuaSiswa = saringSiswaRekap(dasar, { ...opsiSaring, adaAbsenIds: new Set(agregatKandidat.keys()) });
   const totalSiswa = semuaSiswa.length;
   const totalPages = Math.max(1, Math.ceil(totalSiswa / pageSize));
   const pageAman = Math.min(Math.max(1, page), totalPages);
@@ -319,11 +369,18 @@ export async function getRekapHistory(
 
   const totalHariEfektif = await hitungHariEfektif(tapel, semester);
 
-  const list = (await getSiswaTapel(tapel, kelasFilter)).map((s) => ({ id: s.siswa_id, name: s.nama, class: s.kelas, nisn: s.nisn }));
-  if (list.length === 0) return { rows: [], totalHariEfektif };
+  const semua = (await getSiswaTapel(tapel, kelasFilter)).map((s) => ({ id: s.siswa_id, name: s.nama, class: s.kelas, nisn: s.nisn }));
+  if (semua.length === 0) return { rows: [], totalHariEfektif };
 
-  const ids = list.map((s) => s.id);
-  const mapAbsen = await ambilAgregatSemester(tapel, semester, ids);
+  const mapAbsen = await ambilAgregatSemester(tapel, semester, semua.map((s) => s.id));
+  const [nonaktifIds, setting] = await Promise.all([ambilNonaktifIds(), getAbsensiSetting()]);
+  const list = saringSiswaRekap(semua, {
+    tapelRekap: tapel,
+    tapelAktif: setting.tapel,
+    nonaktifIds,
+    adaAbsenIds: new Set(mapAbsen.keys()),
+  });
+  if (list.length === 0) return { rows: [], totalHariEfektif };
 
   const rows: RekapHistoryRow[] = list.map((s) => {
     const m = mapAbsen.get(s.id) ?? {};
@@ -413,10 +470,16 @@ export async function getRekapBulanan(
   const tk = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); // hari terakhir bulan itu
 
   const tapel = await tapelUntukBulan(bulanYYYYMM);
-  const list = (await getSiswaTapel(tapel, kelasFilter)).map((s) => ({ id: s.siswa_id, name: s.nama, class: s.kelas }));
-  if (list.length === 0) return { rows: [], tglList };
+  const semua = (await getSiswaTapel(tapel, kelasFilter)).map((s) => ({
+    id: s.siswa_id,
+    name: s.nama,
+    class: s.kelas,
+    nonaktif_pada: s.nonaktif_pada,
+    labelKeluar: labelKeluar(s.alasan_nonaktif, s.nonaktif_pada),
+  }));
+  if (semua.length === 0) return { rows: [], tglList };
 
-  const ids = list.map((s) => s.id);
+  const ids = semua.map((s) => s.id);
   // Dipaginasi: satu bulan x >40 siswa sudah melewati batas 1000 baris PostgREST.
   // Tanpa ini baris yang terpotong tampil sebagai "alpha" palsu di rekap.
   const absenRows = await ambilSemua<{ siswa_id: number; tanggal: string; status: string }>((dari, sampai) =>
@@ -436,6 +499,22 @@ export async function getRekapBulanan(
     am.get(r.siswa_id)!.set(r.tanggal, r.status as StatusAbsen);
   }
 
+  // Siswa yang sudah keluar tampil kalau bulan ini masih ada hari efektif sebelum tanggal keluarnya,
+  // atau punya absensi pada hari efektif bulan ini (bukan Minggu/libur, sama seperti perhitungan rekap).
+  const hariEfektif = tglList.filter((t) => !liburMap.has(t));
+  const tglEfektif = new Set(hariEfektif);
+  const adaAbsenIds = new Set<number>();
+  for (const r of absenRows) if (tglEfektif.has(r.tanggal)) adaAbsenIds.add(r.siswa_id);
+  const [nonaktifIds, setting] = await Promise.all([ambilNonaktifIds(), getAbsensiSetting()]);
+  const list = saringSiswaRekap(semua, {
+    tapelRekap: tapel,
+    tapelAktif: setting.tapel,
+    nonaktifIds,
+    adaAbsenIds,
+    awalPeriode: hariEfektif[0] ?? null,
+  });
+  if (list.length === 0) return { rows: [], tglList };
+
   const today = todayJakarta();
 
   const rows: RekapBulananRow[] = list.map((s) => {
@@ -443,6 +522,7 @@ export async function getRekapBulanan(
       id: s.id,
       nama: s.name,
       kelas: s.class,
+      labelKeluar: s.labelKeluar,
       hadir: 0,
       terlambat: 0,
       izin: 0,
@@ -455,7 +535,8 @@ export async function getRekapBulanan(
       if (liburMap.has(tgl)) {
         st = "libur";
       } else {
-        const defaultStatus: StatusBulanan = tgl < today ? "alpha" : "kosong";
+        // Record absensi selalu menang; tanpa record, hari setelah siswa keluar tidak dihitung.
+        const defaultStatus: StatusBulanan = sudahKeluarPada(s.nonaktif_pada, tgl) ? "nonaktif" : tgl < today ? "alpha" : "kosong";
         st = am.get(s.id)?.get(tgl) ?? defaultStatus;
         if (st === "hadir" || st === "terlambat" || st === "izin" || st === "sakit" || st === "alpha") {
           row[st] = row[st] + 1;

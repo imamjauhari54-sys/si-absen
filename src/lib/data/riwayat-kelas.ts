@@ -10,11 +10,16 @@ import { tapelDariTanggal } from "@/lib/utils/tapel";
  * riwayat_kelas  = kelas siswa PADA tapel tertentu (dipakai Rekap & History tapel lama).
  */
 
+export type AlasanNonaktif = "lulus" | "pindah";
+
 export interface SiswaTapel {
   siswa_id: number;
   nama: string;
   kelas: string;
   nisn: string | null;
+  /** Tanggal keluar (hari pertama TIDAK lagi dihitung), YYYY-MM-DD; null = penuh sepanjang tapel. Migrasi 020. */
+  nonaktif_pada: string | null;
+  alasan_nonaktif: AlasanNonaktif | null;
 }
 
 const PETUNJUK_MIGRASI = "Pastikan migrasi 016_riwayat_kelas.sql sudah dijalankan.";
@@ -75,9 +80,11 @@ export async function getKelasTapel(tapel: string): Promise<string[]> {
 export async function getSiswaTapel(tapel: string, kelas = ""): Promise<SiswaTapel[]> {
   if (!tapel) return [];
   try {
-    return await ambilSemua<SiswaTapel>((dari, sampai) =>
+    const rows = await ambilSemua<Omit<SiswaTapel, "nonaktif_pada" | "alasan_nonaktif"> & Partial<SiswaTapel>>((dari, sampai) =>
       supabaseAdmin.rpc("siswa_tapel", { p_tapel: tapel, p_kelas: kelas || null }).range(dari, sampai)
     );
+    // Sebelum migrasi 020 kedua kolom belum ada: anggap kosong supaya Rekap tetap jalan.
+    return rows.map((r) => ({ ...r, nonaktif_pada: r.nonaktif_pada ?? null, alasan_nonaktif: r.alasan_nonaktif ?? null }));
   } catch (e) {
     const pesan = e instanceof Error ? e.message : String(e);
     throw new Error(`${pesan}. ${PETUNJUK_MIGRASI}`);

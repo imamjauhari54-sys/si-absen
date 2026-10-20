@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
     for (const row of rows) {
       const cells = tglList.map((t) => {
         const st = row.d[t];
-        return st === "libur" ? "L" : st === "kosong" ? "A" : st.charAt(0).toUpperCase();
+        return st === "libur" ? "L" : st === "nonaktif" ? "-" : st === "kosong" ? "A" : st.charAt(0).toUpperCase();
       });
       const sum = { H: 0, T: 0, I: 0, S: 0, A: 0 };
       for (const c of cells) if (c in sum) sum[c as keyof typeof sum]++;
