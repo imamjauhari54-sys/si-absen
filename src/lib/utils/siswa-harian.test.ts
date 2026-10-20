@@ -6,7 +6,7 @@ import {
   saringSiswaRekap,
   sudahKeluarPada,
 } from "./siswa-harian";
-import { parseTanggalKeluar } from "./tanggal-keluar";
+import { parseTanggalKeluar, pilihRiwayatTerbaru } from "./tanggal-keluar";
 
 const kosong = new Set<number>();
 const T = "2026/2027";
@@ -114,5 +114,22 @@ describe("parseTanggalKeluar", () => {
     for (const bad of ["2026-10-21", "2026-02-31", "abc", "20-10-2026"]) {
       expect(parseTanggalKeluar(bad, hariIni).ok).toBe(false);
     }
+  });
+});
+
+describe("pilihRiwayatTerbaru", () => {
+  it("memilih tapel paling baru per siswa, apa pun urutan masukannya", () => {
+    const m = pilihRiwayatTerbaru([
+      { siswa_id: 1, tapel: "2026/2027", nonaktif_pada: "2026-10-12" },
+      { siswa_id: 1, tapel: "2025/2026", nonaktif_pada: null },
+      { siswa_id: 2, tapel: "2024/2025", nonaktif_pada: null },
+    ]);
+    expect(m.get(1)?.tapel).toBe("2026/2027");
+    expect(m.get(1)?.nonaktif_pada).toBe("2026-10-12");
+    expect(m.get(2)?.tapel).toBe("2024/2025");
+    expect(m.size).toBe(2);
+  });
+  it("daftar kosong menghasilkan map kosong", () => {
+    expect(pilihRiwayatTerbaru([]).size).toBe(0);
   });
 });

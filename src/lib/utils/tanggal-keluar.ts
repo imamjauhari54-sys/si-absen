@@ -14,3 +14,16 @@ export function parseTanggalKeluar(raw: unknown, hariIni: string): HasilTanggalK
   if (s > hariIni) return { ok: false, message: "Tanggal keluar tidak boleh di masa depan." };
   return { ok: true, value: s };
 }
+
+/**
+ * Dari banyak baris riwayat_kelas, ambil yang tapelnya paling baru untuk tiap siswa (urutan masukan
+ * bebas). Dipakai halaman Siswa Nonaktif: tanggal keluar ada di baris tapel terakhir siswa itu.
+ */
+export function pilihRiwayatTerbaru<T extends { siswa_id: number; tapel: string }>(rows: T[]): Map<number, T> {
+  const hasil = new Map<number, T>();
+  for (const r of rows) {
+    const lama = hasil.get(r.siswa_id);
+    if (!lama || r.tapel > lama.tapel) hasil.set(r.siswa_id, r);
+  }
+  return hasil;
+}

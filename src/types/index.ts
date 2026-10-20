@@ -48,6 +48,9 @@ export interface StudentFull extends Student {
   token: string | null;
   no_hp_ortu: string | null;
   status?: StatusSiswa;
+  /** Hanya diisi di halaman Siswa Nonaktif: tanggal keluar (YYYY-MM-DD) dan tapel-nya. Migrasi 020. */
+  tanggal_keluar?: string | null;
+  tapel_keluar?: string | null;
 }
 
 export interface AbsensiSetting {

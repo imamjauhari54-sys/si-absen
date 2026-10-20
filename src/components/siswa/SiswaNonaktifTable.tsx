@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { StudentFull } from "@/types";
 import Portal from "@/components/ui/Portal";
 import NotifModal from "@/components/ui/NotifModal";
+import { formatTglIndo, todayJakarta } from "@/lib/utils/tanggal";
 
 const KATA_KONFIRMASI = "HAPUS";
 
@@ -12,6 +13,8 @@ export default function SiswaNonaktifTable({ list }: { list: StudentFull[] }) {
   const router = useRouter();
   const [aktifkanTarget, setAktifkanTarget] = useState<StudentFull | null>(null);
   const [hapusTarget, setHapusTarget] = useState<StudentFull | null>(null);
+  const [ubahTarget, setUbahTarget] = useState<StudentFull | null>(null);
+  const [tanggalBaru, setTanggalBaru] = useState("");
   const [teksKonfirmasi, setTeksKonfirmasi] = useState("");
   const [busy, setBusy] = useState(false);
   const [notif, setNotif] = useState<{ status: "ok" | "error"; message: string } | null>(null);
@@ -48,6 +51,39 @@ export default function SiswaNonaktifTable({ list }: { list: StudentFull[] }) {
       }
     } catch {
       setAktifkanTarget(null);
+      setNotif({ status: "error", message: "Terjadi kesalahan jaringan." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function bukaUbahTanggal(s: StudentFull) {
+    setTanggalBaru(s.tanggal_keluar ?? "");
+    setUbahTarget(s);
+  }
+
+  async function simpanTanggalKeluar() {
+    if (!ubahTarget) return;
+    setBusy(true);
+    try {
+      const form = new FormData();
+      form.set("tanggal", tanggalBaru);
+      const res = await fetch(`/api/siswa/${ubahTarget.id}/tanggal-keluar`, { method: "POST", body: form });
+      const data = await res.json();
+      const nama = ubahTarget.name;
+      setUbahTarget(null);
+      if (data.status === "ok") {
+        setNotif({
+          status: "ok",
+          message: tanggalBaru
+            ? `Tanggal keluar "${nama}" diubah menjadi ${formatTglIndo(tanggalBaru)}.`
+            : `Tanggal keluar "${nama}" dihapus.`,
+        });
+      } else {
+        setNotif({ status: "error", message: data.message || "Gagal menyimpan tanggal keluar." });
+      }
+    } catch {
+      setUbahTarget(null);
       setNotif({ status: "error", message: "Terjadi kesalahan jaringan." });
     } finally {
       setBusy(false);
@@ -94,6 +130,7 @@ export default function SiswaNonaktifTable({ list }: { list: StudentFull[] }) {
                 <th className="px-5 py-3">Nama</th>
                 <th className="px-5 py-3">Kelas</th>
                 <th className="px-5 py-3">NISN</th>
+                <th className="px-5 py-3">Tanggal Keluar</th>
                 <th className="px-5 py-3">Status</th>
                 <th className="px-5 py-3 text-right">Aksi</th>
               </tr>
@@ -104,6 +141,21 @@ export default function SiswaNonaktifTable({ list }: { list: StudentFull[] }) {
                   <td className="px-5 py-3 font-semibold text-gray-800 dark:text-gray-100">{s.name}</td>
                   <td className="px-5 py-3 text-gray-600 dark:text-gray-400">{s.class}</td>
                   <td className="px-5 py-3 text-gray-600 dark:text-gray-400">{s.nisn || "-"}</td>
+                  <td className="px-5 py-3 text-gray-600 dark:text-gray-400">
+                    <div className="flex items-center gap-2">
+                      <div>
+                        <div>{s.tanggal_keluar ? formatTglIndo(s.tanggal_keluar) : "-"}</div>
+                        {s.tapel_keluar && <div className="text-[10px] text-gray-400">Tapel {s.tapel_keluar}</div>}
+                      </div>
+                      <button
+                        onClick={() => bukaUbahTanggal(s)}
+                        title="Ubah tanggal keluar"
+                        className="w-6 h-6 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition"
+                      >
+                        <i className="fas fa-pen text-[10px]" />
+                      </button>
+                    </div>
+                  </td>
                   <td className="px-5 py-3">
                     <span
                       className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
@@ -137,6 +189,54 @@ export default function SiswaNonaktifTable({ list }: { list: StudentFull[] }) {
           </table>
         </div>
       </div>
+
+      {/* Modal: ubah tanggal keluar */}
+      {ubahTarget && (
+        <Portal>
+          <div
+            className="fixed inset-0 z-[999] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md"
+            onClick={() => !busy && setUbahTarget(null)}
+          >
+            <div
+              className="bg-white dark:bg-[#1e2235] w-full max-w-[340px] rounded-[2.5rem] p-8 border border-gray-200 dark:border-white/10 shadow-2xl text-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-2 tracking-tight">Ubah Tanggal Keluar</h3>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed px-2 mb-5">
+                <strong className="text-gray-700 dark:text-gray-300">{ubahTarget.name}</strong> (Kelas {ubahTarget.class}).
+                Hari pertama siswa tidak lagi dihitung di rekap. Perubahan ini langsung memengaruhi rekap harian, bulanan, dan history.
+              </p>
+              <input
+                type="date"
+                value={tanggalBaru}
+                max={todayJakarta()}
+                disabled={busy}
+                onChange={(e) => setTanggalBaru(e.target.value)}
+                className="w-full py-2.5 px-3 rounded-xl text-xs font-bold border bg-gray-100 dark:bg-[#282d45] border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200"
+              />
+              <p className="text-[10px] text-gray-400 mt-1.5 mb-7 px-1 leading-relaxed">
+                Kosongkan untuk menghapus tanggal: siswa dihitung penuh sepanjang tapel terakhirnya.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setUbahTarget(null)}
+                  disabled={busy}
+                  className="flex-1 py-3.5 bg-gray-200 dark:bg-[#282d45] hover:bg-gray-300 dark:hover:bg-[#323858] text-gray-600 dark:text-gray-400 rounded-2xl text-[10px] font-bold transition-all uppercase tracking-widest disabled:opacity-60"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={simpanTanggalKeluar}
+                  disabled={busy}
+                  className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white rounded-2xl text-[10px] font-bold transition-all uppercase tracking-widest shadow-lg shadow-indigo-500/20"
+                >
+                  {busy ? "Menyimpan..." : "Simpan"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </Portal>
+      )}
 
       {/* Modal konfirmasi: aktifkan kembali */}
       {aktifkanTarget && (

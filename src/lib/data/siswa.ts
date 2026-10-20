@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import type { StudentFull } from "@/types";
+import { pilihRiwayatTerbaru } from "@/lib/utils/tanggal-keluar";
 
 // KATEGORI B (semi dinamis): daftar nama kelas yang punya siswa aktif dipakai
 // untuk pill filter di halaman Data Siswa. Query-nya sama persis di
@@ -300,6 +301,18 @@ export async function getInactiveStudentsPage(
   );
   const { data } = await query.order("class").order("name").range(from, to);
 
+  // Tanggal keluar ada di riwayat_kelas (migrasi 020), baris tapel terakhir tiap siswa. Kalau kolomnya
+  // belum ada, kueri error dan tanggalnya tampil "-" — halaman tetap jalan.
+  const idHalaman = (data ?? []).map((s) => s.id as number);
+  let keluar = new Map<number, { siswa_id: number; tapel: string; nonaktif_pada: string | null }>();
+  if (idHalaman.length > 0) {
+    const { data: rk, error: errRk } = await supabaseAdmin
+      .from("riwayat_kelas")
+      .select("siswa_id, tapel, nonaktif_pada")
+      .in("siswa_id", idHalaman);
+    if (!errRk) keluar = pilihRiwayatTerbaru(rk ?? []);
+  }
+
   const list: StudentFull[] = (data ?? []).map((s) => ({
     id: s.id,
     name: s.name,
@@ -310,6 +323,8 @@ export async function getInactiveStudentsPage(
     no_hp_ortu: s.no_hp_ortu ?? null,
     token: null,
     status: s.status as "lulus" | "pindah",
+    tanggal_keluar: keluar.get(s.id)?.nonaktif_pada ?? null,
+    tapel_keluar: keluar.get(s.id)?.tapel ?? null,
   }));
 
   return { list, total, totalPages, page: pageAman };
