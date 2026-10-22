@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./rekap.css";
 import type { RekapHarianRow, SebelumEdit, StatusHarian } from "@/lib/data/rekap";
+import { LABEL_SUMBER } from "@/lib/utils/sumber-absen";
 import Portal from "@/components/ui/Portal";
 import NotifModal from "@/components/ui/NotifModal";
 import LampiranUploader from "@/components/rekap/LampiranUploader";
@@ -216,6 +217,14 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
                           <span className={`${bc} px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wide`}>
                             {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
                           </span>
+                        )}
+                        {row.sumber && (
+                          <div
+                            title={row.sumberKet ?? undefined}
+                            className="mt-1 text-[10px] font-semibold lowercase text-gray-400 dark:text-gray-500"
+                          >
+                            {LABEL_SUMBER[row.sumber]}
+                          </div>
                         )}
                       </td>
                       <td className="px-5 py-3 text-center font-mono text-xs font-bold text-gray-500 dark:text-gray-400">

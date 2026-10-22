@@ -248,7 +248,7 @@ export default async function RekapPage({
 }
 
 async function RekapHarianView({ tglFilter, kelasFilter }: { tglFilter: string; kelasFilter: string }) {
-  const { rows, stat } = await getRekapHarian(tglFilter, kelasFilter, { denganPulihkan: true });
+  const { rows, stat } = await getRekapHarian(tglFilter, kelasFilter, { denganPulihkan: true, denganSumber: true });
   return (
     <>
       <RekapWidgets stat={stat} total={rows.length} />

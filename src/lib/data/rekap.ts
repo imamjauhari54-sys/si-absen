@@ -4,6 +4,7 @@ import { ambilSemua } from "@/lib/utils/ambil-semua";
 import { getKelasTapel, getSiswaTapel, tapelUntukBulan, tapelUntukTanggal } from "@/lib/data/riwayat-kelas";
 import { getAbsensiSetting } from "@/lib/data/dashboard";
 import { labelKeluar, perluCekData, saringSiswaRekap, sudahKeluarPada } from "@/lib/utils/siswa-harian";
+import { keteranganSumber, tentukanSumberAbsen, type SumberAbsen } from "@/lib/utils/sumber-absen";
 import type { StatusAbsen } from "@/types";
 
 /** Daftar kelas pada tapel itu (menurut riwayat kelas), untuk dropdown filter Rekap. */
@@ -70,6 +71,10 @@ export interface RekapHarianRow {
   keterangan: string | null;
   lampiran: string | null;
   pulihkan: InfoPulihkan | null;
+  /** Asal catatan untuk subtext di bawah status ("scan" / "edit guru" / "otomatis"); null = tidak diketahui. */
+  sumber: SumberAbsen | null;
+  /** Teks tooltip untuk `sumber`. */
+  sumberKet: string | null;
 }
 
 export interface StatHarian {
@@ -99,7 +104,7 @@ async function ambilNonaktifIds(): Promise<Set<number>> {
 export async function getRekapHarian(
   tanggal: string,
   kelasFilter: string,
-  opsi: { denganPulihkan?: boolean } = {}
+  opsi: { denganPulihkan?: boolean; denganSumber?: boolean } = {}
 ): Promise<{ rows: RekapHarianRow[]; stat: StatHarian }> {
   // Siswa & kelasnya diambil dari riwayat kelas pada tapel tanggal ini, bukan students.class,
   // supaya rekap tanggal lama tetap menampilkan kelas yang benar setelah siswa naik kelas.
@@ -118,7 +123,7 @@ export async function getRekapHarian(
   const [{ data: absenRows }, nonaktifIds, setting] = await Promise.all([
     supabaseAdmin
       .from("absensi")
-      .select("siswa_id, status, jam_masuk, jam_pulang, keterangan, lampiran")
+      .select("siswa_id, status, jam_masuk, jam_pulang, keterangan, lampiran, scan_oleh")
       .eq("tanggal", tanggal)
       .in("siswa_id", idsSemua),
     ambilNonaktifIds(),
@@ -139,6 +144,8 @@ export async function getRekapHarian(
   const ids = list.map((s) => s.id);
   // Info tombol Pulihkan hanya diminta halaman Rekap (ekspor CSV tidak memerlukannya).
   const pulihkanMap = opsi.denganPulihkan ? await getInfoPulihkan(tanggal, ids) : new Map<number, InfoPulihkan>();
+  // Subtext asal catatan hanya dipakai halaman Rekap (bukan ekspor CSV), jadi kueri tambahannya opsional.
+  const editMap = opsi.denganSumber ? await getEditManualAktif(tanggal) : new Map<number, EditManualAktif>();
 
   const today = todayJakarta();
   const defaultStatus: StatusHarian = tanggal < today ? "alpha" : "kosong";
@@ -148,6 +155,9 @@ export async function getRekapHarian(
     const a = absenMap.get(s.id);
     const status: StatusHarian = (a?.status as StatusHarian) ?? defaultStatus;
     if (status in stat) stat[status as keyof StatHarian]++;
+    // Subtext hanya untuk baris yang benar-benar tercatat (bukan status bawaan alpha/kosong).
+    const edit = a ? editMap.get(s.id) : undefined;
+    const sumber = opsi.denganSumber && a ? tentukanSumberAbsen({ scanOleh: a.scan_oleh, adaEditManual: !!edit }) : null;
     return {
       id: s.id,
       name: s.name,
@@ -159,10 +169,42 @@ export async function getRekapHarian(
       keterangan: a?.keterangan ?? null,
       lampiran: a?.lampiran ?? null,
       pulihkan: pulihkanMap.get(s.id) ?? null,
+      sumber,
+      sumberKet: keteranganSumber(sumber, { scanOleh: a?.scan_oleh, editorNama: edit?.editorNama, dieditAt: edit?.dieditAt }),
     };
   });
 
   return { rows, stat };
+}
+
+interface EditManualAktif {
+  editorNama: string | null;
+  dieditAt: string;
+}
+
+/**
+ * Siswa yang punya edit manual pada `tanggal` yang BELUM dipulihkan (edit terbaru per siswa).
+ * Tidak dibatasi masa pulihkan: ini jejak audit, bukan tombol. Kalau tabelnya belum ada (migrasi 019
+ * belum dijalankan) hasilnya kosong dan halaman tetap berfungsi.
+ */
+async function getEditManualAktif(tanggal: string): Promise<Map<number, EditManualAktif>> {
+  const hasil = new Map<number, EditManualAktif>();
+  try {
+    const rows = await ambilSemua<{ siswa_id: number; editor_nama: string | null; diedit_at: string }>((dari, sampai) =>
+      supabaseAdmin
+        .from("absensi_edit_manual")
+        .select("siswa_id, editor_nama, diedit_at")
+        .eq("tanggal", tanggal)
+        .is("dipulihkan_at", null)
+        .order("id", { ascending: true })
+        .range(dari, sampai)
+    );
+    // urut naik: yang terakhir (id terbesar) menimpa, jadi edit terbaru yang tersimpan
+    for (const r of rows) hasil.set(r.siswa_id, { editorNama: r.editor_nama, dieditAt: r.diedit_at });
+  } catch (e) {
+    console.error("[getEditManualAktif]", e);
+  }
+  return hasil;
 }
 
 /**
