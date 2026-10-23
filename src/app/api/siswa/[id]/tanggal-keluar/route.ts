@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { catatLog } from "@/lib/data/log-aktivitas";
 import { parseTanggalKeluar } from "@/lib/utils/tanggal-keluar";
 import { formatTglIndo, todayJakarta } from "@/lib/utils/tanggal";
+import { getTapelTerakhirSiswa, validasiTanggalPindah } from "@/lib/data/validasi-pindah";
 
 /**
  * Ubah tanggal pindah siswa non-aktif (halaman Siswa Nonaktif; siswa tampil sampai tanggal itu, absensi pada tanggal itu tidak dihitung). Tanggal kosong = hapus tanggal pindah,
@@ -28,6 +29,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!siswa) return NextResponse.json({ status: "error", message: "Siswa tidak ditemukan." });
   if (siswa.status === "aktif") {
     return NextResponse.json({ status: "error", message: "Siswa ini masih aktif." });
+  }
+
+  if (tanggal.value) {
+    const tapel = await getTapelTerakhirSiswa(siswaId);
+    if (tapel) {
+      const periksa = await validasiTanggalPindah(siswaId, tanggal.value, tapel);
+      if (periksa.galat) return NextResponse.json({ status: "error", message: periksa.galat });
+      if (periksa.peringatan.length > 0 && form.get("konfirmasi") !== "1") {
+        return NextResponse.json({ status: "konfirmasi", message: periksa.peringatan.join("\n") });
+      }
+    }
   }
 
   const { error } = await supabaseAdmin.rpc("ubah_tanggal_keluar", { p_id: siswaId, p_tanggal: tanggal.value });

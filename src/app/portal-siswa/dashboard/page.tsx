@@ -45,7 +45,7 @@ export default async function PortalSiswaDashboardPage({
   const siswa = await getSiswaProfile(siswaId);
   // Kalau ternyata siswa dihapus/dinonaktifkan setelah sesi dibuat, jangan
   // tampilkan apa pun — paksa cek ulang dari awal.
-  if (!siswa) {
+  if (!siswa || siswa.status !== "aktif") {
     await logoutSiswaAction();
     return null;
   }

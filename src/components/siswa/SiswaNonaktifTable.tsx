@@ -68,8 +68,14 @@ export default function SiswaNonaktifTable({ list }: { list: StudentFull[] }) {
     try {
       const form = new FormData();
       form.set("tanggal", tanggalBaru);
-      const res = await fetch(`/api/siswa/${ubahTarget.id}/tanggal-keluar`, { method: "POST", body: form });
-      const data = await res.json();
+      let res = await fetch(`/api/siswa/${ubahTarget.id}/tanggal-keluar`, { method: "POST", body: form });
+      let data = await res.json();
+      if (data.status === "konfirmasi") {
+        if (!window.confirm(`${data.message}\n\nTetap simpan tanggal ini?`)) return;
+        form.set("konfirmasi", "1");
+        res = await fetch(`/api/siswa/${ubahTarget.id}/tanggal-keluar`, { method: "POST", body: form });
+        data = await res.json();
+      }
       const nama = ubahTarget.name;
       setUbahTarget(null);
       if (data.status === "ok") {

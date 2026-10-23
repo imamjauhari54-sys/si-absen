@@ -5,6 +5,8 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { catatLog } from "@/lib/data/log-aktivitas";
 import { parseTanggalKeluar } from "@/lib/utils/tanggal-keluar";
 import { formatTglIndo, todayJakarta } from "@/lib/utils/tanggal";
+import { getAbsensiSetting } from "@/lib/data/dashboard";
+import { validasiTanggalPindah } from "@/lib/data/validasi-pindah";
 
 const ALASAN_VALID = ["lulus", "pindah"] as const;
 
@@ -38,6 +40,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!siswa) return NextResponse.json({ status: "error", message: "Siswa tidak ditemukan." });
   if (siswa.status !== "aktif") {
     return NextResponse.json({ status: "error", message: "Siswa ini sudah berstatus non-aktif." });
+  }
+
+  // Periksa tanggal terhadap tapel aktif, hari Minggu/libur, dan absensi yang jadi tidak dihitung.
+  const tapelAktif = tanggal.value ? (await getAbsensiSetting()).tapel : null;
+  if (tanggal.value && tapelAktif) {
+    const periksa = await validasiTanggalPindah(siswaId, tanggal.value, tapelAktif);
+    if (periksa.galat) return NextResponse.json({ status: "error", message: periksa.galat });
+    if (periksa.peringatan.length > 0 && form.get("konfirmasi") !== "1") {
+      return NextResponse.json({ status: "konfirmasi", message: periksa.peringatan.join("\n") });
+    }
   }
 
   // Migrasi 020: status + tanggal pindah dalam satu transaksi. Kalau fungsinya belum ada (migrasi belum

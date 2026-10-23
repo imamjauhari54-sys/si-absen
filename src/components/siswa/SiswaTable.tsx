@@ -65,8 +65,14 @@ export default function SiswaTable({
       const form = new FormData();
       form.set("alasan", alasanNonaktif);
       form.set("tanggal", tanggalKeluar);
-      const res = await fetch(`/api/siswa/${confirmHapus.id}/nonaktifkan`, { method: "POST", body: form });
-      const data = await res.json();
+      let res = await fetch(`/api/siswa/${confirmHapus.id}/nonaktifkan`, { method: "POST", body: form });
+      let data = await res.json();
+      if (data.status === "konfirmasi") {
+        if (!window.confirm(`${data.message}\n\nTetap nonaktifkan dengan tanggal ini?`)) return;
+        form.set("konfirmasi", "1");
+        res = await fetch(`/api/siswa/${confirmHapus.id}/nonaktifkan`, { method: "POST", body: form });
+        data = await res.json();
+      }
       const nama = confirmHapus.name;
       tutupKonfirmasiHapus();
       if (data.status === "ok") {

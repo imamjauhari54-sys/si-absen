@@ -12,6 +12,8 @@ export interface SiswaHistoryProfile {
   nisn: string | null;
   foto: string | null;
   jenis_kelamin: string | null;
+  /** "aktif" | "lulus" | "pindah". Portal siswa memakainya untuk menolak siswa non-aktif yang sesinya masih hidup. */
+  status: string;
 }
 
 export interface RiwayatRow {
@@ -39,7 +41,7 @@ export interface ChartBulanan {
 export async function getSiswaProfile(id: number): Promise<SiswaHistoryProfile | null> {
   const { data } = await supabaseAdmin
     .from("students")
-    .select("id, name, class, nisn, foto, jenis_kelamin")
+    .select("id, name, class, nisn, foto, jenis_kelamin, status")
     .eq("id", id)
     .maybeSingle();
   return data ?? null;
