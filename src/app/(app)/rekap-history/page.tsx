@@ -168,7 +168,10 @@ export default async function RekapHistoryPage({
                   <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
                     <td className="px-6 py-3.5 text-center font-bold text-gray-400">{(page - 1) * PAGE_SIZE + idx + 1}</td>
                     <td className="px-6 py-3.5">
-                      <div className="font-bold text-gray-800 dark:text-gray-200">{r.nama}</div>
+                      <div className="font-bold text-gray-800 dark:text-gray-200">
+                        {r.nama}
+                        {r.labelKeluar && <span className="ml-2 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-bold">{r.labelKeluar}</span>}
+                      </div>
                       <div className="text-[10px] text-gray-400 font-mono">{r.nisn}</div>
                     </td>
                     <td className="px-6 py-3.5 text-center font-bold text-gray-500 uppercase">{r.kelas}</td>
