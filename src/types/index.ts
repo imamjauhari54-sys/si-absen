@@ -48,7 +48,7 @@ export interface StudentFull extends Student {
   token: string | null;
   no_hp_ortu: string | null;
   status?: StatusSiswa;
-  /** Hanya diisi di halaman Siswa Nonaktif: tanggal pindah (hari terakhir dihitung, YYYY-MM-DD) dan tapel-nya. Migrasi 020/023. */
+  /** Hanya diisi di halaman Siswa Nonaktif: tanggal pindah (hari terakhir tampil, tidak dihitung, YYYY-MM-DD) dan tapel-nya. Migrasi 020/024. */
   tanggal_keluar?: string | null;
   tapel_keluar?: string | null;
 }

@@ -126,7 +126,7 @@ export async function getChartTren6Bulan(siswaId: number): Promise<ChartBulanan[
   const perBulan = new Map<string, { hadir: number; alpha: number }>();
   for (const r of data ?? []) {
     if (liburSet.has(r.tanggal)) continue; // abaikan record di tanggal libur
-    if (!dalamBatasPindah(r.tapel, r.tanggal, batasPindah)) continue; // sesudah tanggal pindah
+    if (!dalamBatasPindah(r.tapel, r.tanggal, batasPindah)) continue; // pada/sesudah tanggal pindah
     const bln = r.tanggal.slice(0, 7); // YYYY-MM
     if (!perBulan.has(bln)) perBulan.set(bln, { hadir: 0, alpha: 0 });
     const entry = perBulan.get(bln)!;

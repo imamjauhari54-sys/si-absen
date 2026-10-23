@@ -334,7 +334,7 @@ export default function SiswaTable({
                   className="w-full py-2.5 px-3 rounded-xl text-xs font-bold border bg-gray-100 dark:bg-[#282d45] border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200"
                 />
                 <p className="text-[10px] text-gray-400 mt-1.5 px-1 leading-relaxed">
-                  Hari terakhir siswa masih dihitung di rekap. Absensi sesudah tanggal ini tidak dihitung, tetapi tidak dihapus.
+                  Siswa masih tampil di rekap pada tanggal ini, tetapi absensi pada tanggal ini dan sesudahnya tidak dihitung (tidak dihapus).
                 </p>
               </div>
 

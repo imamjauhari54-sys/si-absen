@@ -1,7 +1,7 @@
--- Uji migrasi 022/023: tanggal pindah (riwayat_kelas.nonaktif_pada) = HARI TERAKHIR siswa masih dihitung
--- pada Rekap History (inklusif).
+-- Uji migrasi 024: tanggal pindah (riwayat_kelas.nonaktif_pada) = hari terakhir siswa TAMPIL, tetapi absensi
+-- pada tanggal itu dan sesudahnya TIDAK dihitung pada Rekap History (eksklusif).
 --
--- Jalankan di database LOKAL/UJI yang sudah menjalankan migrasi 001-023 (superuser, mis. `postgres`):
+-- Jalankan di database LOKAL/UJI yang sudah menjalankan migrasi 001-024 (superuser, mis. `postgres`):
 --   psql -v ON_ERROR_STOP=1 -f supabase/tests/batas_tanggal_pindah.test.sql nama_db_uji
 --
 -- Satu transaksi yang di-ROLLBACK di akhir (tidak meninggalkan data), memakai tapel uji "1999/2000"
@@ -46,12 +46,12 @@ from unnest(array['2026-10-13','2026-10-14','2026-10-15','2026-10-16','2026-10-1
 insert into absensi (siswa_id, tanggal, status, tapel, semester, scan_oleh)
 values (:c_id, '2026-10-13', 'alpha', '1999/2000', 'ganjil', 'x');
 
--- 1. History semester ganjil: record sesudah tanggal pindah dipotong, pada tanggal pindah masih dihitung
-select pg_temp.cek('A: record sampai DAN PADA 20 Okt dihitung (2 hadir, 1 terlambat, 3 alpha)',
-  (select jsonb_object_agg(status, jumlah) = '{"hadir":2,"terlambat":1,"alpha":3}'::jsonb
+-- 1. History semester ganjil: record PADA dan sesudah tanggal pindah dipotong
+select pg_temp.cek('A: hanya record SEBELUM 20 Okt dihitung (2 hadir, 1 terlambat, 2 alpha)',
+  (select jsonb_object_agg(status, jumlah) = '{"hadir":2,"terlambat":1,"alpha":2}'::jsonb
      from rekap_history_siswa('1999/2000', 'ganjil', array[:a_id]::bigint[])));
-select pg_temp.cek('A: hadir 21 Okt dan alpha otomatis 22 Okt (sesudah pindah) tidak ikut terhitung',
-  (select sum(jumlah) = 6 from rekap_history_siswa('1999/2000', 'ganjil', array[:a_id]::bigint[])));
+select pg_temp.cek('A: alpha sistem PADA 20 Okt, hadir 21 Okt, dan alpha 22 Okt tidak ikut terhitung',
+  (select sum(jumlah) = 5 from rekap_history_siswa('1999/2000', 'ganjil', array[:a_id]::bigint[])));
 select pg_temp.cek('B (aktif): semua 8 record dihitung',
   (select sum(jumlah) = 8 from rekap_history_siswa('1999/2000', 'ganjil', array[:b_id]::bigint[])));
 select pg_temp.cek('C (pindah sebelum semua record): tidak ada hari terhitung, tidak muncul di agregat',
@@ -68,34 +68,34 @@ select pg_temp.cek('semester genap: B (aktif) tetap ada',
 -- 3. Penyebut persentase per siswa
 select pg_temp.cek('hari efektif satu semester = 8 hari unik (13,14,15,16,19,20,21,22 Okt)',
   hari_efektif('1999/2000', 'ganjil') = 8);
-select pg_temp.cek('hari_efektif_sampai 20 Okt = 6 hari (13,14,15,16,19,20) — termasuk tanggal pindah',
-  hari_efektif_sampai('1999/2000', 'ganjil', '2026-10-20') = 6);
-select pg_temp.cek('hari_efektif_sampai tanpa batas (null) = hari_efektif',
-  hari_efektif_sampai('1999/2000', 'ganjil', null) = hari_efektif('1999/2000', 'ganjil'));
-select pg_temp.cek('hari_efektif_sampai setelah semua record = hari_efektif',
-  hari_efektif_sampai('1999/2000', 'ganjil', '2030-01-01') = hari_efektif('1999/2000', 'ganjil'));
-select pg_temp.cek('persen A dengan penyebut sampai tanggal pindah = (2 hadir + 1 terlambat) / 6 = 50%',
-  round(((2 + 1)::numeric / hari_efektif_sampai('1999/2000', 'ganjil', '2026-10-20')) * 100, 1) = 50.0);
-select pg_temp.cek('fungsi lama hari_efektif_sebelum sudah dihapus',
-  not exists (select 1 from pg_proc where proname = 'hari_efektif_sebelum'));
+select pg_temp.cek('hari_efektif_sebelum 20 Okt = 5 hari (13,14,15,16,19) — tanggal pindah tidak ikut',
+  hari_efektif_sebelum('1999/2000', 'ganjil', '2026-10-20') = 5);
+select pg_temp.cek('hari_efektif_sebelum tanpa batas (null) = hari_efektif',
+  hari_efektif_sebelum('1999/2000', 'ganjil', null) = hari_efektif('1999/2000', 'ganjil'));
+select pg_temp.cek('hari_efektif_sebelum setelah semua record = hari_efektif',
+  hari_efektif_sebelum('1999/2000', 'ganjil', '2030-01-01') = hari_efektif('1999/2000', 'ganjil'));
+select pg_temp.cek('persen A dengan penyebut sebelum tanggal pindah = (2 hadir + 1 terlambat) / 5 = 60%',
+  round(((2 + 1)::numeric / hari_efektif_sebelum('1999/2000', 'ganjil', '2026-10-20')) * 100, 1) = 60.0);
+select pg_temp.cek('fungsi lama hari_efektif_sampai (migrasi 023) sudah dihapus',
+  not exists (select 1 from pg_proc where proname = 'hari_efektif_sampai'));
 
 -- 4. Tanggal pindah diubah/dikosongkan: hasil menyesuaikan, tanpa menghapus record
 update riwayat_kelas set nonaktif_pada = null, alasan_nonaktif = null where siswa_id = :a_id and tapel = '1999/2000';
 select pg_temp.cek('tanggal pindah dikosongkan: semua 8 record A terhitung lagi',
   (select sum(jumlah) = 8 from rekap_history_siswa('1999/2000', 'ganjil', array[:a_id]::bigint[])));
 update riwayat_kelas set nonaktif_pada = '2026-10-21', alasan_nonaktif = 'pindah' where siswa_id = :a_id and tapel = '1999/2000';
-select pg_temp.cek('tanggal pindah digeser ke 21 Okt: 7 record terhitung (hadir 21 Okt ikut, 22 Okt dipotong)',
-  (select sum(jumlah) = 7 from rekap_history_siswa('1999/2000', 'ganjil', array[:a_id]::bigint[])));
+select pg_temp.cek('tanggal pindah digeser ke 21 Okt: 6 record terhitung (20 Okt ikut, 21 dan 22 Okt dipotong)',
+  (select sum(jumlah) = 6 from rekap_history_siswa('1999/2000', 'ganjil', array[:a_id]::bigint[])));
 select pg_temp.cek('record absensi tidak ada yang terhapus',
   (select count(*) = 8 + 1 from absensi where siswa_id = :a_id and tapel = '1999/2000'));
 
 -- 5. Hari libur tetap diabaikan bersama batas tanggal pindah
 insert into hari_libur (tanggal, keterangan) values ('2026-10-14', 'uji');
 update riwayat_kelas set nonaktif_pada = '2026-10-20' where siswa_id = :a_id and tapel = '1999/2000';
-select pg_temp.cek('hari libur 14 Okt + batas 20 Okt: A tinggal 5 record terhitung',
-  (select sum(jumlah) = 5 from rekap_history_siswa('1999/2000', 'ganjil', array[:a_id]::bigint[])));
-select pg_temp.cek('hari_efektif_sampai mengabaikan hari libur (5 hari)',
-  hari_efektif_sampai('1999/2000', 'ganjil', '2026-10-20') = 5);
+select pg_temp.cek('hari libur 14 Okt + batas 20 Okt: A tinggal 4 record terhitung (13,15,16,19)',
+  (select sum(jumlah) = 4 from rekap_history_siswa('1999/2000', 'ganjil', array[:a_id]::bigint[])));
+select pg_temp.cek('hari_efektif_sebelum mengabaikan hari libur (4 hari)',
+  hari_efektif_sebelum('1999/2000', 'ganjil', '2026-10-20') = 4);
 
 \echo SEMUA UJI LULUS (transaksi di-rollback)
 rollback;

@@ -14,7 +14,7 @@ export async function ambilNonaktifIds(): Promise<Set<number>> {
 
 /**
  * Tanggal pindah satu siswa per tapel (riwayat_kelas.nonaktif_pada, migrasi 020): tapel -> tanggal
- * terakhir siswa masih dihitung. Tapel tanpa tanggal pindah tidak ada di peta. Kalau kolomnya belum
+ * siswa tampil sampai tanggal itu (absensi pada tanggal itu tidak dihitung). Tapel tanpa tanggal pindah tidak ada di peta. Kalau kolomnya belum
  * ada (migrasi 020 belum dijalankan), hasilnya kosong supaya halaman tetap berfungsi.
  */
 export async function ambilBatasPindahSiswa(siswaId: number): Promise<Map<string, string>> {

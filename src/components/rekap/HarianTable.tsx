@@ -211,7 +211,9 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
                         </span>
                       </td>
                       <td className="px-5 py-3 text-center">
-                        {row.status === "kosong" ? (
+                        {row.tidakDihitung ? (
+                          <span className="text-[10px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">Tidak dihitung</span>
+                        ) : row.status === "kosong" ? (
                           <span className="text-gray-400 font-bold text-xl">-</span>
                         ) : (
                           <span className={`${bc} px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wide`}>

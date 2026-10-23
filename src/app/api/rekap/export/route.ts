@@ -39,11 +39,15 @@ export async function GET(req: NextRequest) {
 
     for (const r of rows) {
       const statusReal = r.status === "kosong" ? "alpha" : r.status;
+      // Tanggal pindah siswa: baris ikut diekspor tetapi tidak dihitung (bukan alpha).
+      const labelStatus = r.tidakDihitung
+        ? "Tidak dihitung" + (r.labelKeluar ? ` (${r.labelKeluar})` : "")
+        : statusReal.charAt(0).toUpperCase() + statusReal.slice(1);
       csv += toCsvLine([
         r.name,
         r.class,
         "'" + (nisnMap.get(r.id) ?? ""),
-        statusReal.charAt(0).toUpperCase() + statusReal.slice(1),
+        labelStatus,
         r.jam_masuk ? r.jam_masuk.slice(0, 5) : "-",
         r.jam_pulang ? r.jam_pulang.slice(0, 5) : "-",
         r.keterangan ?? "",

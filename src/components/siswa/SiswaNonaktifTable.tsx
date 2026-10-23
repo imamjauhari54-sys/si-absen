@@ -204,7 +204,7 @@ export default function SiswaNonaktifTable({ list }: { list: StudentFull[] }) {
               <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-2 tracking-tight">Ubah Tanggal Pindah</h3>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed px-2 mb-5">
                 <strong className="text-gray-700 dark:text-gray-300">{ubahTarget.name}</strong> (Kelas {ubahTarget.class}).
-                Hari terakhir siswa masih dihitung di rekap. Absensi sesudahnya tidak dihitung (tidak dihapus). Perubahan ini langsung memengaruhi rekap harian, bulanan, dan history.
+                Siswa masih tampil di rekap pada tanggal ini, tetapi absensi pada tanggal ini dan sesudahnya tidak dihitung (tidak dihapus). Perubahan ini langsung memengaruhi rekap harian, bulanan, dan history.
               </p>
               <input
                 type="date"

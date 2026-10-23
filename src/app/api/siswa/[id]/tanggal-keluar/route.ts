@@ -7,7 +7,7 @@ import { parseTanggalKeluar } from "@/lib/utils/tanggal-keluar";
 import { formatTglIndo, todayJakarta } from "@/lib/utils/tanggal";
 
 /**
- * Ubah tanggal pindah siswa non-aktif (halaman Siswa Nonaktif; hari terakhir siswa masih dihitung). Tanggal kosong = hapus tanggal pindah,
+ * Ubah tanggal pindah siswa non-aktif (halaman Siswa Nonaktif; siswa tampil sampai tanggal itu, absensi pada tanggal itu tidak dihitung). Tanggal kosong = hapus tanggal pindah,
  * artinya siswa dihitung penuh sepanjang tapel terakhirnya. Mengubah ini langsung memengaruhi rekap.
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

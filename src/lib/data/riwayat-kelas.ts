@@ -17,7 +17,7 @@ export interface SiswaTapel {
   nama: string;
   kelas: string;
   nisn: string | null;
-  /** Tanggal pindah = HARI TERAKHIR siswa masih dihitung (inklusif), YYYY-MM-DD; null = penuh sepanjang tapel. Migrasi 020/023. */
+  /** Tanggal pindah = hari terakhir siswa TAMPIL, absensi pada tanggal itu tidak dihitung (eksklusif), YYYY-MM-DD; null = penuh sepanjang tapel. Migrasi 020/024. */
   nonaktif_pada: string | null;
   alasan_nonaktif: AlasanNonaktif | null;
 }

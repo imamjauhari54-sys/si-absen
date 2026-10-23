@@ -67,6 +67,8 @@ export interface RekapHarianRow {
   /** Mis. "Pindah · 12 Okt 2026" untuk siswa yang sudah keluar; null untuk siswa aktif. */
   labelKeluar: string | null;
   status: StatusHarian;
+  /** Tanggal pindah siswa: baris tampil tetapi absensinya tidak dihitung. */
+  tidakDihitung?: boolean;
   jam_masuk: string | null;
   jam_pulang: string | null;
   keterangan: string | null;
@@ -121,8 +123,8 @@ export async function getRekapHarian(
   ]);
   const absenMap = new Map((absenRows ?? []).map((r) => [r.siswa_id, r]));
 
-  // Siswa yang sudah pindah tampil sampai tanggal pindahnya (inklusif), lalu hilang (lihat siswa-harian.ts),
-  // supaya jumlahnya cocok dengan Data Siswa dan tanpa alpha palsu.
+  // Siswa yang pindah tampil sampai tanggal pindahnya (pada tanggal itu tampil tetapi tidak dihitung), lalu
+  // hilang (lihat siswa-harian.ts), supaya jumlahnya cocok dengan Data Siswa dan tanpa alpha palsu.
   const list = saringSiswaRekap(semua, {
     tapelRekap: tapel,
     tapelAktif: setting.tapel,
@@ -143,8 +145,10 @@ export async function getRekapHarian(
   const stat: StatHarian = { hadir: 0, terlambat: 0, izin: 0, sakit: 0, alpha: 0 };
   const rows: RekapHarianRow[] = list.map((s) => {
     const a = absenMap.get(s.id);
-    const status: StatusHarian = (a?.status as StatusHarian) ?? defaultStatus;
-    if (status in stat) stat[status as keyof StatHarian]++;
+    // Tanggal ini = tanggal pindah siswa: baris tetap tampil (dengan lencana), tetapi tidak dihitung.
+    const tidakDihitung = sudahKeluarPada(s.nonaktif_pada, tanggal);
+    const status: StatusHarian = tidakDihitung ? "kosong" : ((a?.status as StatusHarian) ?? defaultStatus);
+    if (!tidakDihitung && status in stat) stat[status as keyof StatHarian]++;
     // Subtext hanya untuk baris yang benar-benar tercatat (bukan status bawaan alpha/kosong).
     const edit = a ? editMap.get(s.id) : undefined;
     const sumber = opsi.denganSumber && a ? tentukanSumberAbsen({ scanOleh: a.scan_oleh, adaEditManual: !!edit }) : null;
@@ -154,8 +158,9 @@ export async function getRekapHarian(
       class: s.class,
       labelKeluar: s.labelKeluar,
       status,
-      jam_masuk: a?.jam_masuk ?? null,
-      jam_pulang: a?.jam_pulang ?? null,
+      tidakDihitung,
+      jam_masuk: tidakDihitung ? null : (a?.jam_masuk ?? null),
+      jam_pulang: tidakDihitung ? null : (a?.jam_pulang ?? null),
       keterangan: a?.keterangan ?? null,
       lampiran: a?.lampiran ?? null,
       pulihkan: pulihkanMap.get(s.id) ?? null,
@@ -246,7 +251,7 @@ async function getInfoPulihkan(tanggal: string, siswaIds: number[]): Promise<Map
 
 // ── BULANAN ─────────────────────────────────────────────────────────────
 
-/** "nonaktif" = hari setelah siswa keluar (tanggal >= nonaktif_pada) tanpa record absensi; tidak dihitung. */
+/** "nonaktif" = pada tanggal pindah dan sesudahnya (tanggal >= nonaktif_pada); tidak dihitung, apa pun record-nya. */
 export type StatusBulanan = StatusAbsen | "libur" | "kosong" | "nonaktif";
 
 export interface RekapBulananRow {
@@ -287,8 +292,8 @@ async function hitungHariEfektif(tapel: string, semester: string): Promise<numbe
 }
 
 /**
- * Penyebut persentase untuk siswa yang pindah di tengah semester: hari efektif SAMPAI tanggal pindah,
- * inklusif (migrasi 023). Kunci = tanggal pindah. Kalau fungsinya belum ada, dipakai penyebut satu semester penuh.
+ * Penyebut persentase untuk siswa yang pindah di tengah semester: hari efektif SEBELUM tanggal pindah
+ * (eksklusif, migrasi 024). Kunci = tanggal pindah. Kalau fungsinya belum ada, dipakai penyebut satu semester penuh.
  */
 async function petaPenyebutKeluar(
   tapel: string,
@@ -300,7 +305,7 @@ async function petaPenyebutKeluar(
   const unik = [...new Set(tanggalPindah.filter((t): t is string => !!t))];
   await Promise.all(
     unik.map(async (t) => {
-      const { data, error } = await supabaseAdmin.rpc("hari_efektif_sampai", { p_tapel: tapel, p_semester: semester, p_sampai: t });
+      const { data, error } = await supabaseAdmin.rpc("hari_efektif_sebelum", { p_tapel: tapel, p_semester: semester, p_sebelum: t });
       if (error) console.error("[petaPenyebutKeluar]", error.message);
       peta.set(t, error ? cadangan : Number(data ?? 0));
     })
@@ -385,7 +390,7 @@ export async function getRekapHistoryPage(
   const kandidat = dasar.filter((s) => perluCekData(s, opsiSaring)).map((s) => s.id);
   const agregatKandidat =
     kandidat.length > 0 ? await ambilAgregatSemester(tapel, semester, kandidat) : new Map<number, Record<string, number>>();
-  const semuaSiswa = saringSiswaRekap(dasar, { ...opsiSaring, adaAbsenIds: new Set(agregatKandidat.keys()) });
+  const semuaSiswa = saringSiswaRekap(dasar, { ...opsiSaring, adaAbsenIds: new Set(agregatKandidat.keys()), semesterRekap: semester });
   const totalSiswa = semuaSiswa.length;
   const totalPages = Math.max(1, Math.ceil(totalSiswa / pageSize));
   const pageAman = Math.min(Math.max(1, page), totalPages);
@@ -456,6 +461,7 @@ export async function getRekapHistory(
     tapelAktif: setting.tapel,
     nonaktifIds,
     adaAbsenIds: new Set(mapAbsen.keys()),
+    semesterRekap: semester,
   });
   if (list.length === 0) return { rows: [], totalHariEfektif };
 
@@ -577,7 +583,7 @@ export async function getRekapBulanan(
     am.get(r.siswa_id)!.set(r.tanggal, r.status as StatusAbsen);
   }
 
-  // Siswa yang sudah pindah tampil kalau bulan ini masih ada hari efektif sampai tanggal pindahnya (inklusif),
+  // Siswa yang sudah pindah tampil kalau bulan ini masih ada hari efektif sampai tanggal pindahnya (termasuk),
   // atau punya absensi pada hari efektif bulan ini (bukan Minggu/libur, sama seperti perhitungan rekap).
   const hariEfektif = tglList.filter((t) => !liburMap.has(t));
   const tglEfektif = new Set(hariEfektif);
@@ -613,8 +619,8 @@ export async function getRekapBulanan(
       if (liburMap.has(tgl)) {
         st = "libur";
       } else {
-        // Tanggal pindah = hari terakhir dihitung: SESUDAH tanggal itu sel "nonaktif" dan tidak dihitung, apa pun
-        // record-nya (record tidak dihapus; mengubah tanggal pindah mengembalikan hitungan).
+        // Pada tanggal pindah dan sesudahnya sel "nonaktif" dan tidak dihitung, apa pun record-nya
+        // (record tidak dihapus; mengubah tanggal pindah mengembalikan hitungan).
         if (sudahKeluarPada(s.nonaktif_pada, tgl)) {
           st = "nonaktif";
         } else {
