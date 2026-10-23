@@ -1,3 +1,4 @@
+import { ambilNonaktifIds } from "@/lib/data/nonaktif";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/server";
@@ -121,12 +122,19 @@ export async function getStatistikHariIni(
     totalSiswa = count ?? 0;
   }
 
-  let absensiQuery = supabaseAdmin.from("absensi").select("status").eq("tanggal", today);
-  if (studentIds) absensiQuery = absensiQuery.in("siswa_id", studentIds);
-  const { data: rows } = await absensiQuery;
+  // Populasi dashboard = siswa AKTIF (sama dengan totalSiswa). Record milik siswa yang sudah pindah/lulus
+  // (mis. alpha otomatis yang terlanjur dibuat) tidak ikut, supaya angkanya tidak bertentangan.
+  // Untuk guru, studentIds sudah hanya berisi siswa aktif kelasnya.
+  const nonaktif = studentIds ? null : await ambilNonaktifIds();
+  const rows = await ambilSemua<{ siswa_id: number; status: string }>((dari, sampai) => {
+    let q = supabaseAdmin.from("absensi").select("siswa_id, status").eq("tanggal", today);
+    if (studentIds) q = q.in("siswa_id", studentIds);
+    return q.order("id").range(dari, sampai);
+  });
 
   const stat: StatHariIni = { hadir: 0, terlambat: 0, izin: 0, sakit: 0, alpha: 0 };
-  for (const r of rows ?? []) {
+  for (const r of rows) {
+    if (nonaktif?.has(r.siswa_id)) continue;
     const st = (r.status as StatusAbsen)?.toLowerCase() as keyof StatHariIni;
     if (st in stat) stat[st]++;
   }
@@ -145,12 +153,14 @@ export async function getTren7Hari(
   const studentIds = siswaKelas ? siswaKelas.map((s) => s.id) : null;
 
   const mulai = addDaysJakarta(today, -6);
-  // Dipaginasi: 7 hari x >140 siswa melewati batas 1000 baris PostgREST.
-  const [rows, liburSet] = await Promise.all([
-    ambilSemua<{ tanggal: string; status: string }>((dari, sampai) => {
+  // Dipaginasi: 7 hari x >140 siswa melewati batas 1000 baris PostgREST. Populasi = siswa aktif
+  // (pembilang dan penyebut `total` sama-sama tanpa siswa yang sudah pindah/lulus).
+  const nonaktifIds = studentIds ? null : await ambilNonaktifIds();
+  const [semuaRows, liburSet] = await Promise.all([
+    ambilSemua<{ siswa_id: number; tanggal: string; status: string }>((dari, sampai) => {
       let query = supabaseAdmin
         .from("absensi")
-        .select("tanggal, status")
+        .select("siswa_id, tanggal, status")
         .gte("tanggal", mulai)
         .lte("tanggal", today)
         .in("status", ["hadir", "terlambat"]);
@@ -160,6 +170,7 @@ export async function getTren7Hari(
     getLiburSet(mulai, today),
   ]);
 
+  const rows = nonaktifIds ? semuaRows.filter((r) => !nonaktifIds.has(r.siswa_id)) : semuaRows;
   const perTanggal = new Map<string, number>();
   for (const r of rows) {
     perTanggal.set(r.tanggal, (perTanggal.get(r.tanggal) ?? 0) + 1);

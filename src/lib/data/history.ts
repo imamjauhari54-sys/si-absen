@@ -1,3 +1,5 @@
+import { ambilBatasPindahSiswa } from "@/lib/data/nonaktif";
+import { dalamBatasPindah } from "@/lib/utils/siswa-harian";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getLiburSet } from "@/lib/data/hari-libur";
 import { getDaftarTapel } from "@/lib/data/tapel";
@@ -52,7 +54,7 @@ export interface HistoryFilter {
 export async function getRiwayatAbsensi(siswaId: number, filter: HistoryFilter): Promise<RiwayatRow[]> {
   let query = supabaseAdmin
     .from("absensi")
-    .select("tanggal, status, jam_masuk, jam_pulang, keterangan")
+    .select("tanggal, status, jam_masuk, jam_pulang, keterangan, tapel")
     .eq("siswa_id", siswaId);
 
   if (filter.tapel) query = query.eq("tapel", filter.tapel);
@@ -64,10 +66,23 @@ export async function getRiwayatAbsensi(siswaId: number, filter: HistoryFilter):
     query = query.gte("tanggal", start).lt("tanggal", end);
   }
 
-  const [{ data }, liburSet] = await Promise.all([query.order("tanggal", { ascending: false }), getLiburSet()]);
+  const [{ data }, liburSet, batasPindah] = await Promise.all([
+    query.order("tanggal", { ascending: false }),
+    getLiburSet(),
+    ambilBatasPindahSiswa(siswaId),
+  ]);
   // Record pada tanggal libur (mis. libur dicatat setelah auto-alpha jalan) tidak ikut
-  // riwayat/statistik, konsisten dengan rekap bulanan dan rekap semester.
-  return (data ?? []).filter((r) => !liburSet.has(r.tanggal));
+  // riwayat/statistik, konsisten dengan rekap bulanan dan rekap semester. Record SESUDAH tanggal
+  // pindah juga tidak ikut (tidak dihapus; mengubah tanggal pindah mengembalikannya).
+  return (data ?? [])
+    .filter((r) => !liburSet.has(r.tanggal) && dalamBatasPindah(r.tapel, r.tanggal, batasPindah))
+    .map((r) => ({
+      tanggal: r.tanggal,
+      status: r.status,
+      jam_masuk: r.jam_masuk,
+      jam_pulang: r.jam_pulang,
+      keterangan: r.keterangan,
+    }));
 }
 
 export function hitungStatHistory(rows: RiwayatRow[]): StatHistory {
@@ -98,18 +113,20 @@ const BULAN_SINGKAT: Record<string, string> = {
 
 /** Tren 6 bulan terakhir (hadir+terlambat vs alpha), diagregasi per bulan kalender. */
 export async function getChartTren6Bulan(siswaId: number): Promise<ChartBulanan[]> {
-  const [{ data }, liburSet] = await Promise.all([
+  const [{ data }, liburSet, batasPindah] = await Promise.all([
     supabaseAdmin
       .from("absensi")
-      .select("tanggal, status")
+      .select("tanggal, status, tapel")
       .eq("siswa_id", siswaId)
       .order("tanggal", { ascending: false }),
     getLiburSet(),
+    ambilBatasPindahSiswa(siswaId),
   ]);
 
   const perBulan = new Map<string, { hadir: number; alpha: number }>();
   for (const r of data ?? []) {
     if (liburSet.has(r.tanggal)) continue; // abaikan record di tanggal libur
+    if (!dalamBatasPindah(r.tapel, r.tanggal, batasPindah)) continue; // sesudah tanggal pindah
     const bln = r.tanggal.slice(0, 7); // YYYY-MM
     if (!perBulan.has(bln)) perBulan.set(bln, { hadir: 0, alpha: 0 });
     const entry = perBulan.get(bln)!;

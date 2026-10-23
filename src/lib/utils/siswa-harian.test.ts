@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  dalamBatasPindah,
   labelKeluar,
   perluCekData,
   saringSiswaHarian,
@@ -41,29 +42,38 @@ describe("saringSiswaRekap — data lama (tanpa tanggal keluar)", () => {
   });
 });
 
-describe("saringSiswaRekap — dengan tanggal keluar (nonaktif_pada)", () => {
-  const pindah = [{ id: 1 }, { id: 2, nonaktif_pada: "2026-10-12" }];
+describe("saringSiswaRekap — tanggal pindah = hari terakhir dihitung (inklusif)", () => {
+  const pindah = [{ id: 1 }, { id: 2, nonaktif_pada: "2026-10-20" }];
+  const ids = (r: { id: number }[]) => r.map((s) => s.id);
 
-  it("harian sebelum tanggal keluar: masih tampil (alpha sah)", () => {
-    const r = saringSiswaRekap(pindah, { ...dasar, awalPeriode: "2026-10-11" });
-    expect(r.map((s) => s.id)).toEqual([1, 2]);
-  });
-  it("harian tepat pada tanggal keluar atau sesudahnya: disembunyikan tanpa absensi", () => {
-    for (const t of ["2026-10-12", "2026-10-13"]) {
-      expect(saringSiswaRekap(pindah, { ...dasar, awalPeriode: t }).map((s) => s.id)).toEqual([1]);
+  it("harian sebelum dan PADA tanggal pindah: tampil", () => {
+    for (const t of ["2026-10-19", "2026-10-20"]) {
+      expect(ids(saringSiswaRekap(pindah, { ...dasar, awalPeriode: t }))).toEqual([1, 2]);
     }
   });
-  it("setelah tanggal keluar tapi ada record absensi hari itu: tetap tampil (data tidak hilang)", () => {
-    const r = saringSiswaRekap(pindah, { ...dasar, awalPeriode: "2026-10-15", adaAbsenIds: new Set([2]) });
-    expect(r.map((s) => s.id)).toEqual([1, 2]);
+  it("harian mulai sehari sesudah tanggal pindah: hilang", () => {
+    for (const t of ["2026-10-21", "2026-10-22", "2026-12-01"]) {
+      expect(ids(saringSiswaRekap(pindah, { ...dasar, awalPeriode: t }))).toEqual([1]);
+    }
+  });
+  it("record absensi sesudah tanggal pindah TIDAK menyelamatkan (alpha otomatis, manual, hadir, izin, sakit)", () => {
+    const r = saringSiswaRekap(pindah, { ...dasar, awalPeriode: "2026-10-21", adaAbsenIds: new Set([2]) });
+    expect(ids(r)).toEqual([1]);
+  });
+  it("bulanan: bulan pindah masih tampil, bulan berikutnya hilang (walau ada record)", () => {
+    // hari efektif pertama Okt = 1 Okt <= 20 Okt -> tampil; Nov = 2 Nov > 20 Okt -> hilang
+    expect(ids(saringSiswaRekap(pindah, { ...dasar, awalPeriode: "2026-10-01" }))).toEqual([1, 2]);
+    expect(ids(saringSiswaRekap(pindah, { ...dasar, awalPeriode: "2026-11-02", adaAbsenIds: new Set([2]) }))).toEqual([1]);
+  });
+  it("bulanan: pindah tepat di hari efektif pertama bulan itu = hari itu masih dihitung, tampil", () => {
+    expect(ids(saringSiswaRekap([{ id: 2, nonaktif_pada: "2026-11-02" }], { ...dasar, awalPeriode: "2026-11-02" }))).toEqual([2]);
   });
   it("berlaku juga di tapel lama (siswa yang pindah di tengah tahun lalu)", () => {
-    const r = saringSiswaRekap(pindah, { ...dasar, tapelRekap: "2025/2026", awalPeriode: "2026-10-20" });
-    expect(r.map((s) => s.id)).toEqual([1]);
+    expect(ids(saringSiswaRekap(pindah, { ...dasar, tapelRekap: "2025/2026", awalPeriode: "2026-10-25" }))).toEqual([1]);
   });
-  it("history semester (tanpa awalPeriode): hanya data absensi yang menentukan", () => {
-    expect(saringSiswaRekap(pindah, dasar).map((s) => s.id)).toEqual([1]);
-    expect(saringSiswaRekap(pindah, { ...dasar, adaAbsenIds: new Set([2]) })).toHaveLength(2);
+  it("history semester (tanpa awalPeriode): hanya hari terhitung yang menentukan; semester berikutnya (tanpa hari terhitung) hilang", () => {
+    expect(ids(saringSiswaRekap(pindah, dasar))).toEqual([1]);
+    expect(ids(saringSiswaRekap(pindah, { ...dasar, adaAbsenIds: new Set([2]) }))).toEqual([1, 2]);
   });
   it("siswa aktif tidak pernah disaring walau tidak punya absensi", () => {
     expect(saringSiswaRekap([{ id: 1 }], { ...dasar, awalPeriode: "2026-10-20" })).toHaveLength(1);
@@ -82,12 +92,27 @@ describe("perluCekData", () => {
 });
 
 describe("sudahKeluarPada", () => {
-  it("tanggal >= tanggal keluar = sudah keluar; kosong = belum", () => {
+  it("hanya SESUDAH tanggal pindah yang dianggap sudah keluar; pada tanggal pindah masih dihitung", () => {
     expect(sudahKeluarPada("2026-10-12", "2026-10-11")).toBe(false);
-    expect(sudahKeluarPada("2026-10-12", "2026-10-12")).toBe(true);
+    expect(sudahKeluarPada("2026-10-12", "2026-10-12")).toBe(false);
+    expect(sudahKeluarPada("2026-10-12", "2026-10-13")).toBe(true);
     expect(sudahKeluarPada("2026-10-12", "2026-11-01")).toBe(true);
     expect(sudahKeluarPada(null, "2026-11-01")).toBe(false);
     expect(sudahKeluarPada(undefined, "2026-11-01")).toBe(false);
+  });
+});
+
+describe("dalamBatasPindah", () => {
+  const batas = new Map([["2026/2027", "2026-10-20"]]);
+  it("record sampai dan pada tanggal pindah dihitung, sesudahnya tidak", () => {
+    expect(dalamBatasPindah("2026/2027", "2026-10-19", batas)).toBe(true);
+    expect(dalamBatasPindah("2026/2027", "2026-10-20", batas)).toBe(true);
+    expect(dalamBatasPindah("2026/2027", "2026-10-21", batas)).toBe(false);
+  });
+  it("tapel tanpa batas, atau tanpa info tapel, tidak dipotong", () => {
+    expect(dalamBatasPindah("2025/2026", "2026-10-21", batas)).toBe(true);
+    expect(dalamBatasPindah(null, "2026-10-21", batas)).toBe(true);
+    expect(dalamBatasPindah("2026/2027", "2099-01-01", new Map())).toBe(true);
   });
 });
 

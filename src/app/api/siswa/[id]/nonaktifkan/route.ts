@@ -40,8 +40,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ status: "error", message: "Siswa ini sudah berstatus non-aktif." });
   }
 
-  // Migrasi 020: status + tanggal keluar dalam satu transaksi. Kalau fungsinya belum ada (migrasi belum
-  // dijalankan), jatuh ke cara lama supaya Nonaktifkan tetap berfungsi — tanggal keluar tidak tersimpan.
+  // Migrasi 020: status + tanggal pindah dalam satu transaksi. Kalau fungsinya belum ada (migrasi belum
+  // dijalankan), jatuh ke cara lama supaya Nonaktifkan tetap berfungsi — tanggal pindah tidak tersimpan.
   const { error: errRpc } = await supabaseAdmin.rpc("nonaktifkan_siswa", {
     p_id: siswaId,
     p_alasan: alasan,
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const labelAlasan = alasan === "lulus" ? "Lulus" : "Pindah";
-  const ket = tanggal.value ? `, tanggal keluar ${formatTglIndo(tanggal.value)}` : "";
+  const ket = tanggal.value ? `, tanggal pindah ${formatTglIndo(tanggal.value)}` : "";
   await catatLog(
     session.userId,
     "nonaktifkan_siswa",

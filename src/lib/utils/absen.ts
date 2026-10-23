@@ -23,8 +23,9 @@ export async function cekAlphaBerturut(
   const today = todayJakarta();
   const batas = addDaysJakarta(today, -cekHari);
 
-  // STEP 1: daftar siswa (difilter kelas kalau ada)
-  let studentsQuery = supabaseAdmin.from("students").select("id, name, class, foto");
+  // STEP 1: daftar siswa AKTIF (difilter kelas kalau ada). Siswa yang sudah pindah/lulus tidak lagi
+  // perlu ditindaklanjuti, jadi tidak ikut peringatan alpha berturut-turut.
+  let studentsQuery = supabaseAdmin.from("students").select("id, name, class, foto").eq("status", "aktif");
   if (kelas) studentsQuery = studentsQuery.eq("class", kelas);
   const { data: students } = await studentsQuery.order("class").order("name");
   if (!students || students.length === 0) return [];

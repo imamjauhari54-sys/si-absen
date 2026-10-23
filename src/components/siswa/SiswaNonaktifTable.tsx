@@ -76,11 +76,11 @@ export default function SiswaNonaktifTable({ list }: { list: StudentFull[] }) {
         setNotif({
           status: "ok",
           message: tanggalBaru
-            ? `Tanggal keluar "${nama}" diubah menjadi ${formatTglIndo(tanggalBaru)}.`
-            : `Tanggal keluar "${nama}" dihapus.`,
+            ? `Tanggal pindah "${nama}" diubah menjadi ${formatTglIndo(tanggalBaru)}.`
+            : `Tanggal pindah "${nama}" dihapus.`,
         });
       } else {
-        setNotif({ status: "error", message: data.message || "Gagal menyimpan tanggal keluar." });
+        setNotif({ status: "error", message: data.message || "Gagal menyimpan tanggal pindah." });
       }
     } catch {
       setUbahTarget(null);
@@ -130,7 +130,7 @@ export default function SiswaNonaktifTable({ list }: { list: StudentFull[] }) {
                 <th className="px-5 py-3">Nama</th>
                 <th className="px-5 py-3">Kelas</th>
                 <th className="px-5 py-3">NISN</th>
-                <th className="px-5 py-3">Tanggal Keluar</th>
+                <th className="px-5 py-3">Tanggal Pindah</th>
                 <th className="px-5 py-3">Status</th>
                 <th className="px-5 py-3 text-right">Aksi</th>
               </tr>
@@ -149,7 +149,7 @@ export default function SiswaNonaktifTable({ list }: { list: StudentFull[] }) {
                       </div>
                       <button
                         onClick={() => bukaUbahTanggal(s)}
-                        title="Ubah tanggal keluar"
+                        title="Ubah tanggal pindah"
                         className="w-6 h-6 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition"
                       >
                         <i className="fas fa-pen text-[10px]" />
@@ -190,7 +190,7 @@ export default function SiswaNonaktifTable({ list }: { list: StudentFull[] }) {
         </div>
       </div>
 
-      {/* Modal: ubah tanggal keluar */}
+      {/* Modal: ubah tanggal pindah */}
       {ubahTarget && (
         <Portal>
           <div
@@ -201,10 +201,10 @@ export default function SiswaNonaktifTable({ list }: { list: StudentFull[] }) {
               className="bg-white dark:bg-[#1e2235] w-full max-w-[340px] rounded-[2.5rem] p-8 border border-gray-200 dark:border-white/10 shadow-2xl text-center"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-2 tracking-tight">Ubah Tanggal Keluar</h3>
+              <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-2 tracking-tight">Ubah Tanggal Pindah</h3>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed px-2 mb-5">
                 <strong className="text-gray-700 dark:text-gray-300">{ubahTarget.name}</strong> (Kelas {ubahTarget.class}).
-                Hari pertama siswa tidak lagi dihitung di rekap. Perubahan ini langsung memengaruhi rekap harian, bulanan, dan history.
+                Hari terakhir siswa masih dihitung di rekap. Absensi sesudahnya tidak dihitung (tidak dihapus). Perubahan ini langsung memengaruhi rekap harian, bulanan, dan history.
               </p>
               <input
                 type="date"

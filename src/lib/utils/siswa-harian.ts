@@ -3,19 +3,24 @@ import { formatTglIndo } from "@/lib/utils/tanggal";
 /**
  * Aturan siapa yang tampil di tabel rekap (harian, bulanan, history semester).
  *
- * Daftar dasar = baris riwayat_kelas pada tapel itu. Siswa yang sudah keluar (lulus/pindah) tetap
- * punya baris, sehingga tanpa penyaringan mereka muncul sebagai "alpha"/"kosong" setelah keluar dan
- * jumlahnya tidak cocok dengan halaman Data Siswa.
+ * Daftar dasar = baris riwayat_kelas pada tapel itu. TANGGAL PINDAH (riwayat_kelas.nonaktif_pada,
+ * migrasi 020/023) = HARI TERAKHIR siswa masih menjadi bagian dari rekap (inklusif). Absensi pada
+ * tanggal itu masih dihitung; sesudahnya tidak dihitung dan siswanya tidak ditampilkan lagi, apa pun
+ * isi record-nya (record tidak pernah dihapus).
  *
- *  - Ada tanggal keluar (riwayat_kelas.nonaktif_pada, migrasi 020), di tapel mana pun:
- *      tampil kalau awal periode < tanggal keluar (ia masih dihitung di periode itu), atau
- *      kalau punya data absensi pada periode itu. Selain itu disembunyikan.
- *  - Tanpa tanggal keluar tapi non-aktif, di tapel AKTIF (data lama sebelum migrasi 020):
+ *  - Ada tanggal pindah:
+ *      harian   : tampil kalau tanggal yang dilihat <= tanggal pindah.
+ *      bulanan  : tampil kalau hari efektif pertama bulan itu <= tanggal pindah (bulan pindah masih
+ *                 tampil, bulan-bulan berikutnya hilang).
+ *      history  : tampil hanya kalau punya hari terhitung (sampai tanggal pindah) pada semester itu —
+ *                 agregat database sudah memotong record sesudah tanggal pindah (migrasi 022/023), jadi
+ *                 semester berikutnya otomatis hilang.
+ *  - Tanpa tanggal pindah tapi non-aktif, di tapel AKTIF (data lama sebelum migrasi 020):
  *      tampil hanya kalau punya data absensi pada periode itu.
- *  - Selain itu (siswa aktif, atau tapel lama tanpa tanggal keluar = penuh satu tapel): selalu tampil.
+ *  - Selain itu (siswa aktif, atau tapel lama tanpa tanggal pindah = penuh satu tapel): selalu tampil.
  *
  * Periode: harian = tanggal itu, bulanan = hari efektif pertama bulan itu, history semester =
- * tidak diisi (hanya data absensi yang menentukan).
+ * tidak diisi (hanya data terhitung yang menentukan).
  */
 export interface SiswaBisaKeluar {
   id: number;
@@ -44,17 +49,26 @@ export function saringSiswaRekap<T extends SiswaBisaKeluar>(daftar: T[], opsi: O
   const { adaAbsenIds, awalPeriode } = opsi;
   return daftar.filter((s) => {
     if (!perluCekData(s, opsi)) return true;
-    if (adaAbsenIds.has(s.id)) return true;
-    return !!s.nonaktif_pada && !!awalPeriode && awalPeriode < s.nonaktif_pada;
+    if (s.nonaktif_pada && awalPeriode) return awalPeriode <= s.nonaktif_pada; // batas akhir: record sesudahnya tidak menyelamatkan
+    return adaAbsenIds.has(s.id);
   });
 }
 
 /** Nama lama (rekap harian); aturannya sama. */
 export const saringSiswaHarian = saringSiswaRekap;
 
-/** Apakah pada `tanggal` siswa sudah keluar (tanggal >= tanggal keluar)? Tanpa tanggal keluar: tidak. */
+/** Apakah `tanggal` SESUDAH tanggal pindah siswa (sudah di luar rekap)? Tanpa tanggal pindah: tidak. */
 export function sudahKeluarPada(nonaktifPada: string | null | undefined, tanggal: string): boolean {
-  return !!nonaktifPada && tanggal >= nonaktifPada;
+  return !!nonaktifPada && tanggal > nonaktifPada;
+}
+
+/**
+ * Apakah record absensi `tanggal` pada `tapel` masih dihitung menurut batas pindah siswa itu?
+ * `batas` = tapel -> tanggal pindah (inklusif); tapel tanpa batas tidak dipotong.
+ */
+export function dalamBatasPindah(tapel: string | null | undefined, tanggal: string, batas: ReadonlyMap<string, string>): boolean {
+  const b = tapel ? batas.get(tapel) : undefined;
+  return !b || tanggal <= b;
 }
 
 /** Teks lencana di rekap, mis. "Pindah · 12 Okt 2026". Null kalau tidak ada informasi keluar. */
