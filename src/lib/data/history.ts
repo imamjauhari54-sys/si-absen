@@ -1,4 +1,5 @@
 import { ambilBatasPindahSiswa } from "@/lib/data/nonaktif";
+import { ambilJedaSiswa } from "@/lib/data/jeda";
 import { dalamBatasPindah } from "@/lib/utils/siswa-harian";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getLiburSet } from "@/lib/data/hari-libur";
@@ -68,16 +69,17 @@ export async function getRiwayatAbsensi(siswaId: number, filter: HistoryFilter):
     query = query.gte("tanggal", start).lt("tanggal", end);
   }
 
-  const [{ data }, liburSet, batasPindah] = await Promise.all([
+  const [{ data }, liburSet, batasPindah, jeda] = await Promise.all([
     query.order("tanggal", { ascending: false }),
     getLiburSet(),
     ambilBatasPindahSiswa(siswaId),
+    ambilJedaSiswa(siswaId),
   ]);
   // Record pada tanggal libur (mis. libur dicatat setelah auto-alpha jalan) tidak ikut
   // riwayat/statistik, konsisten dengan rekap bulanan dan rekap semester. Record SESUDAH tanggal
-  // pindah juga tidak ikut (tidak dihapus; mengubah tanggal pindah mengembalikannya).
+  // pindah dan record di dalam jeda (migrasi 025) juga tidak ikut (tidak dihapus; mengubah tanggal pindah mengembalikannya).
   return (data ?? [])
-    .filter((r) => !liburSet.has(r.tanggal) && dalamBatasPindah(r.tapel, r.tanggal, batasPindah))
+    .filter((r) => !liburSet.has(r.tanggal) && dalamBatasPindah(r.tapel, r.tanggal, batasPindah, jeda))
     .map((r) => ({
       tanggal: r.tanggal,
       status: r.status,
@@ -115,7 +117,7 @@ const BULAN_SINGKAT: Record<string, string> = {
 
 /** Tren 6 bulan terakhir (hadir+terlambat vs alpha), diagregasi per bulan kalender. */
 export async function getChartTren6Bulan(siswaId: number): Promise<ChartBulanan[]> {
-  const [{ data }, liburSet, batasPindah] = await Promise.all([
+  const [{ data }, liburSet, batasPindah, jeda] = await Promise.all([
     supabaseAdmin
       .from("absensi")
       .select("tanggal, status, tapel")
@@ -123,12 +125,13 @@ export async function getChartTren6Bulan(siswaId: number): Promise<ChartBulanan[
       .order("tanggal", { ascending: false }),
     getLiburSet(),
     ambilBatasPindahSiswa(siswaId),
+    ambilJedaSiswa(siswaId),
   ]);
 
   const perBulan = new Map<string, { hadir: number; alpha: number }>();
   for (const r of data ?? []) {
     if (liburSet.has(r.tanggal)) continue; // abaikan record di tanggal libur
-    if (!dalamBatasPindah(r.tapel, r.tanggal, batasPindah)) continue; // pada/sesudah tanggal pindah
+    if (!dalamBatasPindah(r.tapel, r.tanggal, batasPindah, jeda)) continue; // pada/sesudah tanggal pindah, atau di dalam jeda
     const bln = r.tanggal.slice(0, 7); // YYYY-MM
     if (!perBulan.has(bln)) perBulan.set(bln, { hadir: 0, alpha: 0 });
     const entry = perBulan.get(bln)!;

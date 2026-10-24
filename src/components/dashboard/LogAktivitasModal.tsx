@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ActivityLog } from "@/types";
 import Portal from "@/components/ui/Portal";
+import InfoJumlah from "@/components/ui/InfoJumlah";
 
 export default function LogAktivitasModal() {
   const [open, setOpen] = useState(false);
@@ -119,6 +120,11 @@ export default function LogAktivitasModal() {
                   );
                 })}
             </div>
+            {!loading && !errMsg && logs && logs.length > 0 && (
+              <div className="pt-3 mt-3 border-t border-gray-100 dark:border-white/5">
+                <InfoJumlah tampil={logs.length} total={logs.length} satuan="perubahan" className="!mt-0 !px-0" />
+              </div>
+            )}
           </div>
           </div>
         </Portal>

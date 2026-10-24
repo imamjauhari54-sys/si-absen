@@ -4,7 +4,15 @@ import { ambilSemua } from "@/lib/utils/ambil-semua";
 import { getKelasTapel, getSiswaTapel, tapelUntukBulan, tapelUntukTanggal } from "@/lib/data/riwayat-kelas";
 import { getAbsensiSetting } from "@/lib/data/dashboard";
 import { ambilNonaktifIds } from "@/lib/data/nonaktif";
-import { labelKeluar, perluCekData, saringSiswaRekap, sudahKeluarPada } from "@/lib/utils/siswa-harian";
+import { ambilJedaSiswa, ambilJedaTapel } from "@/lib/data/jeda";
+import {
+  dalamJeda,
+  labelJedaPada,
+  labelKeluar,
+  perluCekData,
+  saringSiswaRekap,
+  tidakDihitungPada,
+} from "@/lib/utils/siswa-harian";
 import { keteranganSumber, tentukanSumberAbsen, type SumberAbsen } from "@/lib/utils/sumber-absen";
 import type { StatusAbsen } from "@/types";
 
@@ -101,11 +109,13 @@ export async function getRekapHarian(
   // Siswa & kelasnya diambil dari riwayat kelas pada tapel tanggal ini, bukan students.class,
   // supaya rekap tanggal lama tetap menampilkan kelas yang benar setelah siswa naik kelas.
   const tapel = await tapelUntukTanggal(tanggal);
-  const semua = (await getSiswaTapel(tapel, kelasFilter)).map((s) => ({
+  const [siswaTapel, jedaMap] = await Promise.all([getSiswaTapel(tapel, kelasFilter), ambilJedaTapel(tapel)]);
+  const semua = siswaTapel.map((s) => ({
     id: s.siswa_id,
     name: s.nama,
     class: s.kelas,
     nonaktif_pada: s.nonaktif_pada,
+    jeda: jedaMap.get(s.siswa_id) ?? [],
     labelKeluar: labelKeluar(s.alasan_nonaktif, s.nonaktif_pada),
   }));
   const kosongStat: StatHarian = { hadir: 0, terlambat: 0, izin: 0, sakit: 0, alpha: 0 };
@@ -130,7 +140,7 @@ export async function getRekapHarian(
     tapelAktif: setting.tapel,
     nonaktifIds,
     adaAbsenIds: new Set(absenMap.keys()),
-    awalPeriode: tanggal,
+    periode: [tanggal],
   });
   if (list.length === 0) return { rows: [], stat: kosongStat };
   const ids = list.map((s) => s.id);
@@ -146,7 +156,8 @@ export async function getRekapHarian(
   const rows: RekapHarianRow[] = list.map((s) => {
     const a = absenMap.get(s.id);
     // Tanggal ini = tanggal pindah siswa: baris tetap tampil (dengan lencana), tetapi tidak dihitung.
-    const tidakDihitung = sudahKeluarPada(s.nonaktif_pada, tanggal);
+    // Berlaku juga untuk jeda (migrasi 025): pada tanggal awal jeda siswa tampil dengan lencana tetapi tidak dihitung.
+    const tidakDihitung = tidakDihitungPada(s.nonaktif_pada, s.jeda, tanggal);
     const status: StatusHarian = tidakDihitung ? "kosong" : ((a?.status as StatusHarian) ?? defaultStatus);
     if (!tidakDihitung && status in stat) stat[status as keyof StatHarian]++;
     // Subtext hanya untuk baris yang benar-benar tercatat (bukan status bawaan alpha/kosong).
@@ -156,7 +167,7 @@ export async function getRekapHarian(
       id: s.id,
       name: s.name,
       class: s.class,
-      labelKeluar: s.labelKeluar,
+      labelKeluar: labelJedaPada(s.jeda, tanggal) ?? s.labelKeluar,
       status,
       tidakDihitung,
       jam_masuk: tidakDihitung ? null : (a?.jam_masuk ?? null),
@@ -292,24 +303,17 @@ async function hitungHariEfektif(tapel: string, semester: string): Promise<numbe
 }
 
 /**
- * Penyebut persentase untuk siswa yang pindah di tengah semester: hari efektif SEBELUM tanggal pindah
- * (eksklusif, migrasi 024). Kunci = tanggal pindah. Kalau fungsinya belum ada, dipakai penyebut satu semester penuh.
+ * Penyebut persentase PER SISWA = hari yang dihitung untuk siswa itu pada semester tsb (hari_dihitung_siswa,
+ * migrasi 025): hari efektif dikurangi hari sesudah tanggal pindah dan hari jeda. Siswa tanpa pindah/jeda =
+ * hari efektif penuh. Satu aturan yang sama dengan rekap_history_siswa (pembilang) dan rekap harian/bulanan.
+ * Siswa yang tidak muncul di hasil = 0 hari dihitung.
  */
-async function petaPenyebutKeluar(
-  tapel: string,
-  semester: string,
-  tanggalPindah: (string | null | undefined)[],
-  cadangan: number
-): Promise<Map<string, number>> {
-  const peta = new Map<string, number>();
-  const unik = [...new Set(tanggalPindah.filter((t): t is string => !!t))];
-  await Promise.all(
-    unik.map(async (t) => {
-      const { data, error } = await supabaseAdmin.rpc("hari_efektif_sebelum", { p_tapel: tapel, p_semester: semester, p_sebelum: t });
-      if (error) console.error("[petaPenyebutKeluar]", error.message);
-      peta.set(t, error ? cadangan : Number(data ?? 0));
-    })
-  );
+async function petaHariDihitung(tapel: string, semester: string, ids: number[]): Promise<Map<number, number>> {
+  const peta = new Map<number, number>();
+  if (ids.length === 0) return peta;
+  const { data, error } = await supabaseAdmin.rpc("hari_dihitung_siswa", { p_tapel: tapel, p_semester: semester, p_ids: ids });
+  if (error) throw new Error(`Gagal menghitung hari terhitung per siswa: ${error.message}. Pastikan migrasi 025 sudah dijalankan.`);
+  for (const r of (data ?? []) as { siswa_id: number; hari: number }[]) peta.set(r.siswa_id, Number(r.hari));
   return peta;
 }
 
@@ -381,11 +385,11 @@ export async function getRekapHistoryPage(
   // Daftar siswa = siswa yang punya riwayat kelas di tapel ini (kelasnya pada tapel itu). Daftar
   // ringan (id, nama, kelas, nisn) diambil seluruhnya lalu dipotong per halaman di sini; yang
   // berat (agregat absensi) tetap hanya dihitung untuk siswa di halaman yang tampil.
-  const semuaDasar = await getSiswaTapel(tapel, kelasFilter);
+  const [semuaDasar, jedaMap] = await Promise.all([getSiswaTapel(tapel, kelasFilter), ambilJedaTapel(tapel)]);
   // Di tapel aktif, siswa lulus/pindah hanya ikut kalau punya absensi pada semester ini. Agregat
   // dihitung dulu hanya untuk mereka (jumlahnya kecil) supaya total & paginasi tetap benar.
   const [nonaktifIds, setting] = await Promise.all([ambilNonaktifIds(), getAbsensiSetting()]);
-  const dasar = semuaDasar.map((s) => ({ ...s, id: s.siswa_id }));
+  const dasar = semuaDasar.map((s) => ({ ...s, id: s.siswa_id, jeda: jedaMap.get(s.siswa_id) ?? [] }));
   const opsiSaring = { tapelRekap: tapel, tapelAktif: setting.tapel, nonaktifIds };
   const kandidat = dasar.filter((s) => perluCekData(s, opsiSaring)).map((s) => s.id);
   const agregatKandidat =
@@ -406,9 +410,9 @@ export async function getRekapHistoryPage(
   if (list.length === 0) return { rows: [], totalHariEfektif, totalSiswa, totalPages, page: pageAman };
 
   const ids = list.map((s) => s.id);
-  const [mapAbsen, penyebutKeluar] = await Promise.all([
+  const [mapAbsen, hariDihitung] = await Promise.all([
     ambilAgregatSemester(tapel, semester, ids),
-    petaPenyebutKeluar(tapel, semester, list.map((s) => s.nonaktif_pada), totalHariEfektif),
+    petaHariDihitung(tapel, semester, ids),
   ]);
 
   const rows: RekapHistoryRow[] = list.map((s) => {
@@ -418,7 +422,7 @@ export async function getRekapHistoryPage(
     const izin = m.izin ?? 0;
     const sakit = m.sakit ?? 0;
     const alpha = m.alpha ?? 0;
-    const penyebut = s.nonaktif_pada ? (penyebutKeluar.get(s.nonaktif_pada) ?? totalHariEfektif) : totalHariEfektif;
+    const penyebut = hariDihitung.get(s.id) ?? 0;
     const persen = penyebut > 0 ? Math.round(((hadir + telat) / penyebut) * 1000) / 10 : 0;
     return { nama: s.name, kelas: s.class, nisn: s.nisn, labelKeluar: s.labelKeluar, hadir, telat, izin, sakit, alpha, persen };
   });
@@ -441,19 +445,21 @@ export async function getRekapHistory(
 
   const totalHariEfektif = await hitungHariEfektif(tapel, semester);
 
-  const semua = (await getSiswaTapel(tapel, kelasFilter)).map((s) => ({
+  const [siswaTapel, jedaMap] = await Promise.all([getSiswaTapel(tapel, kelasFilter), ambilJedaTapel(tapel)]);
+  const semua = siswaTapel.map((s) => ({
     id: s.siswa_id,
     name: s.nama,
     class: s.kelas,
     nisn: s.nisn,
     nonaktif_pada: s.nonaktif_pada,
+    jeda: jedaMap.get(s.siswa_id) ?? [],
     labelKeluar: labelKeluar(s.alasan_nonaktif, s.nonaktif_pada),
   }));
   if (semua.length === 0) return { rows: [], totalHariEfektif };
 
-  const [mapAbsen, penyebutKeluar] = await Promise.all([
+  const [mapAbsen, hariDihitung] = await Promise.all([
     ambilAgregatSemester(tapel, semester, semua.map((s) => s.id)),
-    petaPenyebutKeluar(tapel, semester, semua.map((s) => s.nonaktif_pada), totalHariEfektif),
+    petaHariDihitung(tapel, semester, semua.map((s) => s.id)),
   ]);
   const [nonaktifIds, setting] = await Promise.all([ambilNonaktifIds(), getAbsensiSetting()]);
   const list = saringSiswaRekap(semua, {
@@ -472,7 +478,7 @@ export async function getRekapHistory(
     const izin = m.izin ?? 0;
     const sakit = m.sakit ?? 0;
     const alpha = m.alpha ?? 0;
-    const penyebut = s.nonaktif_pada ? (penyebutKeluar.get(s.nonaktif_pada) ?? totalHariEfektif) : totalHariEfektif;
+    const penyebut = hariDihitung.get(s.id) ?? 0;
     const persen = penyebut > 0 ? Math.round(((hadir + telat) / penyebut) * 1000) / 10 : 0;
     return { nama: s.name, kelas: s.class, nisn: s.nisn, labelKeluar: s.labelKeluar, hadir, telat, izin, sakit, alpha, persen };
   });
@@ -506,12 +512,10 @@ export async function getRekapBulananSiswa(
   const [y, m] = bulanYYYYMM.split("-").map(Number);
   const tk = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
 
-  const { data: absenRows } = await supabaseAdmin
-    .from("absensi")
-    .select("tanggal, status")
-    .eq("siswa_id", siswaId)
-    .gte("tanggal", ta)
-    .lte("tanggal", tk);
+  const [{ data: absenRows }, jeda] = await Promise.all([
+    supabaseAdmin.from("absensi").select("tanggal, status").eq("siswa_id", siswaId).gte("tanggal", ta).lte("tanggal", tk),
+    ambilJedaSiswa(siswaId),
+  ]);
 
   const am = new Map((absenRows ?? []).map((r) => [r.tanggal, r.status as StatusAbsen]));
   const today = todayJakarta();
@@ -530,6 +534,8 @@ export async function getRekapBulananSiswa(
     let st: StatusBulanan;
     if (liburMap.has(tgl)) {
       st = "libur";
+    } else if (dalamJeda(jeda, tgl)) {
+      st = "nonaktif"; // hari jeda (migrasi 025): tidak dihitung, sama seperti rekap bulanan admin
     } else {
       const defaultStatus: StatusBulanan = tgl < today ? "alpha" : "kosong";
       st = am.get(tgl) ?? defaultStatus;
@@ -554,11 +560,13 @@ export async function getRekapBulanan(
   const tk = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); // hari terakhir bulan itu
 
   const tapel = await tapelUntukBulan(bulanYYYYMM);
-  const semua = (await getSiswaTapel(tapel, kelasFilter)).map((s) => ({
+  const [siswaTapel, jedaMap] = await Promise.all([getSiswaTapel(tapel, kelasFilter), ambilJedaTapel(tapel)]);
+  const semua = siswaTapel.map((s) => ({
     id: s.siswa_id,
     name: s.nama,
     class: s.kelas,
     nonaktif_pada: s.nonaktif_pada,
+    jeda: jedaMap.get(s.siswa_id) ?? [],
     labelKeluar: labelKeluar(s.alasan_nonaktif, s.nonaktif_pada),
   }));
   if (semua.length === 0) return { rows: [], tglList };
@@ -595,7 +603,7 @@ export async function getRekapBulanan(
     tapelAktif: setting.tapel,
     nonaktifIds,
     adaAbsenIds,
-    awalPeriode: hariEfektif[0] ?? null,
+    periode: hariEfektif,
   });
   if (list.length === 0) return { rows: [], tglList };
 
@@ -621,7 +629,8 @@ export async function getRekapBulanan(
       } else {
         // Pada tanggal pindah dan sesudahnya sel "nonaktif" dan tidak dihitung, apa pun record-nya
         // (record tidak dihapus; mengubah tanggal pindah mengembalikan hitungan).
-        if (sudahKeluarPada(s.nonaktif_pada, tgl)) {
+        // Berlaku juga untuk hari jeda (migrasi 025): sel "nonaktif", tidak dihitung.
+        if (tidakDihitungPada(s.nonaktif_pada, s.jeda, tgl)) {
           st = "nonaktif";
         } else {
           st = am.get(s.id)?.get(tgl) ?? (tgl < today ? "alpha" : "kosong");

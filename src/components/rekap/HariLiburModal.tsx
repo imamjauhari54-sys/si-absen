@@ -4,6 +4,7 @@ import { useState } from "react";
 import "./rekap.css";
 import type { HariLiburRow } from "@/lib/data/hari-libur";
 import Portal from "@/components/ui/Portal";
+import InfoJumlah from "@/components/ui/InfoJumlah";
 import NotifModal from "@/components/ui/NotifModal";
 
 const BULAN_NAMA = ["", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
@@ -306,6 +307,11 @@ export default function HariLiburModal() {
                 </tbody>
               </table>
             </div>
+            {!loading && list && list.length > 0 && (
+              <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700/50">
+                <InfoJumlah tampil={list.length} total={list.length} satuan="hari libur" className="!mt-0 !px-0" />
+              </div>
+            )}
           </div>
         </div>
         </Portal>

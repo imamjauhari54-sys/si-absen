@@ -10,6 +10,7 @@ import SiswaTable from "@/components/siswa/SiswaTable";
 import TambahSiswaButton from "@/components/siswa/TambahSiswaButton";
 import ImportSiswaButton from "@/components/siswa/ImportSiswaButton";
 import Pagination from "@/components/ui/Pagination";
+import InfoJumlah from "@/components/ui/InfoJumlah";
 import PageTitle from "@/components/ui/PageTitle";
 
 const PAGE_SIZE = 10;
@@ -156,36 +157,24 @@ export default async function SiswaPage({
       {/* TABEL + MODAL PREVIEW */}
       <SiswaTable list={pagedList} search={search} namaSekolah={namaSekolah} alamat={alamat} isAdmin={isAdmin} semuaKelas={kelasMaster} />
 
-      <Pagination page={page} totalPages={totalPages} buildHref={buildPageHref} />
-
-      {/* FOOTER RINGKASAN */}
-      {stat.total > 0 && (
-        <div className="mt-3 px-1 flex flex-wrap justify-between items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-          <span>
-            Menampilkan <strong className="text-gray-700 dark:text-gray-300">{pagedList.length}</strong> dari{" "}
-            <strong className="text-gray-700 dark:text-gray-300">{stat.total}</strong> siswa
-            {search && (
-              <>
-                {" "}
-                · Hasil pencarian &quot;<strong>{search}</strong>&quot;
-              </>
-            )}
+      {/* INFO JUMLAH + RINGKASAN: rapat di bawah kartu tabel */}
+      <InfoJumlah tampil={pagedList.length} total={stat.total} satuan="siswa" pencarian={search}>
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1.5">
+            <i className="fas fa-mars text-blue-400" /> <span>{stat.laki} L</span>
           </span>
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5">
-              <i className="fas fa-mars text-blue-400" /> <span>{stat.laki} L</span>
-            </span>
-            <span className="text-gray-300 dark:text-gray-600">·</span>
-            <span className="flex items-center gap-1.5">
-              <i className="fas fa-venus text-pink-400" /> <span>{stat.pr} P</span>
-            </span>
-            <span className="text-gray-300 dark:text-gray-600">·</span>
-            <span className="flex items-center gap-1.5">
-              <i className="fas fa-qrcode text-emerald-400" /> <span>{stat.berqr} QR aktif</span>
-            </span>
-          </div>
+          <span className="text-gray-300 dark:text-gray-600">·</span>
+          <span className="flex items-center gap-1.5">
+            <i className="fas fa-venus text-pink-400" /> <span>{stat.pr} P</span>
+          </span>
+          <span className="text-gray-300 dark:text-gray-600">·</span>
+          <span className="flex items-center gap-1.5">
+            <i className="fas fa-qrcode text-emerald-400" /> <span>{stat.berqr} QR aktif</span>
+          </span>
         </div>
-      )}
+      </InfoJumlah>
+
+      <Pagination page={page} totalPages={totalPages} buildHref={buildPageHref} />
     </div>
   );
 }

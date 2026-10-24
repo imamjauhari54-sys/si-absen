@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import { requireSession } from "@/lib/auth/session";
 import { getWaLogPage, hitungWaGagalTotal } from "@/lib/data/wa-log";
 import Pagination from "@/components/ui/Pagination";
-import { formatWaktuWib } from "@/lib/utils/tanggal";
+import InfoJumlah from "@/components/ui/InfoJumlah";
+import { formatWaktuWib, todayJakarta } from "@/lib/utils/tanggal";
 import PageTitle from "@/components/ui/PageTitle";
+import HapusLogModal from "@/components/log/HapusLogModal";
+import { batasAkhirHapus } from "@/lib/utils/hapus-log";
 
 const PAGE_SIZE = 10;
 
@@ -29,7 +32,7 @@ export default async function LogWaPage({
 
   return (
     <div className="w-full px-4 pt-2 mb-14">
-      <div className="mb-6 reveal">
+      <div className="mb-6 reveal flex flex-wrap items-start justify-between gap-3">
         <PageTitle icon="fa-comment-slash" title="Log Notifikasi WA">
           Riwayat percobaan kirim notifikasi WhatsApp ke orang tua. Total{" "}
           <strong className="text-gray-700 dark:text-gray-200">{total}</strong> percobaan.
@@ -37,6 +40,7 @@ export default async function LogWaPage({
             <span className="ml-1 text-red-500 font-bold">{jumlahGagal} gagal di antaranya.</span>
           )}
         </PageTitle>
+        <HapusLogModal jenis="wa" batasAkhir={batasAkhirHapus("wa", todayJakarta())} />
       </div>
 
       <div className="section-card shadow-sm overflow-hidden reveal">
@@ -83,6 +87,7 @@ export default async function LogWaPage({
 
         <Pagination page={page} totalPages={totalPages} buildHref={buildPageHref} />
       </div>
+      <InfoJumlah tampil={logs.length} total={total} satuan="percobaan" />
     </div>
   );
 }

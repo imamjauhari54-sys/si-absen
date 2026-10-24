@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ScanDeviceRow } from "@/types";
 import Portal from "@/components/ui/Portal";
+import InfoJumlah from "@/components/ui/InfoJumlah";
 
 const POLL_MS = 8000;
 
@@ -233,6 +234,8 @@ export default function DaftarDevice({ initialDevices }: { initialDevices: ScanD
           </div>
         )}
       </div>
+
+      <InfoJumlah tampil={devices.length} total={devices.length} satuan="device" />
 
       {confirmHapus && (
         <Portal>

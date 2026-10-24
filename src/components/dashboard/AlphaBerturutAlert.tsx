@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { AlphaBerturut } from "@/types";
+import InfoJumlah from "@/components/ui/InfoJumlah";
 
 export default function AlphaBerturutAlert({
   daftar,
@@ -101,6 +102,9 @@ export default function AlphaBerturutAlert({
               })}
             </tbody>
           </table>
+        </div>
+        <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700/50">
+          <InfoJumlah tampil={daftar.length} total={daftar.length} satuan="siswa" className="!mt-0 !px-0" />
         </div>
       </div>
     </div>

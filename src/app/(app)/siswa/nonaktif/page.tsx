@@ -5,6 +5,7 @@ import { requireSession } from "@/lib/auth/session";
 import { getInactiveStudentsPage } from "@/lib/data/siswa";
 import SiswaNonaktifTable from "@/components/siswa/SiswaNonaktifTable";
 import Pagination from "@/components/ui/Pagination";
+import InfoJumlah from "@/components/ui/InfoJumlah";
 import PageTitle from "@/components/ui/PageTitle";
 
 const PAGE_SIZE = 10;
@@ -63,20 +64,9 @@ export default async function SiswaNonaktifPage({
 
       <SiswaNonaktifTable list={list} />
 
-      <Pagination page={page} totalPages={totalPages} buildHref={buildPageHref} />
+      <InfoJumlah tampil={list.length} total={total} satuan="siswa nonaktif" pencarian={search} />
 
-      {total > 0 && (
-        <div className="mt-1 px-1 text-xs text-gray-500 dark:text-gray-400">
-          Menampilkan <strong className="text-gray-700 dark:text-gray-300">{list.length}</strong> dari{" "}
-          <strong className="text-gray-700 dark:text-gray-300">{total}</strong> siswa nonaktif
-          {search && (
-            <>
-              {" "}
-              · Hasil pencarian &quot;<strong>{search}</strong>&quot;
-            </>
-          )}
-        </div>
-      )}
+      <Pagination page={page} totalPages={totalPages} buildHref={buildPageHref} />
     </div>
   );
 }

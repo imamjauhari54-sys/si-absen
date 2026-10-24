@@ -6,6 +6,7 @@ import { getAbsensiSetting } from "@/lib/data/dashboard";
 import { getRekapHistoryPage, getSemuaKelasRekap } from "@/lib/data/rekap";
 import { getListTapel } from "@/lib/data/history";
 import Pagination from "@/components/ui/Pagination";
+import InfoJumlah from "@/components/ui/InfoJumlah";
 import PageTitle from "@/components/ui/PageTitle";
 
 const PAGE_SIZE = 10;
@@ -192,6 +193,7 @@ export default async function RekapHistoryPage({
 
         <Pagination page={page} totalPages={totalPages} buildHref={buildPageHref} />
       </div>
+      <InfoJumlah tampil={pagedRows.length} total={totalSiswa} satuan="siswa" />
     </div>
   );
 }

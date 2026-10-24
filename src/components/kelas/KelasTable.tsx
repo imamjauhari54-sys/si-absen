@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Portal from "@/components/ui/Portal";
+import InfoJumlah from "@/components/ui/InfoJumlah";
 import NotifModal from "@/components/ui/NotifModal";
 import { normalizeKelas } from "@/lib/utils/kelas";
 
@@ -206,6 +207,8 @@ export default function KelasTable({ list }: { list: KelasRow[] }) {
           </table>
         </div>
       </div>
+
+      <InfoJumlah tampil={list.length} total={list.length} satuan="kelas" />
 
       {editing && (
         <Portal>

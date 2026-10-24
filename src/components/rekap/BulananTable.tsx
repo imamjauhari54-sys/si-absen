@@ -4,6 +4,7 @@ import { useState } from "react";
 import "./rekap.css";
 import type { RekapBulananRow, StatusBulanan } from "@/lib/data/rekap";
 import RekapPagination from "@/components/rekap/RekapPagination";
+import InfoJumlah from "@/components/ui/InfoJumlah";
 
 const PAGE_SIZE = 10;
 
@@ -252,6 +253,8 @@ export default function BulananTable({
         )}
         {rows.length > 0 && <RekapPagination page={page} totalPages={totalPages} onChange={setPage} />}
       </div>
+
+      <InfoJumlah tampil={Math.max(0, Math.min(PAGE_SIZE, rows.length - (page - 1) * PAGE_SIZE))} total={rows.length} satuan="siswa" />
     </>
   );
 }

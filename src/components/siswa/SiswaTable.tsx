@@ -8,6 +8,7 @@ import IdCardVisual from "./IdCardVisual";
 import SiswaFormModal from "./SiswaFormModal";
 import Portal from "@/components/ui/Portal";
 import NotifModal from "@/components/ui/NotifModal";
+import KonfirmasiPeringatanModal from "@/components/ui/KonfirmasiPeringatanModal";
 import { todayJakarta } from "@/lib/utils/tanggal";
 
 const AV_COLORS = [
@@ -37,6 +38,7 @@ export default function SiswaTable({
   const [preview, setPreview] = useState<StudentFull | null>(null);
   const [editing, setEditing] = useState<StudentFull | null>(null);
   const [confirmHapus, setConfirmHapus] = useState<StudentFull | null>(null);
+  const [peringatan, setPeringatan] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [notif, setNotif] = useState<{ status: "ok" | "error"; message: string } | null>(null);
   const [alasanNonaktif, setAlasanNonaktif] = useState<"lulus" | "pindah">("lulus");
@@ -58,21 +60,22 @@ export default function SiswaTable({
    * diaktifkan lagi kapan saja lewat halaman "Siswa Nonaktif". Hapus permanen
    * (yang tidak bisa dibatalkan) hanya tersedia di halaman itu.
    */
-  async function nonaktifkanSiswa() {
+  async function nonaktifkanSiswa(sudahKonfirmasi = false) {
     if (!confirmHapus) return;
     setDeleting(true);
     try {
       const form = new FormData();
       form.set("alasan", alasanNonaktif);
       form.set("tanggal", tanggalKeluar);
-      let res = await fetch(`/api/siswa/${confirmHapus.id}/nonaktifkan`, { method: "POST", body: form });
-      let data = await res.json();
+      if (sudahKonfirmasi) form.set("konfirmasi", "1");
+      const res = await fetch(`/api/siswa/${confirmHapus.id}/nonaktifkan`, { method: "POST", body: form });
+      const data = await res.json();
       if (data.status === "konfirmasi") {
-        if (!window.confirm(`${data.message}\n\nTetap nonaktifkan dengan tanggal ini?`)) return;
-        form.set("konfirmasi", "1");
-        res = await fetch(`/api/siswa/${confirmHapus.id}/nonaktifkan`, { method: "POST", body: form });
-        data = await res.json();
+        // Server minta konfirmasi (mis. tanggal hari Minggu / ada absensi sesudahnya): tampilkan modal peringatan.
+        setPeringatan(data.message || "Periksa kembali tanggal pindah.");
+        return;
       }
+      setPeringatan(null);
       const nama = confirmHapus.name;
       tutupKonfirmasiHapus();
       if (data.status === "ok") {
@@ -376,7 +379,7 @@ export default function SiswaTable({
                   Batal
                 </button>
                 <button
-                  onClick={nonaktifkanSiswa}
+                  onClick={() => nonaktifkanSiswa()}
                   disabled={deleting}
                   className="flex-1 py-3.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-70 text-white rounded-2xl text-[10px] font-bold transition-all uppercase tracking-widest shadow-lg shadow-amber-500/20"
                 >
@@ -388,6 +391,15 @@ export default function SiswaTable({
         </Portal>
       )}
 
+      <KonfirmasiPeringatanModal
+        open={peringatan !== null}
+        judul="Periksa Tanggal Pindah"
+        pesan={peringatan ?? ""}
+        labelYa="Ya, Nonaktifkan"
+        busy={deleting}
+        onYa={() => nonaktifkanSiswa(true)}
+        onBatal={() => setPeringatan(null)}
+      />
       <NotifModal open={!!notif} status={notif?.status ?? "ok"} message={notif?.message ?? ""} onClose={tutupNotif} />
     </>
   );

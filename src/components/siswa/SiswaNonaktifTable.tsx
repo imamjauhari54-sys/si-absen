@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import type { StudentFull } from "@/types";
 import Portal from "@/components/ui/Portal";
 import NotifModal from "@/components/ui/NotifModal";
+import KonfirmasiPeringatanModal from "@/components/ui/KonfirmasiPeringatanModal";
+import AktifkanKembaliModal from "@/components/siswa/AktifkanKembaliModal";
 import { formatTglIndo, todayJakarta } from "@/lib/utils/tanggal";
 
 const KATA_KONFIRMASI = "HAPUS";
@@ -15,6 +17,7 @@ export default function SiswaNonaktifTable({ list }: { list: StudentFull[] }) {
   const [hapusTarget, setHapusTarget] = useState<StudentFull | null>(null);
   const [ubahTarget, setUbahTarget] = useState<StudentFull | null>(null);
   const [tanggalBaru, setTanggalBaru] = useState("");
+  const [peringatan, setPeringatan] = useState<string | null>(null);
   const [teksKonfirmasi, setTeksKonfirmasi] = useState("");
   const [busy, setBusy] = useState(false);
   const [notif, setNotif] = useState<{ status: "ok" | "error"; message: string } | null>(null);
@@ -36,46 +39,26 @@ export default function SiswaNonaktifTable({ list }: { list: StudentFull[] }) {
     if (wasSuccess) router.refresh();
   }
 
-  async function aktifkanSiswa() {
-    if (!aktifkanTarget) return;
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/siswa/${aktifkanTarget.id}/aktifkan`, { method: "POST" });
-      const data = await res.json();
-      const nama = aktifkanTarget.name;
-      setAktifkanTarget(null);
-      if (data.status === "ok") {
-        setNotif({ status: "ok", message: `Siswa "${nama}" berhasil diaktifkan kembali.` });
-      } else {
-        setNotif({ status: "error", message: data.message || "Gagal mengaktifkan siswa." });
-      }
-    } catch {
-      setAktifkanTarget(null);
-      setNotif({ status: "error", message: "Terjadi kesalahan jaringan." });
-    } finally {
-      setBusy(false);
-    }
-  }
-
   function bukaUbahTanggal(s: StudentFull) {
     setTanggalBaru(s.tanggal_keluar ?? "");
     setUbahTarget(s);
   }
 
-  async function simpanTanggalKeluar() {
+  async function simpanTanggalKeluar(sudahKonfirmasi = false) {
     if (!ubahTarget) return;
     setBusy(true);
     try {
       const form = new FormData();
       form.set("tanggal", tanggalBaru);
-      let res = await fetch(`/api/siswa/${ubahTarget.id}/tanggal-keluar`, { method: "POST", body: form });
-      let data = await res.json();
+      if (sudahKonfirmasi) form.set("konfirmasi", "1");
+      const res = await fetch(`/api/siswa/${ubahTarget.id}/tanggal-keluar`, { method: "POST", body: form });
+      const data = await res.json();
       if (data.status === "konfirmasi") {
-        if (!window.confirm(`${data.message}\n\nTetap simpan tanggal ini?`)) return;
-        form.set("konfirmasi", "1");
-        res = await fetch(`/api/siswa/${ubahTarget.id}/tanggal-keluar`, { method: "POST", body: form });
-        data = await res.json();
+        // Server minta konfirmasi (mis. tanggal hari Minggu / ada absensi sesudahnya): tampilkan modal peringatan.
+        setPeringatan(data.message || "Periksa kembali tanggal pindah.");
+        return;
       }
+      setPeringatan(null);
       const nama = ubahTarget.name;
       setUbahTarget(null);
       if (data.status === "ok") {
@@ -204,9 +187,16 @@ export default function SiswaNonaktifTable({ list }: { list: StudentFull[] }) {
             onClick={() => !busy && setUbahTarget(null)}
           >
             <div
-              className="bg-white dark:bg-[#1e2235] w-full max-w-[340px] rounded-[2.5rem] p-8 border border-gray-200 dark:border-white/10 shadow-2xl text-center"
+              className="bg-white dark:bg-[#1e2235] w-full max-w-[320px] rounded-[2.5rem] p-8 border border-gray-200 dark:border-white/10 shadow-2xl relative text-center"
               onClick={(e) => e.stopPropagation()}
             >
+              <div className="flex justify-center -mt-16 mb-6">
+                <div className="w-16 h-16 bg-white dark:bg-[#1e2235] border-4 border-gray-100 dark:border-[#282d45] rounded-full flex items-center justify-center shadow-xl">
+                  <div className="w-10 h-10 bg-indigo-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-indigo-500/40">
+                    <i className="fas fa-calendar-day text-sm" />
+                  </div>
+                </div>
+              </div>
               <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-2 tracking-tight">Ubah Tanggal Pindah</h3>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed px-2 mb-5">
                 <strong className="text-gray-700 dark:text-gray-300">{ubahTarget.name}</strong> (Kelas {ubahTarget.class}).
@@ -232,7 +222,7 @@ export default function SiswaNonaktifTable({ list }: { list: StudentFull[] }) {
                   Batal
                 </button>
                 <button
-                  onClick={simpanTanggalKeluar}
+                  onClick={() => simpanTanggalKeluar()}
                   disabled={busy}
                   className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white rounded-2xl text-[10px] font-bold transition-all uppercase tracking-widest shadow-lg shadow-indigo-500/20"
                 >
@@ -244,48 +234,17 @@ export default function SiswaNonaktifTable({ list }: { list: StudentFull[] }) {
         </Portal>
       )}
 
-      {/* Modal konfirmasi: aktifkan kembali */}
+      {/* Modal: aktifkan kembali (pratinjau dampak dulu, lalu konfirmasi) */}
       {aktifkanTarget && (
-        <Portal>
-          <div
-            className="fixed inset-0 z-[999] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md"
-            onClick={() => !busy && setAktifkanTarget(null)}
-          >
-            <div
-              className="bg-white dark:bg-[#1e2235] w-full max-w-[320px] rounded-[2.5rem] p-8 border border-gray-200 dark:border-white/10 shadow-2xl relative text-center"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex justify-center -mt-16 mb-6">
-                <div className="w-16 h-16 bg-white dark:bg-[#1e2235] border-4 border-gray-100 dark:border-[#282d45] rounded-full flex items-center justify-center shadow-xl">
-                  <div className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-500/40">
-                    <i className="fas fa-rotate-left text-sm" />
-                  </div>
-                </div>
-              </div>
-              <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-2 tracking-tight">Aktifkan Kembali?</h3>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed px-2 mb-8">
-                <strong className="text-gray-700 dark:text-gray-300">{aktifkanTarget.name}</strong> (Kelas {aktifkanTarget.class})
-                akan muncul lagi di Data Siswa dan bisa dipakai scan absen seperti biasa.
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setAktifkanTarget(null)}
-                  disabled={busy}
-                  className="flex-1 py-3.5 bg-gray-200 dark:bg-[#282d45] hover:bg-gray-300 dark:hover:bg-[#323858] text-gray-600 dark:text-gray-400 rounded-2xl text-[10px] font-bold transition-all uppercase tracking-widest disabled:opacity-60"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={aktifkanSiswa}
-                  disabled={busy}
-                  className="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-70 text-white rounded-2xl text-[10px] font-bold transition-all uppercase tracking-widest shadow-lg shadow-emerald-500/20"
-                >
-                  {busy ? <i className="fas fa-spinner fa-spin" /> : "Ya, Aktifkan"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </Portal>
+        <AktifkanKembaliModal
+          key={aktifkanTarget.id}
+          siswa={aktifkanTarget}
+          onTutup={() => setAktifkanTarget(null)}
+          onSelesai={(hasil) => {
+            setAktifkanTarget(null);
+            setNotif(hasil);
+          }}
+        />
       )}
 
       {/* Modal konfirmasi: hapus permanen — wajib ketik "HAPUS" */}
@@ -358,6 +317,15 @@ export default function SiswaNonaktifTable({ list }: { list: StudentFull[] }) {
         </Portal>
       )}
 
+      <KonfirmasiPeringatanModal
+        open={peringatan !== null}
+        judul="Periksa Tanggal Pindah"
+        pesan={peringatan ?? ""}
+        labelYa="Ya, Simpan"
+        busy={busy}
+        onYa={() => simpanTanggalKeluar(true)}
+        onBatal={() => setPeringatan(null)}
+      />
       <NotifModal open={!!notif} status={notif?.status ?? "ok"} message={notif?.message ?? ""} onClose={tutupNotif} />
     </>
   );

@@ -1,11 +1,18 @@
 import { describe, it, expect } from "vitest";
 import {
   dalamBatasPindah,
+  dalamJeda,
+  kelompokkanJeda,
+  labelJedaPada,
   labelKeluar,
   perluCekData,
   saringSiswaHarian,
   saringSiswaRekap,
   sudahKeluarPada,
+  tampilPada,
+  tersembunyiJeda,
+  tidakDihitungPada,
+  type JedaSiswa,
 } from "./siswa-harian";
 import { parseTanggalKeluar, pilihRiwayatTerbaru } from "./tanggal-keluar";
 
@@ -167,5 +174,159 @@ describe("pilihRiwayatTerbaru", () => {
   });
   it("daftar kosong menghasilkan map kosong", () => {
     expect(pilihRiwayatTerbaru([]).size).toBe(0);
+  });
+});
+
+// ─── JEDA (migrasi 025, mode "Kembali setelah jeda") ───────────────────────────────────────────────
+// Jeda [dari, sampai) = [tanggal pindah, tanggal kembali). Tidak DIHITUNG di dari <= t < sampai,
+// tidak TAMPIL di dari < t < sampai (pada `dari` tampil dengan lencana, sama seperti tanggal pindah).
+
+const J: JedaSiswa[] = [{ dari: "2026-09-10", sampai: "2026-09-20", alasan: "pindah" }];
+
+describe("dalamJeda / tersembunyiJeda", () => {
+  it("dalamJeda: tanggal pindah ikut tidak dihitung; tanggal kembali SUDAH dihitung", () => {
+    expect(dalamJeda(J, "2026-09-09")).toBe(false);
+    expect(dalamJeda(J, "2026-09-10")).toBe(true);
+    expect(dalamJeda(J, "2026-09-19")).toBe(true);
+    expect(dalamJeda(J, "2026-09-20")).toBe(false);
+  });
+  it("tersembunyiJeda: tanggal pindah masih tampil; tanggal kembali tampil lagi", () => {
+    expect(tersembunyiJeda(J, "2026-09-10")).toBe(false);
+    expect(tersembunyiJeda(J, "2026-09-11")).toBe(true);
+    expect(tersembunyiJeda(J, "2026-09-19")).toBe(true);
+    expect(tersembunyiJeda(J, "2026-09-20")).toBe(false);
+  });
+  it("tanpa jeda: tidak ada pengaruh", () => {
+    expect(dalamJeda(undefined, "2026-09-15")).toBe(false);
+    expect(dalamJeda([], "2026-09-15")).toBe(false);
+    expect(tersembunyiJeda(null, "2026-09-15")).toBe(false);
+  });
+});
+
+describe("tidakDihitungPada / tampilPada — gabungan tanggal pindah dan jeda", () => {
+  it("jeda saja", () => {
+    expect(tidakDihitungPada(null, J, "2026-09-15")).toBe(true);
+    expect(tidakDihitungPada(null, J, "2026-09-25")).toBe(false);
+    expect(tampilPada(null, J, "2026-09-10")).toBe(true);
+    expect(tampilPada(null, J, "2026-09-15")).toBe(false);
+    expect(tampilPada(null, J, "2026-09-25")).toBe(true);
+  });
+  it("jeda lalu pindah lagi (tanggal pindah terbuka sesudah kembali)", () => {
+    expect(tidakDihitungPada("2026-10-10", J, "2026-09-25")).toBe(false); // sudah kembali, belum pindah lagi
+    expect(tidakDihitungPada("2026-10-10", J, "2026-10-10")).toBe(true);
+    expect(tampilPada("2026-10-10", J, "2026-10-10")).toBe(true); // hari terakhir tampil
+    expect(tampilPada("2026-10-10", J, "2026-10-11")).toBe(false);
+  });
+});
+
+describe("labelJedaPada", () => {
+  it("lencana hanya pada tanggal awal jeda", () => {
+    expect(labelJedaPada(J, "2026-09-10")).toBe("Pindah · 10 Sep 2026");
+    expect(labelJedaPada(J, "2026-09-11")).toBeNull();
+    expect(labelJedaPada([], "2026-09-10")).toBeNull();
+  });
+});
+
+describe("kelompokkanJeda", () => {
+  it("mengelompokkan per siswa, urut tanggal, dan membuang baris tanpa dua ujung", () => {
+    const peta = kelompokkanJeda([
+      { siswa_id: 1, pindah_pada: "2026-10-01", kembali_pada: "2026-10-05", alasan: "pindah" },
+      { siswa_id: 1, pindah_pada: "2026-08-01", kembali_pada: "2026-08-03", alasan: null },
+      { siswa_id: 2, pindah_pada: "2026-09-01", kembali_pada: null },
+      { siswa_id: 3, pindah_pada: null, kembali_pada: "2026-09-01" },
+    ]);
+    expect(peta.get(1)!.map((j) => j.dari)).toEqual(["2026-08-01", "2026-10-01"]);
+    expect(peta.has(2)).toBe(false);
+    expect(peta.has(3)).toBe(false);
+  });
+});
+
+describe("saringSiswaRekap — jeda", () => {
+  const siswa = [{ id: 1, jeda: J }, { id: 2 }];
+
+  it("harian: tampil di tanggal pindah, hilang di tengah jeda, tampil lagi saat kembali", () => {
+    const hari = (t: string) => saringSiswaRekap(siswa, { ...dasar, periode: [t] }).map((s) => s.id);
+    expect(hari("2026-09-09")).toEqual([1, 2]);
+    expect(hari("2026-09-10")).toEqual([1, 2]);
+    expect(hari("2026-09-15")).toEqual([2]);
+    expect(hari("2026-09-20")).toEqual([1, 2]);
+  });
+
+  it("bulanan: tampil selama MASIH ada hari yang tampil di bulan itu (bukan hanya hari pertama)", () => {
+    const sept = ["2026-09-01", "2026-09-02", "2026-09-21", "2026-09-22"]; // sebagian di luar jeda
+    expect(saringSiswaRekap(siswa, { ...dasar, periode: sept }).map((s) => s.id)).toEqual([1, 2]);
+    const jedaPanjang: JedaSiswa[] = [{ dari: "2026-08-15", sampai: "2026-10-10" }];
+    const septPenuh = ["2026-09-01", "2026-09-02", "2026-09-03"]; // seluruh bulan di tengah jeda
+    expect(saringSiswaRekap([{ id: 1, jeda: jedaPanjang }], { ...dasar, periode: septPenuh })).toHaveLength(0);
+    const okt = ["2026-10-01", "2026-10-12"]; // kembali 10 Okt: ada hari tampil
+    expect(saringSiswaRekap([{ id: 1, jeda: jedaPanjang }], { ...dasar, periode: okt })).toHaveLength(1);
+  });
+
+  it("jeda + pindah lagi: tampil bila ada hari yang tampil menurut KEDUA aturan", () => {
+    const s = [{ id: 1, nonaktif_pada: "2026-10-10", jeda: J }];
+    expect(saringSiswaRekap(s, { ...dasar, periode: ["2026-10-11"] })).toHaveLength(0); // sesudah pindah lagi
+    expect(saringSiswaRekap(s, { ...dasar, periode: ["2026-09-25"] })).toHaveLength(1);
+  });
+
+  it("awalPeriode lama tetap bekerja untuk pemanggil yang belum memakai periode", () => {
+    expect(saringSiswaRekap([{ id: 1, nonaktif_pada: "2026-10-10" }], { ...dasar, awalPeriode: "2026-10-11" })).toHaveLength(0);
+    expect(saringSiswaRekap([{ id: 1, nonaktif_pada: "2026-10-10" }], { ...dasar, awalPeriode: "2026-10-10" })).toHaveLength(1);
+  });
+
+  it("history semester: siswa dengan jeda tampil bila punya data; tetap tampil (0) di semester awal jedanya", () => {
+    const opsi = { ...dasar, semesterRekap: "ganjil" };
+    expect(saringSiswaRekap([{ id: 1, jeda: J }], { ...opsi, adaAbsenIds: new Set([1]) })).toHaveLength(1);
+    expect(saringSiswaRekap([{ id: 1, jeda: J }], opsi)).toHaveLength(1); // jeda mulai 10 Sep 2026 = tapel 2026/2027 ganjil
+    expect(saringSiswaRekap([{ id: 1, jeda: J }], { ...opsi, semesterRekap: "genap" })).toHaveLength(0);
+  });
+
+  it("perluCekData: siswa dengan jeda wajib dicek meski aktif", () => {
+    expect(perluCekData({ id: 1, jeda: J }, dasar)).toBe(true);
+    expect(perluCekData({ id: 1, jeda: [] }, dasar)).toBe(false);
+  });
+});
+
+describe("dalamBatasPindah — jeda", () => {
+  it("record di dalam jeda tidak dihitung walau tapel tanpa batas pindah", () => {
+    expect(dalamBatasPindah(T, "2026-09-15", new Map(), J)).toBe(false);
+    expect(dalamBatasPindah(T, "2026-09-20", new Map(), J)).toBe(true);
+  });
+  it("tanpa parameter jeda: perilaku lama tidak berubah", () => {
+    expect(dalamBatasPindah(T, "2026-09-15", new Map([[T, "2026-10-01"]]))).toBe(true);
+    expect(dalamBatasPindah(T, "2026-10-01", new Map([[T, "2026-10-01"]]))).toBe(false);
+  });
+});
+
+/**
+ * SATU ATURAN HITUNG. Skenario ini SAMA PERSIS dengan "UJI Y" di supabase/tests/aktifkan_siswa.test.sql:
+ * 10 hari sekolah d1..d10; pindah di d3, kembali di d8 (jeda [d3,d8)); lalu pindah lagi di d10 (terbuka).
+ * Database (hari_dihitung_siswa) menghitung 4 hari: d1, d2, d8, d9. TypeScript harus menghasilkan himpunan yang sama.
+ * Kalau salah satu aturan diubah, kedua tes ini harus diubah bersama.
+ */
+describe("satu aturan hitung — kembar dengan aktifkan_siswa.test.sql", () => {
+  const hari = Array.from({ length: 10 }, (_, i) => `2026-09-${String(i + 1).padStart(2, "0")}`); // d1..d10
+  const jeda: JedaSiswa[] = [{ dari: hari[2], sampai: hari[7] }]; // [d3, d8)
+  const nonaktifPada = hari[9]; // d10, pindah lagi
+
+  it("hari yang dihitung = d1, d2, d8, d9 (4 hari)", () => {
+    const dihitung = hari.filter((t) => !tidakDihitungPada(nonaktifPada, jeda, t));
+    expect(dihitung).toEqual([hari[0], hari[1], hari[7], hari[8]]);
+  });
+
+  it("hari yang tampil = semua sampai d10, kecuali d4..d7 (di tengah jeda)", () => {
+    const tampil = hari.filter((t) => tampilPada(nonaktifPada, jeda, t));
+    expect(tampil).toEqual([hari[0], hari[1], hari[2], hari[7], hari[8], hari[9]]);
+  });
+
+  it("pembilang (rekap_history_siswa) mengikuti aturan yang sama: record d5 (di dalam jeda) tidak dihitung", () => {
+    const records = [hari[0], hari[1], hari[4]]; // Y punya record d1, d2, d5
+    const hadir = records.filter((t) => !tidakDihitungPada(null, jeda, t)).length;
+    expect(hadir).toBe(2); // SQL: "hadir 2, bukan 3"
+  });
+
+  it("tanggal pindah pertama (d3) tidak dihitung tetapi masih tampil; d4 tidak tampil", () => {
+    expect(tidakDihitungPada(nonaktifPada, jeda, hari[2])).toBe(true);
+    expect(tampilPada(nonaktifPada, jeda, hari[2])).toBe(true);
+    expect(tampilPada(nonaktifPada, jeda, hari[3])).toBe(false);
   });
 });

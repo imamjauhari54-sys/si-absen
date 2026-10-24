@@ -17,6 +17,7 @@ import RiwayatKelas from "@/components/history/RiwayatKelas";
 import { formatTglPanjang } from "@/lib/utils/tanggal";
 import { paginasi } from "@/lib/utils/paginasi";
 import Pagination from "@/components/ui/Pagination";
+import InfoJumlah from "@/components/ui/InfoJumlah";
 import HistoryWidgets from "@/components/history/HistoryWidgets";
 import HistoryChart from "@/components/history/HistoryChart";
 import "@/components/history/history.css";
@@ -293,14 +294,12 @@ export default async function HistorySiswaPage({
             </table>
           </div>
           {total > PAGE_SIZE && (
-            <div className="border-t border-gray-100 dark:border-white/[0.05] px-5 flex flex-col sm:flex-row items-center justify-between gap-1">
-              <span className="text-xs text-gray-500 dark:text-gray-400 pt-4 sm:pt-0">
-                Menampilkan {pg.dari + 1}–{pg.sampai} dari {total} hari
-              </span>
+            <div className="border-t border-gray-100 dark:border-white/[0.05] px-5 flex justify-center">
               <Pagination page={pg.page} totalPages={pg.totalPages} buildHref={buildPageHref} />
             </div>
           )}
         </div>
+        <InfoJumlah tampil={pg.sampai - pg.dari} total={total} satuan="hari" />
       </div>
     </div>
   );

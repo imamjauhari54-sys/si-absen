@@ -9,6 +9,7 @@ import Portal from "@/components/ui/Portal";
 import NotifModal from "@/components/ui/NotifModal";
 import LampiranUploader from "@/components/rekap/LampiranUploader";
 import RekapPagination from "@/components/rekap/RekapPagination";
+import InfoJumlah from "@/components/ui/InfoJumlah";
 
 const PAGE_SIZE = 10;
 
@@ -266,6 +267,8 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
         <RekapPagination page={page} totalPages={totalPages} onChange={setPage} />
       </div>
 
+      <InfoJumlah tampil={Math.max(0, Math.min(PAGE_SIZE, rows.length - (page - 1) * PAGE_SIZE))} total={rows.length} satuan="siswa" />
+
       {editing && (
         <Portal>
         <div
@@ -396,44 +399,47 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
       {memulihkan?.pulihkan && (
         <Portal>
           <div
-            className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm no-print"
-            onClick={(e) => e.target === e.currentTarget && !prosesPulihkan && setMemulihkan(null)}
+            className="fixed inset-0 z-[210] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md no-print"
+            onClick={() => !prosesPulihkan && setMemulihkan(null)}
           >
-            <div className="modal-inner bg-white dark:bg-[#1e2535] rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700/60 w-full max-w-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50 bg-gray-50 dark:bg-gray-800/30">
-                <span className="text-xs font-extrabold text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                  <i className="fas fa-rotate-left text-amber-500" /> Pulihkan Edit Manual
-                </span>
-              </div>
-              <div className="p-5 space-y-3 text-sm text-gray-700 dark:text-gray-300">
-                <p>
-                  Kembalikan data <strong className="text-gray-900 dark:text-white">{memulihkan.name}</strong> pada tanggal ini
-                  seperti <strong>sebelum</strong> diedit?
-                </p>
-                <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-xs">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Akan dikembalikan ke</div>
-                  {ringkasSebelum(memulihkan.pulihkan.sebelum)}
+            <div
+              className="modal-inner bg-white dark:bg-[#1e2235] w-full max-w-[320px] rounded-[2.5rem] p-8 border border-gray-200 dark:border-white/10 shadow-2xl relative text-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-center -mt-16 mb-6">
+                <div className="w-16 h-16 bg-white dark:bg-[#1e2235] border-4 border-gray-100 dark:border-[#282d45] rounded-full flex items-center justify-center shadow-xl">
+                  <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-amber-500/40">
+                    <i className="fas fa-rotate-left text-sm" />
+                  </div>
                 </div>
-                <p className="text-[11px] text-gray-400 dark:text-gray-500">
-                  Diedit oleh {memulihkan.pulihkan.dieditOleh ?? "-"} · {memulihkan.pulihkan.dieditPada} WIB. Bisa dipulihkan
-                  sampai {memulihkan.pulihkan.batasPulihkan} WIB.
-                </p>
               </div>
-              <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700/50 flex gap-3 bg-gray-50 dark:bg-gray-800/30">
+              <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-2 tracking-tight">Pulihkan Edit Manual?</h3>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed px-2 mb-4">
+                Kembalikan data <strong className="text-gray-700 dark:text-gray-300">{memulihkan.name}</strong> pada tanggal ini
+                seperti <strong>sebelum</strong> diedit?
+              </p>
+              <div className="text-left rounded-xl bg-gray-100 dark:bg-[#282d45] border border-gray-200 dark:border-white/10 px-3 py-2.5 text-xs text-gray-700 dark:text-gray-200 mb-3">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Akan dikembalikan ke</div>
+                {ringkasSebelum(memulihkan.pulihkan.sebelum)}
+              </div>
+              <p className="text-[10px] text-gray-400 leading-relaxed px-1 mb-8">
+                Diedit oleh {memulihkan.pulihkan.dieditOleh ?? "-"} · {memulihkan.pulihkan.dieditPada} WIB. Bisa dipulihkan
+                sampai {memulihkan.pulihkan.batasPulihkan} WIB.
+              </p>
+              <div className="flex gap-3">
                 <button
                   onClick={() => setMemulihkan(null)}
                   disabled={prosesPulihkan}
-                  className="flex-1 px-4 py-2.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 disabled:opacity-60 text-gray-700 dark:text-gray-200 rounded-xl text-sm font-bold transition"
+                  className="flex-1 py-3.5 bg-gray-200 dark:bg-[#282d45] hover:bg-gray-300 dark:hover:bg-[#323858] text-gray-600 dark:text-gray-400 rounded-2xl text-[10px] font-bold transition-all uppercase tracking-widest disabled:opacity-60"
                 >
                   Batal
                 </button>
                 <button
                   onClick={pulihkanEdit}
                   disabled={prosesPulihkan}
-                  className="flex-1 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white rounded-xl text-sm font-bold shadow-sm transition flex items-center justify-center gap-2 active:scale-95"
+                  className="flex-1 py-3.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-70 text-white rounded-2xl text-[10px] font-bold transition-all uppercase tracking-widest shadow-lg shadow-amber-500/20"
                 >
-                  {prosesPulihkan ? <i className="fas fa-spinner fa-spin" /> : <i className="fas fa-rotate-left" />}
-                  {prosesPulihkan ? "Memulihkan..." : "Pulihkan"}
+                  {prosesPulihkan ? <i className="fas fa-spinner fa-spin" /> : "Ya, Pulihkan"}
                 </button>
               </div>
             </div>

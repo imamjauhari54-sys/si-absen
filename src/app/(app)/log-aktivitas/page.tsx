@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import { requireSession } from "@/lib/auth/session";
 import { getLogAktivitasPage } from "@/lib/data/log-aktivitas";
 import Pagination from "@/components/ui/Pagination";
+import InfoJumlah from "@/components/ui/InfoJumlah";
 import PageTitle from "@/components/ui/PageTitle";
+import HapusLogModal from "@/components/log/HapusLogModal";
+import { batasAkhirHapus, MIN_UMUR_LOG_AKTIVITAS_HARI } from "@/lib/utils/hapus-log";
+import { todayJakarta } from "@/lib/utils/tanggal";
 
 const PAGE_SIZE = 10;
 
@@ -25,6 +29,8 @@ const AKSI_ICON: Record<string, { icon: string; warna: string }> = {
   batal_kenaikan_kelas: { icon: "fa-rotate-left", warna: "text-rose-500 bg-rose-50 dark:bg-rose-900/20" },
   edit_absensi: { icon: "fa-pen-to-square", warna: "text-violet-500 bg-violet-50 dark:bg-violet-900/20" },
   pulihkan_absensi: { icon: "fa-rotate-left", warna: "text-amber-500 bg-amber-50 dark:bg-amber-900/20" },
+  hapus_log_aktivitas: { icon: "fa-broom", warna: "text-red-500 bg-red-50 dark:bg-red-900/20" },
+  hapus_log_wa: { icon: "fa-broom", warna: "text-red-500 bg-red-50 dark:bg-red-900/20" },
   import_siswa: { icon: "fa-file-import", warna: "text-blue-500 bg-blue-50 dark:bg-blue-900/20" },
 };
 
@@ -42,11 +48,12 @@ export default async function LogAktivitasPage({
 
   return (
     <div className="w-full px-4 pt-2 mb-14">
-      <div className="mb-6 reveal">
+      <div className="mb-6 reveal flex flex-wrap items-start justify-between gap-3">
         <PageTitle icon="fa-clock-rotate-left" title="Log Aktivitas">
           Riwayat perubahan pengguna, siswa, dan data kelas oleh admin. Total{" "}
           <strong className="text-gray-700 dark:text-gray-200">{total}</strong> aktivitas tercatat.
         </PageTitle>
+        <HapusLogModal jenis="aktivitas" batasAkhir={batasAkhirHapus("aktivitas", todayJakarta())} minUmurHari={MIN_UMUR_LOG_AKTIVITAS_HARI} />
       </div>
 
       <div className="section-card shadow-sm overflow-hidden reveal">
@@ -84,6 +91,7 @@ export default async function LogAktivitasPage({
 
         <Pagination page={page} totalPages={totalPages} buildHref={buildPageHref} />
       </div>
+      <InfoJumlah tampil={logs.length} total={total} satuan="aktivitas" />
     </div>
   );
 }
