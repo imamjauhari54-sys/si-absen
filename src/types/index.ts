@@ -90,6 +90,8 @@ export interface AlphaBerturut {
   hari: number;
   sejak: string;
   sejakFmt: string;
+  /** Berapa hari dalam rentetan yang Alpha-nya diisi sistem saat siswa diaktifkan kembali (belum ada catatan) — perlu dikoreksi bila keliru. */
+  diisiSistem?: number;
 }
 
 export interface TrenHarian {

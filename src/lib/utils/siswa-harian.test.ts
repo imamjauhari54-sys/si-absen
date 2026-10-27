@@ -5,7 +5,9 @@ import {
   kelompokkanJeda,
   labelJedaPada,
   labelKeluar,
+  penyebutSiswa,
   perluCekData,
+  perluHitungPerSiswa,
   saringSiswaHarian,
   saringSiswaRekap,
   sudahKeluarPada,
@@ -328,5 +330,29 @@ describe("satu aturan hitung — kembar dengan aktifkan_siswa.test.sql", () => {
     expect(tidakDihitungPada(nonaktifPada, jeda, hari[2])).toBe(true);
     expect(tampilPada(nonaktifPada, jeda, hari[2])).toBe(true);
     expect(tampilPada(nonaktifPada, jeda, hari[3])).toBe(false);
+  });
+});
+
+describe("penyebutSiswa — penyebut persentase history", () => {
+  const hariDihitung = new Map([[1, 24], [2, 20], [3, 0]]);
+  const TOTAL = 35;
+  it("siswa tanpa pindah/jeda: hari efektif penuh", () => {
+    expect(penyebutSiswa({ id: 9 }, hariDihitung, TOTAL)).toBe(35);
+    expect(penyebutSiswa({ id: 9, jeda: [] }, hariDihitung, TOTAL)).toBe(35);
+  });
+  it("siswa dengan JEDA saja: hasil hari_dihitung_siswa (regresi: dulu memakai hari efektif penuh)", () => {
+    expect(penyebutSiswa({ id: 1, jeda: [{ dari: "2026-10-02", sampai: "2026-10-15" }] }, hariDihitung, TOTAL)).toBe(24);
+  });
+  it("siswa dengan tanggal pindah: hasil hari_dihitung_siswa", () => {
+    expect(penyebutSiswa({ id: 2, nonaktif_pada: "2026-10-01" }, hariDihitung, TOTAL)).toBe(20);
+  });
+  it("siswa pindah/jeda yang tidak muncul di hasil = 0 hari dihitung", () => {
+    expect(penyebutSiswa({ id: 77, nonaktif_pada: "2026-07-01" }, hariDihitung, TOTAL)).toBe(0);
+    expect(penyebutSiswa({ id: 3, jeda: [{ dari: "a", sampai: "b" }] }, hariDihitung, TOTAL)).toBe(0);
+  });
+  it("perluHitungPerSiswa", () => {
+    expect(perluHitungPerSiswa({})).toBe(false);
+    expect(perluHitungPerSiswa({ nonaktif_pada: "2026-10-01" })).toBe(true);
+    expect(perluHitungPerSiswa({ jeda: [{ dari: "a", sampai: "b" }] })).toBe(true);
   });
 });

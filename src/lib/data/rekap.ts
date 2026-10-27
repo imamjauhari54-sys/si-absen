@@ -5,11 +5,14 @@ import { getKelasTapel, getSiswaTapel, tapelUntukBulan, tapelUntukTanggal } from
 import { getAbsensiSetting } from "@/lib/data/dashboard";
 import { ambilNonaktifIds } from "@/lib/data/nonaktif";
 import { ambilJedaSiswa, ambilJedaTapel } from "@/lib/data/jeda";
+import { catatanJedaPortal, ketTidakDihitung, labelJedaBulan } from "@/lib/utils/ket-jeda";
 import {
   dalamJeda,
   labelJedaPada,
   labelKeluar,
+  penyebutSiswa,
   perluCekData,
+  perluHitungPerSiswa,
   saringSiswaRekap,
   tidakDihitungPada,
 } from "@/lib/utils/siswa-harian";
@@ -270,12 +273,16 @@ export interface RekapBulananRow {
   nama: string;
   kelas: string;
   labelKeluar: string | null;
+  /** Lencana jeda pada bulan ini, mis. "Jeda 15 Agu 2026 – 9 Sep 2026"; null bila tidak ada. Menjelaskan sel "×". */
+  jedaLabel: string | null;
   hadir: number;
   terlambat: number;
   izin: number;
   sakit: number;
   alpha: number;
   d: Record<string, StatusBulanan>; // tanggal -> status
+  /** Penjelasan sel "×" (tanggal -> teks): jeda atau sudah pindah. Hanya berisi sel yang tidak dihitung. */
+  ket: Record<string, string>;
 }
 
 /** Daftar tanggal Senin-Sabtu (exclude Minggu) dalam satu bulan kalender. */
@@ -399,12 +406,11 @@ export async function getRekapHistoryPage(
   const totalPages = Math.max(1, Math.ceil(totalSiswa / pageSize));
   const pageAman = Math.min(Math.max(1, page), totalPages);
   const from = (pageAman - 1) * pageSize;
+  // PENTING: sebarkan seluruh field (`...s`) agar `jeda` dan `nonaktif_pada` tetap ada untuk penyebut per siswa.
   const list = semuaSiswa.slice(from, from + pageSize).map((s) => ({
-    id: s.siswa_id,
+    ...s,
     name: s.nama,
     class: s.kelas,
-    nisn: s.nisn,
-    nonaktif_pada: s.nonaktif_pada,
     labelKeluar: labelKeluar(s.alasan_nonaktif, s.nonaktif_pada),
   }));
   if (list.length === 0) return { rows: [], totalHariEfektif, totalSiswa, totalPages, page: pageAman };
@@ -412,7 +418,9 @@ export async function getRekapHistoryPage(
   const ids = list.map((s) => s.id);
   const [mapAbsen, hariDihitung] = await Promise.all([
     ambilAgregatSemester(tapel, semester, ids),
-    petaHariDihitung(tapel, semester, ids),
+    // Hanya siswa yang punya tanggal pindah/jeda yang perlu dihitung per siswa; sisanya = hari efektif penuh
+    // (totalHariEfektif yang sudah ada) — hasilnya identik (dites), tetapi menghemat satu pemindaian absensi.
+    petaHariDihitung(tapel, semester, list.filter(perluHitungPerSiswa).map((s) => s.id)),
   ]);
 
   const rows: RekapHistoryRow[] = list.map((s) => {
@@ -422,7 +430,7 @@ export async function getRekapHistoryPage(
     const izin = m.izin ?? 0;
     const sakit = m.sakit ?? 0;
     const alpha = m.alpha ?? 0;
-    const penyebut = hariDihitung.get(s.id) ?? 0;
+    const penyebut = penyebutSiswa(s, hariDihitung, totalHariEfektif);
     const persen = penyebut > 0 ? Math.round(((hadir + telat) / penyebut) * 1000) / 10 : 0;
     return { nama: s.name, kelas: s.class, nisn: s.nisn, labelKeluar: s.labelKeluar, hadir, telat, izin, sakit, alpha, persen };
   });
@@ -459,7 +467,7 @@ export async function getRekapHistory(
 
   const [mapAbsen, hariDihitung] = await Promise.all([
     ambilAgregatSemester(tapel, semester, semua.map((s) => s.id)),
-    petaHariDihitung(tapel, semester, semua.map((s) => s.id)),
+    petaHariDihitung(tapel, semester, semua.filter(perluHitungPerSiswa).map((s) => s.id)),
   ]);
   const [nonaktifIds, setting] = await Promise.all([ambilNonaktifIds(), getAbsensiSetting()]);
   const list = saringSiswaRekap(semua, {
@@ -478,7 +486,7 @@ export async function getRekapHistory(
     const izin = m.izin ?? 0;
     const sakit = m.sakit ?? 0;
     const alpha = m.alpha ?? 0;
-    const penyebut = hariDihitung.get(s.id) ?? 0;
+    const penyebut = penyebutSiswa(s, hariDihitung, totalHariEfektif);
     const persen = penyebut > 0 ? Math.round(((hadir + telat) / penyebut) * 1000) / 10 : 0;
     return { nama: s.name, kelas: s.class, nisn: s.nisn, labelKeluar: s.labelKeluar, hadir, telat, izin, sakit, alpha, persen };
   });
@@ -488,6 +496,10 @@ export async function getRekapHistory(
 
 export interface RekapBulananSiswaResult {
   d: Record<string, StatusBulanan>;
+  /** Penjelasan sel "×" (tanggal -> teks). */
+  ket: Record<string, string>;
+  /** Catatan untuk siswa/orang tua bila ada jeda di bulan ini (bahasa sederhana); kosong bila tidak ada. */
+  catatanJeda: string[];
   tglList: string[];
   hadir: number;
   terlambat: number;
@@ -522,6 +534,8 @@ export async function getRekapBulananSiswa(
 
   const result: RekapBulananSiswaResult = {
     d: {},
+    ket: {},
+    catatanJeda: catatanJedaPortal(jeda, bulanYYYYMM),
     tglList,
     hadir: 0,
     terlambat: 0,
@@ -536,6 +550,8 @@ export async function getRekapBulananSiswa(
       st = "libur";
     } else if (dalamJeda(jeda, tgl)) {
       st = "nonaktif"; // hari jeda (migrasi 025): tidak dihitung, sama seperti rekap bulanan admin
+      const ket = ketTidakDihitung(null, null, jeda, tgl);
+      if (ket) result.ket[tgl] = ket;
     } else {
       const defaultStatus: StatusBulanan = tgl < today ? "alpha" : "kosong";
       st = am.get(tgl) ?? defaultStatus;
@@ -566,6 +582,7 @@ export async function getRekapBulanan(
     name: s.nama,
     class: s.kelas,
     nonaktif_pada: s.nonaktif_pada,
+    alasan: s.alasan_nonaktif,
     jeda: jedaMap.get(s.siswa_id) ?? [],
     labelKeluar: labelKeluar(s.alasan_nonaktif, s.nonaktif_pada),
   }));
@@ -615,12 +632,14 @@ export async function getRekapBulanan(
       nama: s.name,
       kelas: s.class,
       labelKeluar: s.labelKeluar,
+      jedaLabel: labelJedaBulan(s.jeda, bulanYYYYMM),
       hadir: 0,
       terlambat: 0,
       izin: 0,
       sakit: 0,
       alpha: 0,
       d: {},
+      ket: {},
     };
     for (const tgl of tglList) {
       let st: StatusBulanan;
@@ -632,6 +651,8 @@ export async function getRekapBulanan(
         // Berlaku juga untuk hari jeda (migrasi 025): sel "nonaktif", tidak dihitung.
         if (tidakDihitungPada(s.nonaktif_pada, s.jeda, tgl)) {
           st = "nonaktif";
+          const ket = ketTidakDihitung(s.nonaktif_pada, s.alasan, s.jeda, tgl);
+          if (ket) row.ket[tgl] = ket;
         } else {
           st = am.get(s.id)?.get(tgl) ?? (tgl < today ? "alpha" : "kosong");
           if (st === "hadir" || st === "terlambat" || st === "izin" || st === "sakit" || st === "alpha") {

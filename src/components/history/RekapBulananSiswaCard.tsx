@@ -8,6 +8,7 @@ const LEG: { k: string; cls: string; lbl: string }[] = [
   { k: "S", cls: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400", lbl: "Sakit" },
   { k: "A", cls: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400", lbl: "Alpha" },
   { k: "L", cls: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400", lbl: "Libur" },
+  { k: "×", cls: "bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border border-dashed border-slate-300", lbl: "Tidak dihitung" },
 ];
 
 const LBL_MAP: Record<StatusBulanan, string> = {
@@ -86,12 +87,23 @@ export default function RekapBulananSiswaCard({
         ))}
       </div>
 
+      {data.catatanJeda?.length > 0 && (
+        <div className="mt-3 mb-1 space-y-1.5" role="note">
+          {data.catatanJeda.map((t, i) => (
+            <p key={i} className="text-[11px] leading-relaxed text-sky-800 dark:text-sky-300 bg-sky-50 dark:bg-sky-900/20 rounded-xl px-3 py-2">
+              <i className="fas fa-circle-info mr-1.5 text-[10px]" />
+              {t}
+            </p>
+          ))}
+        </div>
+      )}
+
       <div className="detail-grid">
         {data.tglList.map((tgl) => {
           const st = data.d[tgl] ?? "alpha";
           const d = new Date(`${tgl}T00:00:00Z`);
           return (
-            <div key={tgl} className="detail-cell" style={DETAIL_STYLE[st]} title={tglTitle(tgl, st, liburKeterangan[tgl])}>
+            <div key={tgl} className="detail-cell" style={DETAIL_STYLE[st]} title={data.ket?.[tgl] ? `${tglTitle(tgl, st, liburKeterangan[tgl])} — ${data.ket[tgl]}` : tglTitle(tgl, st, liburKeterangan[tgl])}>
               {LBL_MAP[st]}
               <span>
                 {String(d.getUTCDate()).padStart(2, "0")}

@@ -46,3 +46,25 @@ export async function ambilJedaSiswa(siswaId: number): Promise<JedaSiswa[]> {
   }
   return kelompokkanJeda((data ?? []) as BarisJeda[]).get(siswaId) ?? [];
 }
+
+/**
+ * Jeda yang masih relevan sejak `tanggal` (berakhir pada/sesudahnya), untuk SEMUA siswa: siswa_id -> jeda.
+ * Dipakai peringatan Alpha berturut-turut (jendela 14 hari) agar hari jeda tidak ikut terhitung.
+ */
+export async function ambilJedaSejak(tanggal: string): Promise<Map<number, JedaSiswa[]>> {
+  try {
+    const rows = await ambilSemua<BarisJeda>((dari, sampai) =>
+      supabaseAdmin
+        .from("riwayat_status_siswa")
+        .select(KOLOM)
+        .eq("mode", "kembali_setelah_jeda")
+        .gte("kembali_pada", tanggal)
+        .order("id")
+        .range(dari, sampai)
+    );
+    return kelompokkanJeda(rows);
+  } catch (e) {
+    console.error("[ambilJedaSejak]", e instanceof Error ? e.message : e);
+    return new Map();
+  }
+}

@@ -15,6 +15,7 @@ const LEG: { k: string; cls: string; lbl: string }[] = [
   { k: "S", cls: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400", lbl: "Sakit" },
   { k: "A", cls: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400", lbl: "Alpha" },
   { k: "L", cls: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400", lbl: "Libur" },
+  { k: "×", cls: "bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border border-dashed border-slate-300", lbl: "Tidak dihitung (pindah/jeda), bukan alpha" },
 ];
 
 const CS_MAP: Record<StatusBulanan, string> = {
@@ -148,12 +149,13 @@ export default function BulananTable({
                       <div className="text-[10px] font-normal text-gray-400 dark:text-gray-500">
                         Kelas {row.kelas}
                         {row.labelKeluar && <span className="ml-1.5 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-bold">{row.labelKeluar}</span>}
+                        {row.jedaLabel && <span className="ml-1.5 px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 font-bold" title="Hari jeda ditandai × dan tidak dihitung. Bukan alpha; data absensi tetap tersimpan.">{row.jedaLabel}</span>}
                       </div>
                     </td>
                     {tglList.map((tgl) => {
                       const st = row.d[tgl] ?? "alpha";
                       return (
-                        <td key={tgl} className={`${CS_MAP[st]} py-2 text-[11px] cursor-default`} title={tglTitle(tgl, st, liburKeterangan[tgl])}>
+                        <td key={tgl} className={`${CS_MAP[st]} py-2 text-[11px] cursor-default`} title={row.ket?.[tgl] ? `${tglTitle(tgl, st, liburKeterangan[tgl])} — ${row.ket[tgl]}` : tglTitle(tgl, st, liburKeterangan[tgl])}>
                           {LBL_MAP[st]}
                         </td>
                       );
@@ -215,6 +217,7 @@ export default function BulananTable({
                     <div className="text-[10px] text-gray-400">
                       Kelas {row.kelas}
                       {row.labelKeluar && <span className="ml-1.5 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-bold">{row.labelKeluar}</span>}
+                      {row.jedaLabel && <span className="ml-1.5 px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 font-bold">{row.jedaLabel}</span>}
                     </div>
                   </div>
                   <div className="text-gray-400 transition-transform duration-300" style={{ transform: isOpen ? "rotate(180deg)" : undefined }}>
@@ -236,7 +239,7 @@ export default function BulananTable({
                       const st = row.d[tgl] ?? "alpha";
                       const d = new Date(`${tgl}T00:00:00Z`);
                       return (
-                        <div key={tgl} className="detail-cell" style={DETAIL_STYLE[st]}>
+                        <div key={tgl} className="detail-cell" style={DETAIL_STYLE[st]} title={row.ket?.[tgl]}>
                           {LBL_MAP[st]}
                           <span>
                             {String(d.getUTCDate()).padStart(2, "0")}

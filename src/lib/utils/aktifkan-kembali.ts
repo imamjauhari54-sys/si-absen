@@ -13,6 +13,13 @@
 import { tanggalValid } from "@/lib/utils/absen-edit";
 import { addDaysJakarta, formatTglIndo } from "@/lib/utils/tanggal";
 
+/**
+ * Keterangan pada baris Alpha yang diisi aktifkan_siswa() mode A. HARUS sama persis dengan teks di
+ * supabase/migrations/025_aktifkan_kembali.sql (dijaga test). Dipakai untuk menandai Alpha buatan sistem,
+ * mis. di peringatan Alpha berturut-turut, supaya admin tahu itu perlu dikoreksi lewat Edit Manual.
+ */
+export const KETERANGAN_ALPHA_PULIH = "Diisi sistem saat siswa diaktifkan kembali (belum ada catatan)";
+
 export const MODE_AKTIFKAN = ["batal_pindah", "kembali_setelah_jeda"] as const;
 export type ModeAktifkan = (typeof MODE_AKTIFKAN)[number];
 

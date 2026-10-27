@@ -59,18 +59,21 @@ export async function GET(req: NextRequest) {
     const liburMap = await getHariLiburMap();
     const tglList = daftarTanggalBulan(bulan);
 
-    const header = ["Nama Siswa", "Kelas", ...tglList.map((t) => t.slice(8, 10)), "H", "T", "I", "S", "A"];
+    const header = ["Nama Siswa", "Kelas", ...tglList.map((t) => t.slice(8, 10)), "H", "T", "I", "S", "A", "Catatan"];
     csv += toCsvLine(header);
 
     const { rows } = await getRekapBulanan(bulan, kelasFilter, liburMap);
     for (const row of rows) {
       const cells = tglList.map((t) => {
         const st = row.d[t];
-        return st === "libur" ? "L" : st === "nonaktif" ? "-" : st === "kosong" ? "A" : st.charAt(0).toUpperCase();
+        // "kosong" = hari ini/mendatang yang belum punya catatan: dikosongkan, BUKAN Alpha (dulu terekspor "A" dan ikut dihitung).
+        return st === "libur" ? "L" : st === "nonaktif" ? "-" : st === "kosong" ? "" : st.charAt(0).toUpperCase();
       });
       const sum = { H: 0, T: 0, I: 0, S: 0, A: 0 };
       for (const c of cells) if (c in sum) sum[c as keyof typeof sum]++;
-      csv += toCsvLine([row.nama, row.kelas, ...cells, sum.H, sum.T, sum.I, sum.S, sum.A]);
+      // "-" = tidak dihitung (pindah/jeda), BUKAN alpha: dijelaskan di kolom Catatan supaya tidak disangka data hilang.
+      const catatan = [row.labelKeluar, row.jedaLabel].filter(Boolean).join("; ");
+      csv += toCsvLine([row.nama, row.kelas, ...cells, sum.H, sum.T, sum.I, sum.S, sum.A, catatan]);
     }
   }
 

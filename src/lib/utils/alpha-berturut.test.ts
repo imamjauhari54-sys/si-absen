@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { hitungAlphaBerturut } from "./alpha-berturut";
+import { KETERANGAN_ALPHA_PULIH } from "./aktifkan-kembali";
+import { dalamJeda } from "./siswa-harian";
 
 const siswaA = { id: 1, name: "Andi", class: "7A", foto: null };
 const siswaB = { id: 2, name: "Budi", class: "7A", foto: null };
@@ -128,5 +130,54 @@ describe("hitungAlphaBerturut", () => {
       ];
       expect(hitungAlphaBerturut([siswaA], r, 3, new Set(["2026-10-07"]))).toEqual([]);
     });
+  });
+});
+
+describe("hitungAlphaBerturut — Alpha buatan sistem & jeda (migrasi 025)", () => {
+  // 20-24 Jul 2026 = Senin..Jumat
+  const hari = ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24"];
+  const ref = hari.map((t) => ({ siswa_id: 99, tanggal: t, status: "hadir" })); // siswa lain: menentukan hari valid
+
+  it("menandai berapa hari dalam rentetan yang Alpha-nya diisi sistem saat diaktifkan kembali", () => {
+    const rows = [
+      ...ref,
+      { siswa_id: 1, tanggal: hari[0], status: "alpha", keterangan: KETERANGAN_ALPHA_PULIH },
+      { siswa_id: 1, tanggal: hari[1], status: "alpha", keterangan: KETERANGAN_ALPHA_PULIH },
+      { siswa_id: 1, tanggal: hari[2], status: "alpha", keterangan: KETERANGAN_ALPHA_PULIH },
+      { siswa_id: 1, tanggal: hari[3], status: "alpha", keterangan: null }, // alpha asli
+      { siswa_id: 1, tanggal: hari[4], status: "alpha", keterangan: null },
+    ];
+    const [h] = hitungAlphaBerturut([siswaA], rows, 3);
+    expect(h.hari).toBe(5);
+    expect(h.diisiSistem).toBe(3);
+  });
+
+  it("alpha biasa tidak membawa penanda (bidang tidak ada)", () => {
+    const rows = [...ref.slice(0, 3), ...hari.slice(0, 3).map((t) => ({ siswa_id: 1, tanggal: t, status: "alpha" }))];
+    const [h] = hitungAlphaBerturut([siswaA], rows, 3);
+    expect(h).not.toHaveProperty("diisiSistem");
+  });
+
+  it("hari jeda dilewati: tidak menambah rentetan dan tidak memutusnya", () => {
+    const jeda = [{ dari: hari[1], sampai: hari[3] }]; // 21 & 22 Jul jeda
+    const rows = [
+      ...ref,
+      { siswa_id: 1, tanggal: hari[0], status: "alpha" },
+      { siswa_id: 1, tanggal: hari[1], status: "alpha" }, // alpha lama di dalam jeda: tidak dihitung
+      { siswa_id: 1, tanggal: hari[2], status: "alpha" }, // idem
+      { siswa_id: 1, tanggal: hari[3], status: "alpha" },
+      { siswa_id: 1, tanggal: hari[4], status: "alpha" },
+    ];
+    const abaikan = (id: number, t: string) => id === 1 && dalamJeda(jeda, t);
+    const [h] = hitungAlphaBerturut([siswaA], rows, 3, new Set(), { abaikan });
+    expect(h.hari).toBe(3); // 20, 23, 24 Jul — bukan 5
+    // tanpa aturan jeda, alpha di dalam jeda ikut menaikkan hitungan (perilaku yang diperbaiki)
+    expect(hitungAlphaBerturut([siswaA], rows, 3)[0].hari).toBe(5);
+  });
+
+  it("jeda tidak memengaruhi siswa lain", () => {
+    const rows = [...ref, ...hari.map((t) => ({ siswa_id: 2, tanggal: t, status: "alpha" }))];
+    const abaikan = (id: number) => id === 1;
+    expect(hitungAlphaBerturut([siswaB], rows, 3, new Set(), { abaikan })[0].hari).toBe(5);
   });
 });

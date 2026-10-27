@@ -88,6 +88,14 @@ export default function AlphaBerturutAlert({
                       <span className={`${durClass} px-2.5 py-1 rounded-full text-[11px] font-extrabold`}>
                         {aw.hari} hari
                       </span>
+                      {aw.diisiSistem ? (
+                        <span
+                          className="block mt-1 text-[10px] font-semibold text-amber-700 dark:text-amber-400"
+                          title="Alpha ini diisi otomatis oleh sistem saat siswa diaktifkan kembali karena belum ada catatan. Koreksi lewat Edit Manual bila siswa sebenarnya masuk atau sudah tidak bersekolah."
+                        >
+                          {aw.diisiSistem} hari diisi otomatis saat diaktifkan kembali
+                        </span>
+                      ) : null}
                     </td>
                     <td className="px-5 py-3 text-center">
                       <Link

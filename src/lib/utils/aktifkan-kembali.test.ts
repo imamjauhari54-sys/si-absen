@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   parseAktifkanInput,
   susunDampak,
@@ -7,6 +9,7 @@ import {
   parseIdSiswa,
   kembaliPalingAwal,
   MODE_JEDA_DIBUKA,
+  KETERANGAN_ALPHA_PULIH,
   type PratinjauAktifkan,
 } from "./aktifkan-kembali";
 
@@ -236,5 +239,12 @@ describe("susunDampak mode B: kapan konfirmasi boleh", () => {
   });
   it("mode A tidak terpengaruh aturan tanggal kembali", () => {
     expect(susunDampak({ ...dasar, hari_jeda: null }, "batal_pindah", null).bisaLanjut).toBe(true);
+  });
+});
+
+describe("KETERANGAN_ALPHA_PULIH", () => {
+  it("sama persis dengan teks yang ditulis aktifkan_siswa() di migrasi 025 (penanda Alpha buatan sistem)", () => {
+    const sql = readFileSync(join(process.cwd(), "supabase/migrations/025_aktifkan_kembali.sql"), "utf8");
+    expect(sql).toContain(`'${KETERANGAN_ALPHA_PULIH}'`);
   });
 });

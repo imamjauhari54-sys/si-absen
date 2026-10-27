@@ -1,8 +1,9 @@
 import { formatTglIndo, isoWeekday } from "@/lib/utils/tanggal";
 import type { AlphaBerturut } from "@/types";
+import { KETERANGAN_ALPHA_PULIH } from "@/lib/utils/aktifkan-kembali";
 
 export type SiswaRingkas = { id: number; name: string; class: string; foto: string | null };
-export type BarisAbsensi = { siswa_id: number; tanggal: string; status: string };
+export type BarisAbsensi = { siswa_id: number; tanggal: string; status: string; keterangan?: string | null };
 
 /**
  * Bagian "hitung" murni dari cekAlphaBerturut (lihat src/lib/utils/absen.ts)
@@ -16,7 +17,11 @@ export function hitungAlphaBerturut(
   students: SiswaRingkas[],
   rows: BarisAbsensi[],
   minHari: number,
-  tanggalLibur: ReadonlySet<string> = new Set()
+  tanggalLibur: ReadonlySet<string> = new Set(),
+  opsi: {
+    /** true = hari itu tidak dihitung untuk siswa ini (mis. jeda): DILEWATI, tidak menambah dan tidak memutus rentetan. */
+    abaikan?: (siswaId: number, tanggal: string) => boolean;
+  } = {}
 ): AlphaBerturut[] {
   if (rows.length === 0) return [];
 
@@ -34,23 +39,26 @@ export function hitungAlphaBerturut(
 
   // map siswa_id -> tanggal -> status (hanya untuk hari_valid)
   const hariValidSet = new Set(hariValid);
-  const mapAbsen = new Map<number, Map<string, string>>();
+  const mapAbsen = new Map<number, Map<string, { status: string; keterangan: string | null }>>();
   for (const r of rows) {
     if (!hariValidSet.has(r.tanggal)) continue;
     if (!mapAbsen.has(r.siswa_id)) mapAbsen.set(r.siswa_id, new Map());
-    mapAbsen.get(r.siswa_id)!.set(r.tanggal, r.status);
+    mapAbsen.get(r.siswa_id)!.set(r.tanggal, { status: r.status, keterangan: r.keterangan ?? null });
   }
 
   // hitung alpha berturut-turut per siswa, mundur dari hari_valid terbaru
   const hasil: AlphaBerturut[] = [];
   for (const s of students) {
     let berturut = 0;
+    let diisiSistem = 0;
     let tglMulai = "";
     for (const tgl of hariValid) {
-      const status = mapAbsen.get(s.id)?.get(tgl);
-      if (status === "alpha") {
+      if (opsi.abaikan?.(s.id, tgl)) continue; // hari jeda: tidak dihitung, dilewati
+      const rec = mapAbsen.get(s.id)?.get(tgl);
+      if (rec?.status === "alpha") {
         berturut++;
         tglMulai = tgl;
+        if (rec.keterangan === KETERANGAN_ALPHA_PULIH) diisiSistem++;
       } else {
         break; // status hadir/izin/sakit/null memutus rentetan
       }
@@ -64,6 +72,7 @@ export function hitungAlphaBerturut(
         hari: berturut,
         sejak: tglMulai,
         sejakFmt: formatTglIndo(tglMulai),
+        ...(diisiSistem > 0 ? { diisiSistem } : {}),
       });
     }
   }

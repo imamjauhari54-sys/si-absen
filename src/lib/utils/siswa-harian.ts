@@ -167,3 +167,22 @@ export function labelKeluar(
   const a = alasan ? alasan.charAt(0).toUpperCase() + alasan.slice(1) : "Nonaktif";
   return nonaktifPada ? `${a} · ${formatTglIndo(nonaktifPada)}` : a;
 }
+
+/** Siswa yang penyebut persentasenya BUKAN hari efektif penuh: punya tanggal pindah atau jeda. */
+export function perluHitungPerSiswa(s: { nonaktif_pada?: string | null; jeda?: readonly unknown[] }): boolean {
+  return !!s.nonaktif_pada || (s.jeda?.length ?? 0) > 0;
+}
+
+/**
+ * Penyebut persentase history untuk satu siswa. Siswa tanpa pindah/jeda = hari efektif penuh; selain itu = hasil
+ * hari_dihitung_siswa dari database (siswa yang tidak muncul di hasil = 0 hari dihitung). Dipisah agar bisa dites:
+ * bug nyata pernah terjadi ketika daftar halaman dibentuk ulang tanpa field `jeda` sehingga siswa berjeda memakai
+ * hari efektif penuh.
+ */
+export function penyebutSiswa(
+  s: { id: number; nonaktif_pada?: string | null; jeda?: readonly unknown[] },
+  hariDihitung: ReadonlyMap<number, number>,
+  totalHariEfektif: number
+): number {
+  return perluHitungPerSiswa(s) ? (hariDihitung.get(s.id) ?? 0) : totalHariEfektif;
+}
