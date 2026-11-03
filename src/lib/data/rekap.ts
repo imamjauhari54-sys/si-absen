@@ -183,9 +183,13 @@ export async function getRekapHarian(
     const status: StatusHarian = hasil === "nonaktif" || hasil === "libur" ? "kosong" : (hasil as StatusHarian);
     const tersembunyi = tidakDihitung || adaLibur || belumTercatat;
     if (status in stat) stat[status as keyof StatHarian]++;
+    // Baris yang TIDAK DIHITUNG (libur, belum tercatat, sesudah pindah/jeda) tidak boleh membocorkan isi catatannya:
+    // jam, keterangan, lampiran, asal catatan, dan tombol Pulihkan semuanya disembunyikan. Catatannya sendiri tidak dihapus
+    // (muncul kembali bila tanggal libur/pindah diubah). Semua field tampilan diturunkan dari `tampil`, bukan dari `a`.
+    const tampil = tersembunyi ? undefined : a;
     // Subtext hanya untuk baris yang benar-benar tercatat (bukan status bawaan alpha/kosong).
-    const edit = a ? editMap.get(s.id) : undefined;
-    const sumber = opsi.denganSumber && a ? tentukanSumberAbsen({ scanOleh: a.scan_oleh, adaEditManual: !!edit }) : null;
+    const edit = tampil ? editMap.get(s.id) : undefined;
+    const sumber = opsi.denganSumber && tampil ? tentukanSumberAbsen({ scanOleh: tampil.scan_oleh, adaEditManual: !!edit }) : null;
     return {
       id: s.id,
       name: s.name,
@@ -195,13 +199,13 @@ export async function getRekapHarian(
       tidakDihitung,
       ...(adaLibur ? { libur: true } : {}),
       ...(belumTercatat ? { belumTercatat: true } : {}),
-      jam_masuk: tersembunyi ? null : (a?.jam_masuk ?? null),
-      jam_pulang: tersembunyi ? null : (a?.jam_pulang ?? null),
-      keterangan: a?.keterangan ?? null,
-      lampiran: a?.lampiran ?? null,
-      pulihkan: pulihkanMap.get(s.id) ?? null,
+      jam_masuk: tampil?.jam_masuk ?? null,
+      jam_pulang: tampil?.jam_pulang ?? null,
+      keterangan: tampil?.keterangan ?? null,
+      lampiran: tampil?.lampiran ?? null,
+      pulihkan: tersembunyi ? null : (pulihkanMap.get(s.id) ?? null),
       sumber,
-      sumberKet: keteranganSumber(sumber, { scanOleh: a?.scan_oleh, editorNama: edit?.editorNama, dieditAt: edit?.dieditAt }),
+      sumberKet: keteranganSumber(sumber, { scanOleh: tampil?.scan_oleh, editorNama: edit?.editorNama, dieditAt: edit?.dieditAt }),
     };
   });
 

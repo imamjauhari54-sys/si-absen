@@ -59,6 +59,11 @@ function bangunDb(): Db {
   for (const t of ["2026-10-15", "2026-10-17", "2026-10-19"]) absensi.push(rec(3, t));
   // Dewi: catatan pertama 14 Okt. Eka: tidak punya catatan sama sekali.
   for (const t of HARI_OKT.filter((x) => x >= "2026-10-14")) absensi.push(rec(4, t));
+  // Isi catatan yang TIDAK BOLEH bocor bila harinya tidak dihitung: libur (Ani), tanggal pindah (Budi), awal jeda (Siti).
+  const isi = (id: number, tgl: string, o: Record<string, unknown>) => Object.assign(absensi.find((r) => r.siswa_id === id && r.tanggal === tgl) ?? absensi[absensi.push(rec(id, tgl)) - 1], o);
+  isi(1, LIBUR, { keterangan: "demam tinggi", lampiran: "surat-dokter.pdf", jam_masuk: "07:01:00", jam_pulang: "12:00:00", scan_oleh: "manual" });
+  isi(2, "2026-10-12", { keterangan: "pindah sekolah", lampiran: "surat-pindah.pdf", jam_masuk: "07:05:00", scan_oleh: "manual" });
+  isi(3, "2026-10-02", { keterangan: "masa jeda", lampiran: "jeda.pdf", jam_masuk: "07:10:00", scan_oleh: "manual" });
   return {
     absensi,
     hari_libur: [{ tanggal: LIBUR, keterangan: "uji" }],
@@ -147,6 +152,53 @@ describe("Rekap Harian (getRekapHarian) memakai fungsi bersama", () => {
     expect(dewi.status).toBe("kosong");
     expect(ani.belumTercatat).toBeUndefined();
     expect(ani.status).toBe("hadir");
+  });
+});
+
+describe("Rekap Harian tidak membocorkan isi catatan pada hari yang tidak dihitung", () => {
+  const BOCOR = ["jam_masuk", "jam_pulang", "keterangan", "lampiran", "pulihkan", "sumber", "sumberKet"] as const;
+  const opsiPenuh = { denganPulihkan: true, denganSumber: true };
+
+  it.each([
+    ["hari libur", LIBUR, "Ani", { libur: true }],
+    ["tanggal pindah (tampil tetapi tidak dihitung)", "2026-10-12", "Budi", { tidakDihitung: true }],
+    ["awal jeda (tampil tetapi tidak dihitung)", "2026-10-02", "Siti", { tidakDihitung: true }],
+  ])("%s: keterangan, lampiran, jam, asal catatan, dan Pulihkan disembunyikan", async (_nama, tgl, siswa, tanda) => {
+    pasang();
+    const { getRekapHarian } = await import("./rekap");
+    const { rows } = await getRekapHarian(tgl, "", opsiPenuh);
+    const r = rows.find((x) => x.name === siswa)!;
+    expect(r, `${siswa} ada di baris`).toBeDefined();
+    expect(r).toMatchObject(tanda);
+    for (const k of BOCOR) expect(r[k], `${tgl} ${siswa} ${k}`).toBeNull();
+  });
+
+  it("seluruh baris pada hari libur tidak membawa isi catatan sama sekali", async () => {
+    pasang();
+    const { getRekapHarian } = await import("./rekap");
+    const { rows } = await getRekapHarian(LIBUR, "", opsiPenuh);
+    for (const r of rows) for (const k of BOCOR) expect(r[k], `${r.name} ${k}`).toBeNull();
+  });
+
+  it("hari biasa tetap menampilkan isi catatannya (tidak ikut disembunyikan)", async () => {
+    pasang();
+    (db.absensi as Record<string, unknown>[]).find((r) => r.siswa_id === 1 && r.tanggal === "2026-10-06")!.keterangan = "izin acara keluarga";
+    const { getRekapHarian } = await import("./rekap");
+    const { rows } = await getRekapHarian("2026-10-06", "", opsiPenuh);
+    const ani = rows.find((x) => x.name === "Ani")!;
+    expect(ani.keterangan).toBe("izin acara keluarga");
+    expect(ani.sumber).not.toBeNull();
+  });
+
+  it("catatan tidak dihapus: bila hari itu bukan libur lagi, isinya muncul kembali", async () => {
+    pasang();
+    db.hari_libur = [];
+    const { getRekapHarian } = await import("./rekap");
+    const { rows } = await getRekapHarian(LIBUR, "", opsiPenuh);
+    const ani = rows.find((x) => x.name === "Ani")!;
+    expect(ani.keterangan).toBe("demam tinggi");
+    expect(ani.lampiran).toBe("surat-dokter.pdf");
+    expect(ani.libur).toBeUndefined();
   });
 });
 
