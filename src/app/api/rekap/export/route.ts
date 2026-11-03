@@ -40,9 +40,14 @@ export async function GET(req: NextRequest) {
     for (const r of rows) {
       const statusReal = r.status === "kosong" ? "alpha" : r.status;
       // Tanggal pindah siswa: baris ikut diekspor tetapi tidak dihitung (bukan alpha).
-      const labelStatus = r.tidakDihitung
-        ? "Tidak dihitung" + (r.labelKeluar ? ` (${r.labelKeluar})` : "")
-        : statusReal.charAt(0).toUpperCase() + statusReal.slice(1);
+      // Libur dan "belum tercatat" (sebelum catatan pertama siswa) juga TIDAK diekspor sebagai Alpha (aturan baseline).
+      const labelStatus = r.libur
+        ? "Libur"
+        : r.belumTercatat
+          ? "Belum tercatat"
+          : r.tidakDihitung
+            ? "Tidak dihitung" + (r.labelKeluar ? ` (${r.labelKeluar})` : "")
+            : statusReal.charAt(0).toUpperCase() + statusReal.slice(1);
       csv += toCsvLine([
         r.name,
         r.class,

@@ -1,5 +1,10 @@
 import { ambilBatasPindahSiswa } from "@/lib/data/nonaktif";
 import { ambilJedaSiswa } from "@/lib/data/jeda";
+import { daftarTanggalRentang, hitungRekapSiswa } from "@/lib/utils/rekap-siswa";
+import { ambilMulaiBanyak } from "@/lib/data/rekap-siswa";
+import { ambilSemua } from "@/lib/utils/ambil-semua";
+import { tapelDariTanggal } from "@/lib/utils/tapel";
+import { todayJakarta } from "@/lib/utils/tanggal";
 import { dalamBatasPindah } from "@/lib/utils/siswa-harian";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getLiburSet } from "@/lib/data/hari-libur";
@@ -116,35 +121,64 @@ const BULAN_SINGKAT: Record<string, string> = {
 };
 
 /** Tren 6 bulan terakhir (hadir+terlambat vs alpha), diagregasi per bulan kalender. */
+/** Jendela maksimum (bulan) yang ditelusuri mundur untuk mencari 6 bulan yang punya hari dihitung. */
+const JENDELA_BULAN_GRAFIK = 24;
+
+function geserBulan(ym: string, delta: number): string {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
 export async function getChartTren6Bulan(siswaId: number): Promise<ChartBulanan[]> {
-  const [{ data }, liburSet, batasPindah, jeda] = await Promise.all([
-    supabaseAdmin
-      .from("absensi")
-      .select("tanggal, status, tapel")
-      .eq("siswa_id", siswaId)
-      .order("tanggal", { ascending: false }),
+  const today = todayJakarta();
+  const bulanIni = today.slice(0, 7);
+  const awalJendela = `${geserBulan(bulanIni, -(JENDELA_BULAN_GRAFIK - 1))}-01`;
+
+  // Dipaginasi + urut stabil (PostgREST memotong diam-diam di 1000 baris; siswa lama bisa punya >1000 catatan).
+  const [baris, liburSet, batasPindah, jeda] = await Promise.all([
+    ambilSemua<{ tanggal: string; status: string }>((dari, sampai) =>
+      supabaseAdmin
+        .from("absensi")
+        .select("tanggal, status")
+        .eq("siswa_id", siswaId)
+        .gte("tanggal", awalJendela)
+        .order("tanggal", { ascending: true })
+        .range(dari, sampai)
+    ),
     getLiburSet(),
     ambilBatasPindahSiswa(siswaId),
     ambilJedaSiswa(siswaId),
   ]);
 
-  const perBulan = new Map<string, { hadir: number; alpha: number }>();
-  for (const r of data ?? []) {
-    if (liburSet.has(r.tanggal)) continue; // abaikan record di tanggal libur
-    if (!dalamBatasPindah(r.tapel, r.tanggal, batasPindah, jeda)) continue; // pada/sesudah tanggal pindah, atau di dalam jeda
-    const bln = r.tanggal.slice(0, 7); // YYYY-MM
-    if (!perBulan.has(bln)) perBulan.set(bln, { hadir: 0, alpha: 0 });
-    const entry = perBulan.get(bln)!;
-    if (r.status === "hadir" || r.status === "terlambat") entry.hadir++;
-    if (r.status === "alpha") entry.alpha++;
+  // Telusuri mundur dari bulan ini sampai terkumpul 6 bulan yang punya hari dihitung (atau jendela habis).
+  const bulanKandidat: string[] = [];
+  for (let i = 0; i < JENDELA_BULAN_GRAFIK; i++) bulanKandidat.push(geserBulan(bulanIni, -i));
+
+  // SATU sumber batas awal (RPC awal_catatan_siswa, migrasi 026) per tapel yang tercakup, sama dengan semua tampilan lain.
+  const tapelSet = [...new Set(bulanKandidat.map((b) => tapelDariTanggal(`${b}-01`)))];
+  const mulaiPerTapel = new Map<string, string | null>();
+  await Promise.all(
+    tapelSet.map(async (t) => mulaiPerTapel.set(t, (await ambilMulaiBanyak(t, [siswaId])).get(siswaId) ?? null))
+  );
+
+  const absensi = new Map<string, string>(baris.map((r) => [r.tanggal, r.status]));
+  const hasil: ChartBulanan[] = [];
+  for (const bln of bulanKandidat) {
+    const [y, m] = bln.split("-").map(Number);
+    const tglList = daftarTanggalRentang(`${bln}-01`, new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10));
+    const r = hitungRekapSiswa(tglList, {
+      today,
+      libur: liburSet,
+      absensi,
+      batasPindah,
+      jeda,
+      mulai: mulaiPerTapel.get(tapelDariTanggal(`${bln}-01`)) ?? null,
+    });
+    if (r.hariDihitung > 0) {
+      hasil.push({ label: `${BULAN_SINGKAT[String(m).padStart(2, "0")] ?? m} ${y}`, hadir: r.hadir + r.terlambat, alpha: r.alpha });
+      if (hasil.length === 6) break;
+    }
   }
-
-  const bulanTerbaru = Array.from(perBulan.keys()).sort((a, b) => (a < b ? 1 : -1)).slice(0, 6);
-  const urut = bulanTerbaru.sort(); // ascending buat chart
-
-  return urut.map((bln) => {
-    const [, m] = bln.split("-");
-    const entry = perBulan.get(bln)!;
-    return { label: `${BULAN_SINGKAT[m] ?? m} ${bln.slice(0, 4)}`, hadir: entry.hadir, alpha: entry.alpha };
-  });
+  return hasil.reverse(); // urut menaik untuk grafik
 }

@@ -214,6 +214,10 @@ export default function HarianTable({ rows: initialRows, tanggal }: { rows: Reka
                       <td className="px-5 py-3 text-center">
                         {row.tidakDihitung ? (
                           <span className="text-[10px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">Tidak dihitung</span>
+                        ) : row.libur ? (
+                          <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Libur</span>
+                        ) : row.belumTercatat ? (
+                          <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400" title="Siswa belum punya catatan absensi sampai tanggal ini. Tidak dihitung dan bukan alpha.">Belum tercatat</span>
                         ) : row.status === "kosong" ? (
                           <span className="text-gray-400 font-bold text-xl">-</span>
                         ) : (

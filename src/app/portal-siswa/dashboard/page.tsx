@@ -7,7 +7,6 @@ import {
   getListTapel,
   getRiwayatAbsensi,
   getSiswaProfile,
-  hitungStatHistory,
 } from "@/lib/data/history";
 import { getRekapBulananSiswa } from "@/lib/data/rekap";
 import { getHariLiburMap } from "@/lib/data/hari-libur";
@@ -17,6 +16,7 @@ import { formatTglPanjang, todayJakarta } from "@/lib/utils/tanggal";
 import { paginasi } from "@/lib/utils/paginasi";
 import Pagination from "@/components/ui/Pagination";
 import InfoJumlah from "@/components/ui/InfoJumlah";
+import { getRingkasanKehadiran } from "@/lib/data/rekap-siswa";
 import HistoryWidgets from "@/components/history/HistoryWidgets";
 import HistoryChart from "@/components/history/HistoryChart";
 import RekapBulananSiswaCard from "@/components/history/RekapBulananSiswaCard";
@@ -77,7 +77,9 @@ export default async function PortalSiswaDashboardPage({
   const liburKeterangan = Object.fromEntries(liburMap);
   if (filter.tapel && !listTapel.includes(filter.tapel)) listTapel.push(filter.tapel);
 
-  const stat = hitungStatHistory(rows);
+  // Kartu ringkasan memakai fungsi hitung YANG SAMA dengan kartu Rekap Bulanan (utils/rekap-siswa.ts), jadi angkanya
+  // selalu sama. Tabel di bawah tetap daftar catatan absensi (total = jumlah baris catatan).
+  const { stat, totalHari } = await getRingkasanKehadiran(siswaId, filter, liburMap);
   const total = rows.length;
   // Statistik & grafik memakai SEMUA baris; paginasi hanya memotong tabel di bawah.
   const pg = paginasi(total, parseInt(sp.page || "1", 10), PAGE_SIZE);
@@ -89,7 +91,7 @@ export default async function PortalSiswaDashboardPage({
     return `?${q.toString()}`;
   };
   const hadirEff = stat.hadir + stat.terlambat;
-  const pctHadir = total > 0 ? Math.round((hadirEff / total) * 100) : 0;
+  const pctHadir = totalHari > 0 ? Math.round((hadirEff / totalHari) * 100) : 0;
   const pctColor = pctHadir >= 85 ? "text-emerald-500" : pctHadir >= 75 ? "text-amber-500" : "text-red-500";
   const isL = (siswa.jenis_kelamin ?? "").toLowerCase() === "l";
 
@@ -160,7 +162,7 @@ export default async function PortalSiswaDashboardPage({
               <div className={`text-4xl font-black ${pctColor}`}>{pctHadir}%</div>
               <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mt-1">Kehadiran</div>
               <div className="text-[10px] text-gray-400 mt-0.5">
-                {hadirEff}/{total} hari
+                {hadirEff}/{totalHari} hari
               </div>
             </div>
           </div>
@@ -228,7 +230,7 @@ export default async function PortalSiswaDashboardPage({
         </div>
 
         {/* WIDGET STATISTIK */}
-        <HistoryWidgets stat={stat} total={total} />
+        <HistoryWidgets stat={stat} total={totalHari} />
 
         {/* REKAP BULANAN (kalender) */}
         <RekapBulananSiswaCard data={rekapBulanan} bulanYYYYMM={bulanRekap} liburKeterangan={liburKeterangan} />

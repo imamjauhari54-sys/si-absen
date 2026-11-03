@@ -10,7 +10,6 @@ import {
   getListTapel,
   getRiwayatAbsensi,
   getSiswaProfile,
-  hitungStatHistory,
 } from "@/lib/data/history";
 import { getKelasSiswaPadaTapel, getRiwayatKelasSiswa } from "@/lib/data/riwayat-kelas";
 import RiwayatKelas from "@/components/history/RiwayatKelas";
@@ -18,6 +17,7 @@ import { formatTglPanjang } from "@/lib/utils/tanggal";
 import { paginasi } from "@/lib/utils/paginasi";
 import Pagination from "@/components/ui/Pagination";
 import InfoJumlah from "@/components/ui/InfoJumlah";
+import { getRingkasanKehadiran } from "@/lib/data/rekap-siswa";
 import HistoryWidgets from "@/components/history/HistoryWidgets";
 import HistoryChart from "@/components/history/HistoryChart";
 import "@/components/history/history.css";
@@ -71,13 +71,15 @@ export default async function HistorySiswaPage({
   const kelasTampil = kelasPadaTapel ?? siswa.class;
   if (filter.tapel && !listTapel.includes(filter.tapel)) listTapel.push(filter.tapel);
 
-  const stat = hitungStatHistory(rows);
+  // Kartu ringkasan memakai fungsi hitung YANG SAMA dengan kartu Rekap Bulanan (utils/rekap-siswa.ts), jadi angkanya
+  // selalu sama. Tabel di bawah tetap daftar catatan absensi (total = jumlah baris catatan).
+  const { stat, totalHari } = await getRingkasanKehadiran(siswaId, filter);
   const total = rows.length;
   // Statistik & grafik memakai SEMUA baris; paginasi hanya memotong tabel di bawah.
   const pg = paginasi(total, parseInt(sp.page || "1", 10), PAGE_SIZE);
   const rowsHalaman = rows.slice(pg.dari, pg.sampai);
   const hadirEff = stat.hadir + stat.terlambat;
-  const pctHadir = total > 0 ? Math.round((hadirEff / total) * 100) : 0;
+  const pctHadir = totalHari > 0 ? Math.round((hadirEff / totalHari) * 100) : 0;
   const pctColor = pctHadir >= 85 ? "text-emerald-500" : pctHadir >= 75 ? "text-amber-500" : "text-red-500";
 
   const linkKembali = sp.from === "dashboard" ? "/dashboard" : `/siswa?kelas=${encodeURIComponent(siswa.class)}`;
@@ -160,7 +162,7 @@ export default async function HistorySiswaPage({
             <div className={`text-4xl font-black ${pctColor}`}>{pctHadir}%</div>
             <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mt-1">Kehadiran</div>
             <div className="text-[10px] text-gray-400 mt-0.5">
-              {hadirEff}/{total} hari
+              {hadirEff}/{totalHari} hari
             </div>
           </div>
         </div>
@@ -228,7 +230,7 @@ export default async function HistorySiswaPage({
       </div>
 
       {/* WIDGET STATISTIK */}
-      <HistoryWidgets stat={stat} total={total} />
+      <HistoryWidgets stat={stat} total={totalHari} />
 
       {/* GRAFIK + TABEL */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
