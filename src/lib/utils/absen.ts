@@ -4,6 +4,7 @@ import { hitungAlphaBerturut } from "@/lib/utils/alpha-berturut";
 import { ambilSemua } from "@/lib/utils/ambil-semua";
 import { getLiburSet } from "@/lib/data/hari-libur";
 import { ambilJedaSejak } from "@/lib/data/jeda";
+import { ambilMenungguBanyak } from "@/lib/data/rekap-siswa";
 import { dalamJeda } from "@/lib/utils/siswa-harian";
 import type { AlphaBerturut } from "@/types";
 
@@ -37,7 +38,7 @@ export async function cekAlphaBerturut(
   // STEP 2: absensi dalam rentang tanggal untuk siswa-siswa tsb.
   // Dipaginasi: 14 hari x >70 siswa sudah melewati batas 1000 baris PostgREST,
   // dan baris yang terpotong membuat rentetan alpha salah hitung.
-  const [rows, tanggalLibur, jedaMap] = await Promise.all([
+  const [rows, tanggalLibur, jedaMap, menungguMap] = await Promise.all([
     ambilSemua<{ siswa_id: number; tanggal: string; status: string; keterangan: string | null }>((dari, sampai) =>
       supabaseAdmin
         .from("absensi")
@@ -50,12 +51,14 @@ export async function cekAlphaBerturut(
     ),
     getLiburSet(batas, today),
     ambilJedaSejak(batas),
+    ambilMenungguBanyak(studentIds, batas, today),
   ]);
 
   if (rows.length === 0) return [];
 
-  // Hari jeda (migrasi 025) tidak dihitung untuk siswa itu: dilewati, bukan Alpha dan bukan pemutus rentetan.
+  // Hari jeda (migrasi 025) dan hari MENUNGGU persetujuan pengajuan (migrasi 027) tidak dihitung untuk siswa itu:
+  // dilewati, bukan Alpha dan bukan pemutus rentetan. Pengajuan yang ditolak/dibatalkan tidak lagi Menunggu.
   return hitungAlphaBerturut(students, rows, minHari, tanggalLibur, {
-    abaikan: (siswaId, tanggal) => dalamJeda(jedaMap.get(siswaId), tanggal),
+    abaikan: (siswaId, tanggal) => dalamJeda(jedaMap.get(siswaId), tanggal) || !!menungguMap.get(siswaId)?.has(tanggal),
   });
 }

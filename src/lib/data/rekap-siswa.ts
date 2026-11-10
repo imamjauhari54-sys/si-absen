@@ -33,6 +33,26 @@ export async function ambilMulaiBanyak(tapel: string, ids: number[]): Promise<Ma
   return peta;
 }
 
+/**
+ * Tanggal berstatus MENUNGGU per siswa (fungsi SQL tanggal_menunggu, migrasi 027): siswa -> himpunan tanggal. Pengajuan izin/sakit
+ * yang belum diputuskan membuat harinya "Menunggu" (tidak dihitung, bukan Alpha). Bila migrasi 027 belum dijalankan fitur
+ * pengajuan memang belum ada, jadi hasil kosong (PGRST202); galat lain dilempar agar angka tidak diam-diam keliru.
+ */
+export async function ambilMenungguBanyak(ids: number[], dari: string, sampai: string): Promise<Map<number, Set<string>>> {
+  const peta = new Map<number, Set<string>>();
+  if (ids.length === 0) return peta;
+  const { data, error } = await supabaseAdmin.rpc("tanggal_menunggu", { p_siswa_ids: ids, p_dari: dari, p_sampai: sampai });
+  if (error) {
+    if (error.code === "PGRST202") return peta;
+    throw new Error(`Gagal membaca pengajuan yang menunggu: ${error.message}`);
+  }
+  for (const r of (data ?? []) as { siswa_id: number; tanggal: string }[]) {
+    if (!peta.has(r.siswa_id)) peta.set(r.siswa_id, new Set());
+    peta.get(r.siswa_id)!.add(r.tanggal);
+  }
+  return peta;
+}
+
 export interface DataSiswaRentang {
   konteks: KonteksSiswa;
   jeda: Awaited<ReturnType<typeof ambilJedaSiswa>>;
@@ -46,12 +66,13 @@ export async function muatKonteksSiswa(
   liburOpsional?: { has(t: string): boolean }
 ): Promise<DataSiswaRentang> {
   const tapel = tapelDariTanggal(dari);
-  const [{ data }, libur, batasPindah, jeda, mulai] = await Promise.all([
+  const [{ data }, libur, batasPindah, jeda, mulai, menungguMap] = await Promise.all([
     supabaseAdmin.from("absensi").select("tanggal, status").eq("siswa_id", siswaId).gte("tanggal", dari).lte("tanggal", sampai),
     liburOpsional ? Promise.resolve(liburOpsional) : getLiburSet(),
     ambilBatasPindahSiswa(siswaId),
     ambilJedaSiswa(siswaId),
     ambilMulaiBanyak(tapel, [siswaId]).then((m) => m.get(siswaId) ?? null),
+    ambilMenungguBanyak([siswaId], dari, sampai),
   ]);
   const konteks: KonteksSiswa = {
     today: todayJakarta(),
@@ -60,6 +81,7 @@ export async function muatKonteksSiswa(
     batasPindah,
     jeda,
     mulai,
+    menunggu: menungguMap.get(siswaId) ?? new Set<string>(),
   };
   return { konteks, jeda };
 }

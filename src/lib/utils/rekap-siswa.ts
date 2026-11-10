@@ -12,13 +12,20 @@ import { tidakDihitungPada, type JedaSiswa } from "@/lib/utils/siswa-harian";
  *   1. hari libur                                  -> "libur"     (tidak dihitung)
  *   2. pada/sesudah tanggal pindah, atau di jeda    -> "nonaktif"  (tidak dihitung; data tetap tersimpan)
  *   3. sebelum catatan pertama siswa di tapel itu   -> "kosong"    (siswa belum tercatat; tidak dihitung)
- *   4. ada catatan absensi                         -> statusnya
- *   5. hari lampau tanpa catatan                   -> "alpha"     (bawaan, sama seperti Rekap Bulanan)
- *   6. hari ini / mendatang tanpa catatan          -> "kosong"
+ *   4. ada catatan NYATA (hadir/terlambat/izin/sakit) -> statusnya  (scan menang atas pengajuan Menunggu)
+ *   5. hari dengan pengajuan izin/sakit MENUNGGU    -> "menunggu"  (tidak dihitung; bukan Alpha sampai diputuskan)
+ *   6. ada catatan Alpha                            -> "alpha"
+ *   7. hari lampau tanpa catatan                    -> "alpha"     (bawaan, sama seperti Rekap Bulanan)
+ *   8. hari ini / mendatang tanpa catatan           -> "kosong"
+ * Pengajuan yang DITOLAK/DIBATALKAN tidak lagi Menunggu: harinya kembali ke aturan 4/6/7/8 (hari lampau tanpa catatan = Alpha).
  * "Hari" = tanggal bukan Minggu (daftarTanggalRentang), sama dengan kolom Rekap Bulanan.
  */
 
-export type StatusHariSiswa = StatusAbsen | "libur" | "kosong" | "nonaktif";
+export type StatusHariSiswa = StatusAbsen | "libur" | "kosong" | "nonaktif" | "menunggu";
+
+/** Penjelasan sel/baris "Menunggu" untuk tooltip, ekspor, dan portal (satu teks agar tidak berbeda antar halaman). */
+export const KET_HARI_MENUNGGU =
+  "Menunggu persetujuan: pengajuan izin/sakit orang tua belum diputuskan. Belum dihitung dan belum dianggap Alpha.";
 
 export interface KonteksSiswa {
   /** Tanggal hari ini (WIB, YYYY-MM-DD). Hari >= today tanpa catatan = "kosong", bukan Alpha. */
@@ -32,6 +39,8 @@ export interface KonteksSiswa {
   /** Tanggal pindah per tapel (dipakai portal/riwayat satu siswa lintas tapel): tapel -> tanggal. */
   batasPindah?: ReadonlyMap<string, string>;
   jeda?: readonly JedaSiswa[];
+  /** Tanggal yang punya pengajuan izin/sakit berstatus MENUNGGU (tanggal_menunggu, migrasi 027): tidak dihitung dan bukan Alpha. */
+  menunggu?: { has(tanggal: string): boolean };
   /**
    * Tanggal catatan pertama siswa pada tapel itu. undefined = tanpa batas bawah (perilaku lama, Rekap Bulanan admin);
    * null = siswa belum punya catatan sama sekali di tapel itu -> semua hari "kosong".
@@ -49,7 +58,9 @@ export function statusHariSiswa(tgl: string, k: KonteksSiswa): StatusHariSiswa {
   if (tidakDihitungPada(nonaktifUntuk(tgl, k), k.jeda, tgl)) return "nonaktif";
   if (k.mulai === null || (k.mulai !== undefined && tgl < k.mulai)) return "kosong";
   const rec = k.absensi.get(tgl);
-  if (rec) return rec as StatusAbsen;
+  if (rec && rec !== "alpha") return rec as StatusAbsen; // catatan nyata (scan/guru) menang atas pengajuan yang menunggu
+  if (k.menunggu?.has(tgl)) return "menunggu"; // Alpha (bawaan maupun tercatat) belum dihitung selama pengajuan diperiksa
+  if (rec) return "alpha";
   return tgl < k.today ? "alpha" : "kosong";
 }
 
@@ -60,19 +71,23 @@ export interface RekapSiswa {
   izin: number;
   sakit: number;
   alpha: number;
+  /** Jumlah hari berstatus Menunggu (tidak dihitung): "N hari menunggu persetujuan". */
+  menunggu: number;
   /** Jumlah hari yang dihitung = hadir + terlambat + izin + sakit + alpha (penyebut persentase). */
   hariDihitung: number;
 }
 
 /** Status tiap tanggal + jumlah per status untuk daftar tanggal tertentu. */
 export function hitungRekapSiswa(tglList: readonly string[], k: KonteksSiswa): RekapSiswa {
-  const r: RekapSiswa = { d: {}, hadir: 0, terlambat: 0, izin: 0, sakit: 0, alpha: 0, hariDihitung: 0 };
+  const r: RekapSiswa = { d: {}, hadir: 0, terlambat: 0, izin: 0, sakit: 0, alpha: 0, menunggu: 0, hariDihitung: 0 };
   for (const tgl of tglList) {
     const st = statusHariSiswa(tgl, k);
     r.d[tgl] = st;
     if (st === "hadir" || st === "terlambat" || st === "izin" || st === "sakit" || st === "alpha") {
       r[st]++;
       r.hariDihitung++;
+    } else if (st === "menunggu") {
+      r.menunggu++;
     }
   }
   return r;

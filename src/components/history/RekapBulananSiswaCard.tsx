@@ -9,10 +9,11 @@ const LEG: { k: string; cls: string; lbl: string }[] = [
   { k: "A", cls: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400", lbl: "Alpha" },
   { k: "L", cls: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400", lbl: "Libur" },
   { k: "×", cls: "bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border border-dashed border-slate-300", lbl: "Tidak dihitung" },
+  { k: "M", cls: "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-dashed border-amber-400", lbl: "Menunggu persetujuan" },
 ];
 
 const LBL_MAP: Record<StatusBulanan, string> = {
-  hadir: "H", terlambat: "T", izin: "I", sakit: "S", alpha: "A", libur: "L", kosong: "-", nonaktif: "×",
+  hadir: "H", terlambat: "T", izin: "I", sakit: "S", alpha: "A", libur: "L", kosong: "-", nonaktif: "×", menunggu: "M",
 };
 
 const DETAIL_STYLE: Record<StatusBulanan, React.CSSProperties> = {
@@ -24,6 +25,7 @@ const DETAIL_STYLE: Record<StatusBulanan, React.CSSProperties> = {
   libur: { background: "rgba(100,116,139,.1)", color: "#94a3b8" },
   kosong: { background: "transparent", color: "#cbd5e1", border: "1px dashed #cbd5e1" },
   nonaktif: { background: "transparent", color: "#cbd5e1", border: "1px dashed #cbd5e1" },
+  menunggu: { background: "rgba(245,158,11,.08)", color: "#d97706", border: "1px dashed rgba(217,119,6,.55)" },
 };
 
 const HARI_SHORT: Record<string, string> = { Mon: "Sn", Tue: "Sl", Wed: "Rb", Thu: "Km", Fri: "Jm", Sat: "Sb" };
@@ -87,6 +89,12 @@ export default function RekapBulananSiswaCard({
         ))}
       </div>
 
+      {data.catatanMenunggu && (
+        <p role="note" className="mt-3 mb-1 text-[11px] leading-relaxed text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded-xl px-3 py-2">
+          <i className="fas fa-hourglass-half mr-1.5 text-[10px]" />
+          {data.catatanMenunggu}
+        </p>
+      )}
       {data.catatanJeda?.length > 0 && (
         <div className="mt-3 mb-1 space-y-1.5" role="note">
           {data.catatanJeda.map((t, i) => (

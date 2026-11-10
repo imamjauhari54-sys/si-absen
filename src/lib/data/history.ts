@@ -1,7 +1,7 @@
 import { ambilBatasPindahSiswa } from "@/lib/data/nonaktif";
 import { ambilJedaSiswa } from "@/lib/data/jeda";
 import { daftarTanggalRentang, hitungRekapSiswa } from "@/lib/utils/rekap-siswa";
-import { ambilMulaiBanyak } from "@/lib/data/rekap-siswa";
+import { ambilMenungguBanyak, ambilMulaiBanyak } from "@/lib/data/rekap-siswa";
 import { ambilSemua } from "@/lib/utils/ambil-semua";
 import { tapelDariTanggal } from "@/lib/utils/tapel";
 import { todayJakarta } from "@/lib/utils/tanggal";
@@ -136,7 +136,7 @@ export async function getChartTren6Bulan(siswaId: number): Promise<ChartBulanan[
   const awalJendela = `${geserBulan(bulanIni, -(JENDELA_BULAN_GRAFIK - 1))}-01`;
 
   // Dipaginasi + urut stabil (PostgREST memotong diam-diam di 1000 baris; siswa lama bisa punya >1000 catatan).
-  const [baris, liburSet, batasPindah, jeda] = await Promise.all([
+  const [baris, liburSet, batasPindah, jeda, menungguMap] = await Promise.all([
     ambilSemua<{ tanggal: string; status: string }>((dari, sampai) =>
       supabaseAdmin
         .from("absensi")
@@ -149,6 +149,7 @@ export async function getChartTren6Bulan(siswaId: number): Promise<ChartBulanan[
     getLiburSet(),
     ambilBatasPindahSiswa(siswaId),
     ambilJedaSiswa(siswaId),
+    ambilMenungguBanyak([siswaId], awalJendela, `${bulanIni}-31`),
   ]);
 
   // Telusuri mundur dari bulan ini sampai terkumpul 6 bulan yang punya hari dihitung (atau jendela habis).
@@ -173,6 +174,7 @@ export async function getChartTren6Bulan(siswaId: number): Promise<ChartBulanan[
       absensi,
       batasPindah,
       jeda,
+      menunggu: menungguMap.get(siswaId),
       mulai: mulaiPerTapel.get(tapelDariTanggal(`${bln}-01`)) ?? null,
     });
     if (r.hariDihitung > 0) {

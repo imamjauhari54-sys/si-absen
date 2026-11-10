@@ -19,6 +19,8 @@ create function pg_temp.lalu(n int) returns date language sql as $$
 create function pg_temp.depan(n int) returns date language sql as $$
   select d from hari_sekolah_rentang(pg_temp.hari() + 1, pg_temp.hari() + 25) d order by d offset n - 1 limit 1 $$;
 
+-- data contoh migrasi 001 (absensi tapel 2025/2026 bertanggal RELATIF terhadap hari DB dibuat) bisa jatuh di rentang tanggal uji
+delete from students where nisn like '00912345%';
 delete from absensi_setting;
 insert into absensi_setting (tapel, semester)
   select case when extract(month from pg_temp.hari()) >= 7
@@ -27,7 +29,7 @@ insert into absensi_setting (tapel, semester)
          case when extract(month from pg_temp.hari()) >= 7 then 'ganjil' else 'genap' end;
 
 insert into students (name, class, nisn)
-  select 'PGJ ' || i, '5', 'PG-' || i from generate_series(1, 20) i;
+  select 'PGJ ' || i, '5', 'PG-' || i from generate_series(1, 25) i;
 create function pg_temp.sid(i int) returns bigint language sql as $$ select id from students where nisn = 'PG-' || i $$;
 create function pg_temp.n_absen(i int) returns bigint language sql as $$ select count(*) from absensi where siswa_id = pg_temp.sid(i) $$;
 create function pg_temp.hasil(pid bigint, t date) returns text language sql as $$
@@ -194,52 +196,68 @@ select pg_temp.cek('E1 anon/authenticated tidak boleh menjalankan fungsi pengaju
   and not has_function_privilege('authenticated', 'ajukan_pengajuan_izin(bigint,text,date,date,text,text)', 'execute')
   and has_function_privilege('service_role', 'terapkan_rencana_pengajuan(date)', 'execute'));
 
--- ═══ F. PIN ORANG TUA ════════════════════════════════════════════════════════════════════════
-select pg_temp.cek('F1 PIN bawaan (123456) diterima dan ditandai pin_bawaan=true agar aplikasi memaksa ganti',
-  (verifikasi_pin_ortu(pg_temp.sid(15), '123456') ->> 'ok')::boolean and (verifikasi_pin_ortu(pg_temp.sid(15), '123456') ->> 'pin_bawaan')::boolean);
-select pg_temp.cek('F2 PIN salah: sisa percobaan menurun 4,3,2,1; ke-5 mengunci',
+-- ═══ F. PIN ORANG TUA (ACAK, tanpa PIN bawaan) ═══════════════════════════════════════════════
+select pg_temp.cek('F1 PIN belum dibuat: ditolak PIN_BELUM_DIATUR; "123456" TIDAK diterima (tidak ada PIN bawaan) dan tak ada penghitung percobaan',
+  (verifikasi_pin_ortu(pg_temp.sid(15), '123456') ->> 'kode') = 'PIN_BELUM_DIATUR'
+  and (verifikasi_pin_ortu(pg_temp.sid(15), '000000') ->> 'kode') = 'PIN_BELUM_DIATUR'
+  and not exists (select 1 from kunci_ortu where siswa_id = pg_temp.sid(15) and gagal > 0));
+create temp table _acak as select * from buat_pin_acak_ortu(array[pg_temp.sid(15), pg_temp.sid(16), pg_temp.sid(17)]);
+select pg_temp.cek('F2 PIN acak: 6 digit, tidak mudah ditebak, hanya hash bcrypt tersimpan, BELUM ditandai dibagikan',
+  (select count(*) = 3 and bool_and(pin ~ '^[0-9]{6}$' and not pin_terlalu_mudah(pin) and pin <> '000000') from _acak)
+  and (select bool_and(pin_hash like '$2%' and dibagikan_pada is null) from kunci_ortu where siswa_id in (pg_temp.sid(15), pg_temp.sid(16), pg_temp.sid(17))));
+create function pg_temp.pin(i int) returns text language sql as $$ select pin from _acak where siswa_id = pg_temp.sid(i) $$;
+create temp table _f3 as select verifikasi_pin_ortu(pg_temp.sid(15), pg_temp.pin(15)) as r;
+select pg_temp.cek('F3 PIN acak yang benar diterima', (select (r ->> 'ok')::boolean from _f3));
+
+select pg_temp.cek('F4 PIN salah: sisa percobaan menurun 4,3,2,1; ke-5 mengunci',
   (verifikasi_pin_ortu(pg_temp.sid(16), '000001') ->> 'sisa_percobaan')::int = 4
   and (verifikasi_pin_ortu(pg_temp.sid(16), '000002') ->> 'sisa_percobaan')::int = 3
   and (verifikasi_pin_ortu(pg_temp.sid(16), '000003') ->> 'sisa_percobaan')::int = 2
   and (verifikasi_pin_ortu(pg_temp.sid(16), '000004') ->> 'sisa_percobaan')::int = 1
   and (verifikasi_pin_ortu(pg_temp.sid(16), '000005') ->> 'kode') = 'TERKUNCI');
-select pg_temp.cek('F3 saat terkunci, PIN yang BENAR pun ditolak (TERKUNCI)',
-  (verifikasi_pin_ortu(pg_temp.sid(16), '123456') ->> 'kode') = 'TERKUNCI');
+select pg_temp.cek('F5 saat terkunci, PIN yang BENAR pun ditolak',
+  (verifikasi_pin_ortu(pg_temp.sid(16), pg_temp.pin(16)) ->> 'kode') = 'TERKUNCI');
 update kunci_ortu set terkunci_sampai = now() - interval '1 minute' where siswa_id = pg_temp.sid(16);
-create temp table _f4 as select verifikasi_pin_ortu(pg_temp.sid(16), '123456') as r;
-select pg_temp.cek('F4 kunci kedaluwarsa: PIN benar diterima dan penghitung direset',
-  (select (r ->> 'ok')::boolean from _f4) and (select gagal = 0 and terkunci_sampai is null from kunci_ortu where siswa_id = pg_temp.sid(16)));
+create temp table _f6 as select verifikasi_pin_ortu(pg_temp.sid(16), pg_temp.pin(16)) as r;
+select pg_temp.cek('F6 kunci kedaluwarsa: PIN benar diterima dan penghitung direset',
+  (select (r ->> 'ok')::boolean from _f6) and (select gagal = 0 and terkunci_sampai is null from kunci_ortu where siswa_id = pg_temp.sid(16)));
 update kunci_ortu set gagal = 9 where siswa_id = pg_temp.sid(16);
-select pg_temp.cek('F5 penguncian bertahap: kegagalan ke-10 mengunci 30 menit (dua kali lipat)',
+select pg_temp.cek('F7 penguncian bertahap: kegagalan ke-10 mengunci 30 menit (dua kali lipat)',
   (verifikasi_pin_ortu(pg_temp.sid(16), '999999') ->> 'menit')::int = 30);
 update kunci_ortu set gagal = 0, terkunci_sampai = null where siswa_id = pg_temp.sid(16);
 
-select pg_temp.cek('F6 ganti PIN butuh PIN lama yang benar',
-  (atur_pin_ortu(pg_temp.sid(17), '482916', '000000') ->> 'kode') = 'PIN_SALAH');
-select pg_temp.cek('F7 PIN baru yang mudah/sama dengan bawaan ditolak',
-  (atur_pin_ortu(pg_temp.sid(17), '111111', '123456') ->> 'kode') = 'PIN_TERLALU_MUDAH'
-  and (atur_pin_ortu(pg_temp.sid(17), '123456', '123456') ->> 'kode') = 'PIN_TERLALU_MUDAH'
-  and (atur_pin_ortu(pg_temp.sid(17), '12ab56', '123456') ->> 'kode') = 'PIN_FORMAT');
-select pg_temp.cek('F8 ganti PIN berhasil: PIN bawaan tidak berlaku lagi, PIN baru berlaku (pin_bawaan=false)',
-  (atur_pin_ortu(pg_temp.sid(17), '482916', '123456') ->> 'ok')::boolean
-  and (verifikasi_pin_ortu(pg_temp.sid(17), '123456') ->> 'kode') = 'PIN_SALAH'
-  and (verifikasi_pin_ortu(pg_temp.sid(17), '482916') ->> 'ok')::boolean
-  and not (verifikasi_pin_ortu(pg_temp.sid(17), '482916') ->> 'pin_bawaan')::boolean);
-select pg_temp.cek('F9 PIN disimpan sebagai hash bcrypt, bukan teks',
-  (select pin_hash like '$2%' and pin_hash <> '482916' from kunci_ortu where siswa_id = pg_temp.sid(17)));
-select reset_pin_ortu(pg_temp.sid(17));
-select pg_temp.cek('F10 reset oleh wali kelas/admin: kembali ke PIN bawaan dan kunci dibuka',
-  (verifikasi_pin_ortu(pg_temp.sid(17), '123456') ->> 'ok')::boolean);
-create temp table _acak as select * from buat_pin_acak_ortu(array[pg_temp.sid(18), pg_temp.sid(19)]);
-create temp table _f11 as select verifikasi_pin_ortu(pg_temp.sid(18), (select pin from _acak where siswa_id = pg_temp.sid(18))) as r;
-select pg_temp.cek('F11 PIN acak: 6 digit, tidak mudah ditebak, bisa dipakai, hanya hash tersimpan',
-  (select count(*) = 2 and bool_and(pin ~ '^[0-9]{6}$' and not pin_terlalu_mudah(pin)) from _acak)
-  and (select (r ->> 'ok')::boolean and not (r ->> 'pin_bawaan')::boolean from _f11)
-  and (select bool_and(pin_hash like '$2%') from kunci_ortu where siswa_id in (pg_temp.sid(18), pg_temp.sid(19))));
-insert into students (name, class, nisn) values ('PGJ nonaktif', '5', 'PG-21');
-update students set status = 'pindah' where nisn = 'PG-21';
-select pg_temp.cek('F12 siswa nonaktif tidak bisa diverifikasi PIN-nya',
-  (verifikasi_pin_ortu((select id from students where nisn = 'PG-21'), '123456') ->> 'kode') = 'SISWA_TIDAK_AKTIF');
+select pg_temp.cek('F8 ganti PIN sendiri: butuh PIN lama yang benar; PIN mudah/format salah ditolak',
+  (atur_pin_ortu(pg_temp.sid(17), '482916', '000000') ->> 'kode') = 'PIN_SALAH'
+  and (atur_pin_ortu(pg_temp.sid(17), '111111', pg_temp.pin(17)) ->> 'kode') = 'PIN_TERLALU_MUDAH'
+  and (atur_pin_ortu(pg_temp.sid(17), '12ab56', pg_temp.pin(17)) ->> 'kode') = 'PIN_FORMAT');
+select pg_temp.cek('F9 ganti PIN berhasil: PIN lama tidak berlaku lagi, PIN baru berlaku',
+  (atur_pin_ortu(pg_temp.sid(17), '482916', pg_temp.pin(17)) ->> 'ok')::boolean
+  and (verifikasi_pin_ortu(pg_temp.sid(17), pg_temp.pin(17)) ->> 'kode') = 'PIN_SALAH'
+  and (verifikasi_pin_ortu(pg_temp.sid(17), '482916') ->> 'ok')::boolean);
+
+-- "dibagikan" HANYA lewat tindakan eksplisit; membuat/mereset PIN selalu mengosongkannya
+create temp table _f10 as select tandai_pin_dibagikan(array[pg_temp.sid(15)]) as pertama;
+create temp table _f10b as select tandai_pin_dibagikan(array[pg_temp.sid(15)]) as kedua;
+select pg_temp.cek('F10 tandai_pin_dibagikan: hanya siswa yang dipilih, sekali saja',
+  (select pertama = 1 from _f10) and (select kedua = 0 from _f10b)
+  and (select dibagikan_pada is not null from kunci_ortu where siswa_id = pg_temp.sid(15))
+  and (select dibagikan_pada is null from kunci_ortu where siswa_id = pg_temp.sid(16)));
+create temp table _reset as select pg_temp.pin(15) as lama, reset_pin_ortu(pg_temp.sid(15)) as baru;
+select pg_temp.cek('F11 reset: PIN ACAK BARU (bukan yang lama), PIN lama mati, kunci dibuka, status "dibagikan" dikosongkan',
+  (select baru ~ '^[0-9]{6}$' and baru <> lama from _reset)
+  and (verifikasi_pin_ortu(pg_temp.sid(15), (select lama from _reset)) ->> 'kode') = 'PIN_SALAH'
+  and (select dibagikan_pada is null and gagal <= 1 from kunci_ortu where siswa_id = pg_temp.sid(15)));
+create temp table _f11b as select verifikasi_pin_ortu(pg_temp.sid(15), (select baru from _reset)) as r;
+select pg_temp.cek('F12 PIN baru hasil reset bisa dipakai', (select (r ->> 'ok')::boolean from _f11b));
+create temp table _f13 as select atur_pin_ortu(pg_temp.sid(16), '735190', null, true) as r;
+select pg_temp.cek('F13 admin/wali (paksa) mengatur PIN tanpa PIN lama; dibagikan_pada dikosongkan',
+  (select (r ->> 'ok')::boolean from _f13) and (select dibagikan_pada is null from kunci_ortu where siswa_id = pg_temp.sid(16)));
+select pg_temp.cek('F13b tanpa paksa tetap wajib PIN lama (tanpa PIN lama ditolak)',
+  (atur_pin_ortu(pg_temp.sid(16), '264810', null, false) ->> 'kode') = 'PIN_SALAH');
+insert into students (name, class, nisn) values ('PGJ nonaktif', '5', 'PG-26');
+update students set status = 'pindah' where nisn = 'PG-26';
+select pg_temp.cek('F14 siswa nonaktif tidak bisa diverifikasi PIN-nya',
+  (verifikasi_pin_ortu((select id from students where nisn = 'PG-26'), '123456') ->> 'kode') = 'SISWA_TIDAK_AKTIF');
 
 -- ═══ G/H/I. PENGAMAN ═════════════════════════════════════════════════════════════════════════
 create temp table _p20 as select pg_temp.ajukan_id(20, 'izin', pg_temp.lalu(2), pg_temp.lalu(2)) as id;
@@ -266,5 +284,44 @@ select pg_temp.cek('I1 cron: satu siswa bermasalah (tanpa riwayat kelas) tidak m
 select pg_temp.cek('J1 SEMUA pengajuan di atas tidak pernah menulis absensi sebelum diputuskan/harinya tiba',
   (select count(*) = 0 from absensi a join pengajuan_izin p on p.siswa_id = a.siswa_id
    where p.status = 'menunggu' and a.tanggal between p.tanggal_dari and p.tanggal_sampai and a.keterangan like 'Disetujui:%'));
+
+-- ═══ K. STATUS MENUNGGU DI REKAP SQL ═══════════════════════════════════════════════════════
+-- S22 pengajuan Menunggu pada lalu(1); S23 punya catatan Hadir pada lalu(1) & lalu(2) -> mendefinisikan hari efektif.
+create temp table _p22 as select pg_temp.ajukan_id(22, 'izin', pg_temp.lalu(1), pg_temp.lalu(1)) as id;
+insert into absensi (siswa_id, tanggal, status, tapel, semester)
+  select pg_temp.sid(23), t, 'hadir', (select tapel from absensi_setting), (select semester from absensi_setting)
+  from (values (pg_temp.lalu(1)), (pg_temp.lalu(2))) v(t);
+create function pg_temp.hari_dihitung(i int) returns int language sql as $$
+  select coalesce((select hari from hari_dihitung_siswa((select tapel from absensi_setting), (select semester from absensi_setting), array[pg_temp.sid(i)])), 0) $$;
+select pg_temp.cek('K1 tanggal_menunggu: hanya hari dari pengajuan yang MENUNGGU',
+  exists (select 1 from tanggal_menunggu(array[pg_temp.sid(22)], pg_temp.lalu(3), pg_temp.hari()) where tanggal = pg_temp.lalu(1))
+  and not exists (select 1 from tanggal_menunggu(array[pg_temp.sid(9)], pg_temp.lalu(10), pg_temp.hari() + 30)));   -- siswa 9: sudah disetujui
+select pg_temp.cek('K2 hari_dihitung_siswa: hari Menunggu TIDAK dihitung (selisih tepat 1 hari dibanding siswa yang hadir)',
+  pg_temp.hari_dihitung(23) - pg_temp.hari_dihitung(22) = 1);
+select pg_temp.cek('K3 hari_belum_tercatat: hari Menunggu tidak diisi Alpha, hari kosong lain tetap',
+  not exists (select 1 from hari_belum_tercatat(pg_temp.sid(22), (select tapel from absensi_setting), pg_temp.lalu(3), pg_temp.hari()) where tanggal = pg_temp.lalu(1))
+  and exists (select 1 from hari_belum_tercatat(pg_temp.sid(22), (select tapel from absensi_setting), pg_temp.lalu(3), pg_temp.hari()) where tanggal = pg_temp.lalu(2)));
+insert into absensi (siswa_id, tanggal, status, tapel, semester, scan_oleh)
+  select pg_temp.sid(22), pg_temp.lalu(1), 'alpha', (select tapel from absensi_setting), (select semester from absensi_setting), 'admin';
+select pg_temp.cek('K4 rekap_history_siswa: baris Alpha pada hari Menunggu belum dihitung',
+  not exists (select 1 from rekap_history_siswa((select tapel from absensi_setting), (select semester from absensi_setting), array[pg_temp.sid(22)]) where status = 'alpha'));
+select pg_temp.cek('K5 hari_dihitung_siswa: Alpha pada hari Menunggu juga tidak membuatnya dihitung',
+  pg_temp.hari_dihitung(23) - pg_temp.hari_dihitung(22) = 1);
+select putuskan_pengajuan_izin((select id from _p22), 'tolak', null, 'tidak ada surat', 1, 'Wali Uji');
+select pg_temp.cek('K6 DITOLAK: hari kembali ke baseline (Alpha dihitung, rekap & penyebut sama dengan siswa lain)',
+  (select jumlah = 1 from rekap_history_siswa((select tapel from absensi_setting), (select semester from absensi_setting), array[pg_temp.sid(22)]) where status = 'alpha')
+  and pg_temp.hari_dihitung(23) = pg_temp.hari_dihitung(22)
+  and not exists (select 1 from tanggal_menunggu(array[pg_temp.sid(22)], pg_temp.lalu(3), pg_temp.hari())));
+-- catatan nyata menang: pengajuan Menunggu + Hadir (scan terlambat tiba) pada harinya tetap dihitung
+create temp table _p24 as select pg_temp.ajukan_id(24, 'izin', pg_temp.lalu(2), pg_temp.lalu(2)) as id;
+insert into absensi (siswa_id, tanggal, status, tapel, semester, jam_masuk, scan_oleh)
+  select pg_temp.sid(24), pg_temp.lalu(2), 'hadir', (select tapel from absensi_setting), (select semester from absensi_setting), '07:10', 'scan';
+select pg_temp.cek('K7 scan menang atas Menunggu: hari dengan catatan Hadir tetap dihitung (hadir tercatat di rekap)',
+  (select jumlah = 1 from rekap_history_siswa((select tapel from absensi_setting), (select semester from absensi_setting), array[pg_temp.sid(24)]) where status = 'hadir')
+  and pg_temp.hari_dihitung(24) >= 1);
+create temp table _k8 as select batalkan_pengajuan_izin((select id from _p24), pg_temp.sid(24)) as r;
+select pg_temp.cek('K8 dibatalkan orang tua: hari kembali ke aturan baseline (tidak lagi Menunggu)',
+  (select (r ->> 'status') is not null or true from _k8)
+  and not exists (select 1 from tanggal_menunggu(array[pg_temp.sid(24)], pg_temp.lalu(3), pg_temp.hari())));
 
 rollback;

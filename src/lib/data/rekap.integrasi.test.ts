@@ -64,8 +64,11 @@ function bangunDb(): Db {
   isi(1, LIBUR, { keterangan: "demam tinggi", lampiran: "surat-dokter.pdf", jam_masuk: "07:01:00", jam_pulang: "12:00:00", scan_oleh: "manual" });
   isi(2, "2026-10-12", { keterangan: "pindah sekolah", lampiran: "surat-pindah.pdf", jam_masuk: "07:05:00", scan_oleh: "manual" });
   isi(3, "2026-10-02", { keterangan: "masa jeda", lampiran: "jeda.pdf", jam_masuk: "07:10:00", scan_oleh: "manual" });
+  // Siti: pengajuan MENUNGGU untuk 16 Okt (ada baris Alpha lama) dan 17 Okt (sudah ada catatan Hadir: scan menang)
+  isi(3, "2026-10-16", { status: "alpha", keterangan: "alpha otomatis", lampiran: "lama.pdf" });
   return {
     absensi,
+    pengajuan_menunggu: [{ siswa_id: 3, tanggal: "2026-10-16" }, { siswa_id: 3, tanggal: "2026-10-17" }],
     hari_libur: [{ tanggal: LIBUR, keterangan: "uji" }],
     students: SISWA.map((s) => ({ id: s.siswa_id, status: s.nonaktif_pada ? "pindah" : "aktif" })),
     riwayat_kelas: [{ siswa_id: 2, tapel: TAPEL, nonaktif_pada: "2026-10-12" }],
@@ -84,6 +87,7 @@ function acuan(db: Db, s: S, tglRef: string): KonteksSiswa {
     absensi: new Map(mine.map((r) => [r.tanggal, r.status])),
     nonaktifPada: s.nonaktif_pada,
     jeda: s.siswa_id === 3 ? JEDA_SITI : [],
+    menunggu: new Set((db.pengajuan_menunggu as { siswa_id: number; tanggal: string }[]).filter((r) => r.siswa_id === s.siswa_id).map((r) => r.tanggal)),
     mulai,
   };
 }
@@ -97,6 +101,10 @@ function pasang(opsi: { batasBaris?: number } = {}) {
   fake = buatFakeSupabase(db, {
     ...opsi,
     rpc: {
+      tanggal_menunggu: (a) =>
+        (db.pengajuan_menunggu as { siswa_id: number; tanggal: string }[]).filter(
+          (r) => (a.p_siswa_ids as number[]).includes(r.siswa_id) && r.tanggal >= (a.p_dari as string) && r.tanggal <= (a.p_sampai as string)
+        ),
       awal_catatan_siswa: (a) => {
         const per = new Map<number, string>();
         for (const r of db.absensi as { siswa_id: number; tanggal: string; tapel: string }[]) {
@@ -123,10 +131,11 @@ describe("Rekap Harian (getRekapHarian) memakai fungsi bersama", () => {
       for (const r of rows) {
         const s = SISWA.find((x) => x.siswa_id === r.id)!;
         const a = statusHariSiswa(tgl, acuan(db, s, tgl));
-        const harapStatus = a === "nonaktif" || a === "libur" ? "kosong" : a;
+        const harapStatus = a === "nonaktif" || a === "libur" || a === "menunggu" ? "kosong" : a;
         expect(r.status, `${tgl} ${s.nama}`).toBe(harapStatus);
         expect(!!r.tidakDihitung, `${tgl} ${s.nama} tidakDihitung`).toBe(a === "nonaktif");
         expect(!!r.libur, `${tgl} ${s.nama} libur`).toBe(a === "libur");
+        expect(!!r.menunggu, `${tgl} ${s.nama} menunggu`).toBe(a === "menunggu");
         if (harapStatus in hitung) hitung[harapStatus]++;
       }
       expect(stat, `stat ${tgl}`).toEqual(hitung);
@@ -280,5 +289,70 @@ describe("Grafik tren memakai fungsi bersama, RPC batas awal, dan paginasi", () 
     const diambil = absensiReq.reduce((n, p) => n + p.jumlah, 0);
     expect(diambil).toBeLessThan(24 * 27); // hanya jendela 24 bulan, bukan seluruh riwayat 4+ tahun
     expect(diambil).toBeLessThan(totalAni);
+  });
+});
+
+describe("Pengajuan izin/sakit MENUNGGU (Siti: 16 Okt Alpha lama, 17 Okt sudah Hadir)", () => {
+  const opsiPenuh = { denganPulihkan: true, denganSumber: true };
+
+  it("Rekap Harian: hari Menunggu tampil Menunggu, tidak dihitung, isi catatan Alpha lama tidak bocor", async () => {
+    pasang();
+    const { getRekapHarian } = await import("./rekap");
+    const { rows, stat } = await getRekapHarian("2026-10-16", "", opsiPenuh);
+    const siti = rows.find((r) => r.name === "Siti")!;
+    expect(siti.menunggu).toBe(true);
+    expect(siti.status).toBe("kosong");
+    for (const k of ["keterangan", "lampiran", "jam_masuk", "sumber"] as const) expect(siti[k], k).toBeNull();
+    const hitungAlpha = rows.filter((r) => r.status === "alpha").length;
+    expect(stat.alpha).toBe(hitungAlpha); // Siti tidak ikut
+  });
+
+  it("SCAN MENANG: hari yang menunggu tetapi sudah ada catatan Hadir tetap Hadir (tidak ditandai menunggu)", async () => {
+    pasang();
+    const { getRekapHarian } = await import("./rekap");
+    const siti = (await getRekapHarian("2026-10-17", "", opsiPenuh)).rows.find((r) => r.name === "Siti")!;
+    expect(siti.status).toBe("hadir");
+    expect(siti.menunggu).toBeUndefined();
+  });
+
+  it("Rekap Bulanan admin, kartu Portal, dan kartu ringkasan: Menunggu tidak dihitung, ketiganya identik", async () => {
+    pasang();
+    const { getRekapBulanan, getRekapBulananSiswa } = await import("./rekap");
+    const { getRingkasanKehadiran } = await import("./rekap-siswa");
+    const adm = (await getRekapBulanan("2026-10", "", liburMap)).rows.find((r) => r.nama === "Siti")!;
+    const portal = await getRekapBulananSiswa(3, "2026-10", liburMap);
+    const kartu = await getRingkasanKehadiran(3, { tapel: TAPEL, semester: "ganjil", bulan: "2026-10" }, liburMap);
+    expect(adm.d["2026-10-16"]).toBe("menunggu");
+    expect(adm.d["2026-10-17"]).toBe("hadir");
+    expect(adm.menunggu).toBe(1);
+    expect(adm.ket["2026-10-16"]).toMatch(/Menunggu persetujuan/);
+    expect(portal.d).toEqual(adm.d);
+    expect(portal.menunggu).toBe(1);
+    expect(portal.catatanMenunggu).toMatch(/1 hari menunggu persetujuan guru/);
+    expect(portal.ket["2026-10-16"]).toMatch(/belum dianggap Alpha/);
+    expect(kartu.stat).toEqual({ hadir: adm.hadir, terlambat: adm.terlambat, izin: adm.izin, sakit: adm.sakit, alpha: adm.alpha });
+    const a = hitungRekapSiswa(bulanTgl("2026-10"), acuan(db, SISWA[2], "2026-10-01"));
+    expect({ hadir: adm.hadir, alpha: adm.alpha }).toEqual({ hadir: a.hadir, alpha: a.alpha });
+  });
+
+  it("DITOLAK/DIBATALKAN (tidak lagi menunggu): hari kembali ke baseline, rekap & portal sama-sama Alpha", async () => {
+    pasang();
+    const { getRekapBulanan, getRekapBulananSiswa } = await import("./rekap");
+    const sebelum = (await getRekapBulanan("2026-10", "", liburMap)).rows.find((r) => r.nama === "Siti")!.alpha;
+    db.pengajuan_menunggu = [];
+    const adm = (await getRekapBulanan("2026-10", "", liburMap)).rows.find((r) => r.nama === "Siti")!;
+    const portal = await getRekapBulananSiswa(3, "2026-10", liburMap);
+    expect(adm.d["2026-10-16"]).toBe("alpha");
+    expect(portal.d["2026-10-16"]).toBe("alpha");
+    expect(portal.catatanMenunggu).toBeNull();
+    expect(adm.alpha).toBe(sebelum + 1);
+  });
+
+  it("Grafik tren: hari Menunggu tidak dihitung (sama dengan acuan)", async () => {
+    pasang();
+    const { getChartTren6Bulan } = await import("./history");
+    const data = await getChartTren6Bulan(3);
+    const a = hitungRekapSiswa(bulanTgl("2026-10"), acuan(db, SISWA[2], "2026-10-01"));
+    expect(data.at(-1)).toMatchObject({ label: "Okt 2026", hadir: a.hadir + a.terlambat, alpha: a.alpha });
   });
 });

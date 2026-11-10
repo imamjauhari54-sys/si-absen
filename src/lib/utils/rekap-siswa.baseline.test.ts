@@ -79,6 +79,33 @@ describe("tes penerimaan — skenario baseline", () => {
     expect(r.hariDihitung).toBe(3);
   });
 
+  it("Pengajuan izin/sakit MENUNGGU → hari 'menunggu', tidak dihitung dan bukan Alpha", () => {
+    const k = mk({ mulai: "2026-10-01", menunggu: new Set(["2026-10-12", "2026-10-13"]) });
+    const r = hitungRekapSiswa(daftarTanggalRentang("2026-10-12", "2026-10-14"), k);
+    expect(r.d["2026-10-12"]).toBe("menunggu");
+    expect(r.menunggu).toBe(2);
+    expect(r.alpha).toBe(1); // 14 Okt tanpa pengajuan tetap Alpha bawaan
+    expect(r.hariDihitung).toBe(1);
+  });
+
+  it("Pengajuan DITOLAK atau DIBATALKAN → kembali ke baseline (hari lampau tanpa catatan = Alpha)", () => {
+    const menunggu = mk({ mulai: "2026-10-01", menunggu: new Set(["2026-10-12"]) });
+    const selesai = mk({ mulai: "2026-10-01", menunggu: new Set() }); // tidak lagi Menunggu
+    expect(hitungRekapSiswa(["2026-10-12"], menunggu).alpha).toBe(0);
+    expect(hitungRekapSiswa(["2026-10-12"], selesai).alpha).toBe(1);
+  });
+
+  it("Pengajuan DISETUJUI → catatan izin/sakit menjadi dihitung sebagai izin/sakit", () => {
+    const k = mk({ mulai: "2026-10-01", absensi: new Map([["2026-10-12", "sakit"]]), menunggu: new Set() });
+    const r = hitungRekapSiswa(["2026-10-12"], k);
+    expect(r).toMatchObject({ sakit: 1, alpha: 0, hariDihitung: 1 });
+  });
+
+  it("Scan MENANG atas pengajuan Menunggu (Hadir tetap dihitung)", () => {
+    const k = mk({ mulai: "2026-10-01", absensi: new Map([["2026-10-12", "hadir"]]), menunggu: new Set(["2026-10-12"]) });
+    expect(hitungRekapSiswa(["2026-10-12"], k)).toMatchObject({ hadir: 1, menunggu: 0, hariDihitung: 1 });
+  });
+
   it("Hari ini dan mendatang tanpa catatan tidak menjadi Alpha", () => {
     const r = hitungRekapSiswa(daftarTanggalRentang("2026-10-19", "2026-10-24"), mk({ mulai: "2026-10-01" }));
     expect(r.d["2026-10-19"]).toBe("alpha");
@@ -91,6 +118,15 @@ describe("paritas Portal ↔ Admin: satu siswa, satu tapel, satu periode → sat
   // Portal membentuk konteks dari batas pindah per tapel (Map); admin dari tanggal pindah baris tapel itu (skalar).
   const catatan = new Map([["2026-07-02", "hadir"], ["2026-07-03", "sakit"], ["2026-09-01", "hadir"], ["2026-10-09", "terlambat"]]);
   const dasar = { absensi: catatan, libur: new Set(["2026-08-17"]), mulai: "2026-07-02", jeda: [{ dari: "2026-09-14", sampai: "2026-10-05" }] as JedaSiswa[] };
+  it("identik portal vs admin untuk siswa dengan hari Menunggu (semester dan setiap bulan)", () => {
+    const dasarM = { absensi: new Map([["2026-10-09", "hadir"]]), libur: new Set(["2026-08-17"]), mulai: "2026-07-02", menunggu: new Set(["2026-10-08", "2026-10-09", "2026-10-13"]) };
+    const portal = mk({ ...dasarM, batasPindah: new Map() });
+    const admin = mk({ ...dasarM, nonaktifPada: null });
+    expect(hitungRekapSiswa(SEM_TGL, portal)).toEqual(hitungRekapSiswa(SEM_TGL, admin));
+    const okt = daftarTanggalRentang("2026-10-01", "2026-10-31");
+    expect(hitungRekapSiswa(okt, portal)).toEqual(hitungRekapSiswa(okt, admin));
+    expect(hitungRekapSiswa(okt, admin).menunggu).toBe(2); // 9 Okt punya catatan Hadir -> bukan menunggu
+  });
   for (const [nama, pindah] of [["tanpa pindah", null], ["pindah 12 Okt", "2026-10-12"]] as const) {
     it(`identik untuk seluruh semester dan setiap bulan — ${nama}`, () => {
       const portal = mk({ ...dasar, ...(pindah ? { batasPindah: new Map([["2026/2027", pindah]]) } : {}) });

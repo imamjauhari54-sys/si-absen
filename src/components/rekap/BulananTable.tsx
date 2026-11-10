@@ -16,14 +16,15 @@ const LEG: { k: string; cls: string; lbl: string }[] = [
   { k: "A", cls: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400", lbl: "Alpha" },
   { k: "L", cls: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400", lbl: "Libur" },
   { k: "×", cls: "bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border border-dashed border-slate-300", lbl: "Tidak dihitung (pindah/jeda), bukan alpha" },
+  { k: "M", cls: "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-dashed border-amber-400", lbl: "Menunggu persetujuan pengajuan (belum dihitung)" },
 ];
 
 const CS_MAP: Record<StatusBulanan, string> = {
   hadir: "cs-hadir", terlambat: "cs-terlambat", izin: "cs-izin", sakit: "cs-sakit",
-  alpha: "cs-alpha", libur: "cs-libur", kosong: "cs-kosong", nonaktif: "cs-kosong",
+  alpha: "cs-alpha", libur: "cs-libur", kosong: "cs-kosong", nonaktif: "cs-kosong", menunggu: "cs-menunggu",
 };
 const LBL_MAP: Record<StatusBulanan, string> = {
-  hadir: "H", terlambat: "T", izin: "I", sakit: "S", alpha: "A", libur: "L", kosong: "-", nonaktif: "×",
+  hadir: "H", terlambat: "T", izin: "I", sakit: "S", alpha: "A", libur: "L", kosong: "-", nonaktif: "×", menunggu: "M",
 };
 const HARI_SHORT: Record<string, string> = { Mon: "Sn", Tue: "Sl", Wed: "Rb", Thu: "Km", Fri: "Jm", Sat: "Sb" };
 
@@ -44,6 +45,7 @@ const DETAIL_STYLE: Record<StatusBulanan, React.CSSProperties> = {
   libur: { background: "rgba(100,116,139,.1)", color: "#94a3b8" },
   kosong: { background: "transparent", color: "#cbd5e1", border: "1px dashed #cbd5e1" },
   nonaktif: { background: "transparent", color: "#cbd5e1", border: "1px dashed #cbd5e1" },
+  menunggu: { background: "rgba(245,158,11,.08)", color: "#d97706", border: "1px dashed rgba(217,119,6,.55)" },
 };
 
 function hariPendek(tgl: string): string {

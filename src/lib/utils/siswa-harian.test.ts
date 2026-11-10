@@ -350,6 +350,11 @@ describe("penyebutSiswa — penyebut persentase history", () => {
     expect(penyebutSiswa({ id: 77, nonaktif_pada: "2026-07-01" }, hariDihitung, TOTAL)).toBe(0);
     expect(penyebutSiswa({ id: 3, jeda: [{ dari: "a", sampai: "b" }] }, hariDihitung, TOTAL)).toBe(0);
   });
+  it("siswa dengan hari MENUNGGU saja: memakai hari_dihitung_siswa (penyebut berkurang), bukan hari efektif penuh", () => {
+    expect(penyebutSiswa({ id: 1, menunggu: true }, hariDihitung, TOTAL)).toBe(24);
+    expect(penyebutSiswa({ id: 9, menunggu: false }, hariDihitung, TOTAL)).toBe(35);
+    expect(perluHitungPerSiswa({ menunggu: true })).toBe(true);
+  });
   it("perluHitungPerSiswa", () => {
     expect(perluHitungPerSiswa({})).toBe(false);
     expect(perluHitungPerSiswa({ nonaktif_pada: "2026-10-01" })).toBe(true);

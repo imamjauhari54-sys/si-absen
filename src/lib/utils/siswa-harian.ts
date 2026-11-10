@@ -169,8 +169,9 @@ export function labelKeluar(
 }
 
 /** Siswa yang penyebut persentasenya BUKAN hari efektif penuh: punya tanggal pindah atau jeda. */
-export function perluHitungPerSiswa(s: { nonaktif_pada?: string | null; jeda?: readonly unknown[] }): boolean {
-  return !!s.nonaktif_pada || (s.jeda?.length ?? 0) > 0;
+export function perluHitungPerSiswa(s: { nonaktif_pada?: string | null; jeda?: readonly unknown[]; menunggu?: boolean }): boolean {
+  // `menunggu` = ada hari berstatus Menunggu persetujuan pengajuan pada semester itu: penyebutnya juga berkurang (migrasi 027)
+  return !!s.nonaktif_pada || (s.jeda?.length ?? 0) > 0 || !!s.menunggu;
 }
 
 /**
@@ -180,7 +181,7 @@ export function perluHitungPerSiswa(s: { nonaktif_pada?: string | null; jeda?: r
  * hari efektif penuh.
  */
 export function penyebutSiswa(
-  s: { id: number; nonaktif_pada?: string | null; jeda?: readonly unknown[] },
+  s: { id: number; nonaktif_pada?: string | null; jeda?: readonly unknown[]; menunggu?: boolean },
   hariDihitung: ReadonlyMap<number, number>,
   totalHariEfektif: number
 ): number {

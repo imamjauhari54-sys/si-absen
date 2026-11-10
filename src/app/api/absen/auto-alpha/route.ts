@@ -62,11 +62,33 @@ async function prosesAutoAlpha(req: NextRequest) {
     return NextResponse.json({ status: "error", message: "Pengaturan Tahun Pelajaran belum diatur!" });
   }
 
-  // Siswa yang belum absen hari ini
+  // Pengajuan izin/sakit orang tua (migrasi 027), SEBELUM membaca/menulis absensi hari ini:
+  //  - pengajuan yang sudah DISETUJUI untuk hari ini ditulis sebagai izin/sakit (hanya bila siswa tidak scan; scan menang);
+  //  - siswa dengan pengajuan MENUNGGU hari ini TIDAK ditulis Alpha dan TIDAK dikirimi WA Alpha. Bila nanti ditolak/dibatalkan,
+  //    Alpha dievaluasi ulang oleh database (evaluasi_alpha_pengajuan).
+  // Gagal TERTUTUP: bila pemrosesan pengajuan error (selain fitur belum terpasang), tidak ada Alpha/WA yang dikirim.
+  let ditunda = new Set<number>();
+  let dariPengajuan = 0;
+  const { data: hasilPengajuan, error: galatPengajuan } = await supabaseAdmin.rpc("terapkan_rencana_pengajuan", { p_tanggal: today });
+  if (galatPengajuan) {
+    if (galatPengajuan.code !== "PGRST202") {
+      return NextResponse.json(
+        { status: "error", message: `Gagal memproses pengajuan izin/sakit: ${galatPengajuan.message}. Alpha otomatis ditunda.` },
+        { status: 500 }
+      );
+    }
+  } else {
+    const h = hasilPengajuan as { ditulis?: number; menunggu?: number[] } | null;
+    ditunda = new Set(h?.menunggu ?? []);
+    dariPengajuan = h?.ditulis ?? 0;
+  }
+
+  // Siswa yang belum absen hari ini (izin/sakit dari pengajuan yang baru ditulis di atas sudah terhitung sebagai tercatat)
   const { data: allStudents } = await supabaseAdmin.from("students").select("id, name, class").eq("status", "aktif");
   const { data: absenRows } = await supabaseAdmin.from("absensi").select("siswa_id").eq("tanggal", today);
   const sudahIds = new Set((absenRows ?? []).map((r) => r.siswa_id));
-  const belum = (allStudents ?? []).filter((s) => !sudahIds.has(s.id));
+  const belum = (allStudents ?? []).filter((s) => !sudahIds.has(s.id) && !ditunda.has(s.id));
+  const jumlahDitunda = (allStudents ?? []).filter((s) => !sudahIds.has(s.id) && ditunda.has(s.id)).length;
 
   if (belum.length > 0) {
     const rows = belum.map((s) => ({
@@ -96,9 +118,15 @@ async function prosesAutoAlpha(req: NextRequest) {
     });
   }
 
+  const tambahan =
+    (jumlahDitunda > 0 ? ` ${jumlahDitunda} siswa ditunda karena pengajuan izin/sakitnya menunggu persetujuan.` : "") +
+    (dariPengajuan > 0 ? ` ${dariPengajuan} izin/sakit dari pengajuan yang disetujui dicatat.` : "");
   return NextResponse.json({
     status: "ok",
-    message: `Berhasil memproses ${belum.length} siswa menjadi Alpha.`,
+    message: `Berhasil memproses ${belum.length} siswa menjadi Alpha.${tambahan}`,
+    alpha: belum.length,
+    ditunda: jumlahDitunda,
+    dariPengajuan,
   });
 }
 

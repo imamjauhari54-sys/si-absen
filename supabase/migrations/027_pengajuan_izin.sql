@@ -19,14 +19,15 @@
 --  Lampiran wajib untuk sakit bila hari sekolahnya LEBIH DARI 2; opsional untuk izin.
 --  Tidak boleh tumpang tindih dengan pengajuan aktif lain pada tanggal yang sama.
 --
--- PIN orang tua: verifikasi di SQL (verifikasi_pin_ortu), PIN bawaan = pin_bawaan_ortu() sampai diganti.
+-- PIN orang tua: ACAK per siswa (dibuat wali kelas/admin, dibagikan pribadi), verifikasi di SQL (verifikasi_pin_ortu). Tidak ada PIN bawaan.
+-- Hari berstatus MENUNGGU tidak dihitung di rekap (termasuk fungsi SQL rekap di bawah) dan tidak ditulis Alpha oleh sistem.
 -- Prasyarat: migrasi 019 (edit_manual_absensi). Aman dijalankan ulang. Tidak mengubah data yang ada.
 
 -- 1. TABEL ---------------------------------------------------------------------------------------
 
 create table if not exists public.kunci_ortu (
   siswa_id        bigint primary key references public.students (id) on delete cascade,
-  pin_hash        text,                                  -- null = belum diatur: aplikasi memakai PIN sementara
+  pin_hash        text,                                  -- null = PIN belum dibuat (siswa tidak bisa mengajukan sampai wali kelas/admin membuat PIN acak)
   gagal           integer not null default 0,
   terkunci_sampai timestamptz,
   diubah_pada     timestamptz not null default now()
@@ -456,16 +457,17 @@ end;
 $$;
 
 -- 8. PIN ORANG TUA --------------------------------------------------------------------------------
--- Login baca Portal Siswa tetap NISN saja. PIN hanya diminta untuk MENGAJUKAN/MEMBATALKAN (aplikasi memanggil
--- verifikasi_pin_ortu lebih dulu). pin_hash NULL = belum diganti: berlaku PIN BAWAAN (pin_bawaan_ortu()).
--- Verifikasi dilakukan di SQL dengan kunci baris, jadi percobaan paralel dihitung bergantian (tidak bisa menyelinap
--- sebelum penguncian). 5 salah berturut-turut mengunci 15 menit; tiap kelipatan 5 berikutnya menggandakan (maks 4 jam).
--- PERINGATAN KEAMANAN: selama PIN masih bawaan, siapa pun yang tahu NISN bisa lolos. Aplikasi WAJIB memaksa ganti PIN
--- (flag pin_bawaan) sebelum mengajukan; jalur yang lebih aman: buat_pin_acak_ortu() lalu bagikan lewat wali kelas.
+-- Login baca Portal Siswa tetap NISN saja. MENGAJUKAN/MEMBATALKAN wajib PIN 6 digit ACAK per siswa. Tidak ada PIN bawaan:
+-- siswa yang PIN-nya belum dibuat tidak bisa mengajukan (PIN_BELUM_DIATUR). Alur: wali kelas/admin membuat PIN acak
+-- (buat_pin_acak_ortu) -> membagikannya SECARA PRIBADI -> menandai sudah dibagikan (tandai_pin_dibagikan). Sistem TIDAK pernah
+-- menganggap PIN terbagikan otomatis: dibagikan_pada hanya terisi lewat tindakan eksplisit wali kelas/admin.
+-- Verifikasi di SQL dengan kunci baris (percobaan paralel dihitung bergantian). 5 salah berturut-turut mengunci 15 menit,
+-- kelipatan 5 berikutnya menggandakan (maks 4 jam). PIN disimpan sebagai hash bcrypt. Reset membuat PIN acak BARU; PIN lama mati.
 
 create extension if not exists pgcrypto;
-
-create or replace function public.pin_bawaan_ortu() returns text language sql immutable as $$ select '123456'::text $$;
+alter table public.kunci_ortu add column if not exists dibagikan_pada timestamptz;
+drop function if exists public.pin_bawaan_ortu();
+drop function if exists public.reset_pin_ortu(bigint);
 
 create or replace function public.pin_terlalu_mudah(p_pin text)
 returns boolean
@@ -483,25 +485,24 @@ set search_path = public, extensions, pg_temp
 as $$
 declare
   v       public.kunci_ortu%rowtype;
-  v_ok    boolean;
   v_gagal integer;
   v_menit integer;
 begin
   if not exists (select 1 from public.students where id = p_siswa_id and status = 'aktif') then
     return jsonb_build_object('ok', false, 'kode', 'SISWA_TIDAK_AKTIF');
   end if;
-  insert into public.kunci_ortu (siswa_id) values (p_siswa_id) on conflict (siswa_id) do nothing;
   select * into v from public.kunci_ortu where siswa_id = p_siswa_id for update;
+  if not found or v.pin_hash is null then
+    return jsonb_build_object('ok', false, 'kode', 'PIN_BELUM_DIATUR');   -- tanpa PIN bawaan: tidak ada yang bisa ditebak
+  end if;
 
   if v.terkunci_sampai is not null and v.terkunci_sampai > now() then
     return jsonb_build_object('ok', false, 'kode', 'TERKUNCI', 'terkunci_sampai', v.terkunci_sampai);
   end if;
 
-  v_ok := p_pin is not null and case when v.pin_hash is null then p_pin = public.pin_bawaan_ortu()
-                                     else v.pin_hash = crypt(p_pin, v.pin_hash) end;
-  if v_ok then
+  if p_pin is not null and v.pin_hash = crypt(p_pin, v.pin_hash) then
     update public.kunci_ortu set gagal = 0, terkunci_sampai = null where siswa_id = p_siswa_id;
-    return jsonb_build_object('ok', true, 'pin_bawaan', v.pin_hash is null);
+    return jsonb_build_object('ok', true);
   end if;
 
   v_gagal := v.gagal + 1;
@@ -515,8 +516,8 @@ begin
 end;
 $$;
 
--- Orang tua mengganti PIN sendiri: wajib PIN lama (PIN bawaan juga dianggap PIN lama), PIN baru 6 digit, tidak boleh
--- mudah ditebak dan tidak boleh sama dengan PIN bawaan. p_paksa = true (admin/wali kelas lewat API): tanpa PIN lama.
+-- Orang tua mengganti PIN sendiri: wajib PIN lama yang benar, PIN baru 6 digit dan tidak mudah ditebak.
+-- p_paksa = true (admin/wali kelas lewat API): tanpa PIN lama; PIN dianggap BELUM dibagikan lagi.
 create or replace function public.atur_pin_ortu(p_siswa_id bigint, p_pin_baru text, p_pin_lama text default null, p_paksa boolean default false)
 returns jsonb
 language plpgsql
@@ -529,30 +530,26 @@ begin
     return jsonb_build_object('ok', false, 'kode', 'PIN_FORMAT');
   end if;
   if not p_paksa then
-    if public.pin_terlalu_mudah(p_pin_baru) or p_pin_baru = public.pin_bawaan_ortu() then
+    if public.pin_terlalu_mudah(p_pin_baru) then
       return jsonb_build_object('ok', false, 'kode', 'PIN_TERLALU_MUDAH');
     end if;
     v_cek := public.verifikasi_pin_ortu(p_siswa_id, p_pin_lama);
     if not (v_cek ->> 'ok')::boolean then return v_cek; end if;
-  elsif not exists (select 1 from public.students where id = p_siswa_id and status = 'aktif') then
+    insert into public.kunci_ortu (siswa_id, pin_hash, diubah_pada) values (p_siswa_id, crypt(p_pin_baru, gen_salt('bf', 10)), now())
+    on conflict (siswa_id) do update set pin_hash = excluded.pin_hash, gagal = 0, terkunci_sampai = null, diubah_pada = now();   -- dibagikan_pada tetap: orang tua sendiri yang mengganti
+    return jsonb_build_object('ok', true);
+  end if;
+  if not exists (select 1 from public.students where id = p_siswa_id and status = 'aktif') then
     return jsonb_build_object('ok', false, 'kode', 'SISWA_TIDAK_AKTIF');
   end if;
-  insert into public.kunci_ortu (siswa_id, pin_hash, diubah_pada) values (p_siswa_id, crypt(p_pin_baru, gen_salt('bf', 10)), now())
-  on conflict (siswa_id) do update set pin_hash = excluded.pin_hash, gagal = 0, terkunci_sampai = null, diubah_pada = now();
+  insert into public.kunci_ortu (siswa_id, pin_hash, diubah_pada, dibagikan_pada) values (p_siswa_id, crypt(p_pin_baru, gen_salt('bf', 10)), now(), null)
+  on conflict (siswa_id) do update set pin_hash = excluded.pin_hash, gagal = 0, terkunci_sampai = null, diubah_pada = now(), dibagikan_pada = null;
   return jsonb_build_object('ok', true);
 end;
 $$;
 
--- Wali kelas/admin: kembalikan ke PIN bawaan (orang tua lupa PIN) dan buka kunci.
-create or replace function public.reset_pin_ortu(p_siswa_id bigint)
-returns void
-language sql
-as $$
-  insert into public.kunci_ortu (siswa_id, pin_hash, gagal, terkunci_sampai, diubah_pada) values (p_siswa_id, null, 0, null, now())
-  on conflict (siswa_id) do update set pin_hash = null, gagal = 0, terkunci_sampai = null, diubah_pada = now();
-$$;
-
--- Jalur lebih aman: PIN ACAK awal untuk banyak siswa (dicetak/dibagikan wali kelas). PIN polos hanya dikembalikan di sini, sekali.
+-- PIN ACAK untuk banyak siswa (wali kelas/admin). PIN polos HANYA dikembalikan di sini, sekali; yang tersimpan hanya hash.
+-- Memakai ulang fungsi ini = PIN lama mati. dibagikan_pada dikosongkan: PIN baru belum dibagikan.
 create or replace function public.buat_pin_acak_ortu(p_siswa_ids bigint[])
 returns table (siswa_id bigint, pin text)
 language plpgsql
@@ -568,8 +565,9 @@ begin
       exit when not public.pin_terlalu_mudah(v_pin) and v_pin <> '000000';
     end loop;
     -- ON CONFLICT ON CONSTRAINT: kolom keluaran fungsi bernama siswa_id akan ambigu bila ditulis on conflict (siswa_id)
-    insert into public.kunci_ortu (siswa_id, pin_hash) values (v_id, crypt(v_pin, gen_salt('bf', 10)))
-    on conflict on constraint kunci_ortu_pkey do update set pin_hash = excluded.pin_hash, gagal = 0, terkunci_sampai = null, diubah_pada = now();
+    insert into public.kunci_ortu (siswa_id, pin_hash, dibagikan_pada) values (v_id, crypt(v_pin, gen_salt('bf', 10)), null)
+    on conflict on constraint kunci_ortu_pkey do update
+      set pin_hash = excluded.pin_hash, gagal = 0, terkunci_sampai = null, diubah_pada = now(), dibagikan_pada = null;
     siswa_id := v_id;
     pin := v_pin;
     return next;
@@ -577,7 +575,128 @@ begin
 end;
 $$;
 
--- 9. HAK AKSES -----------------------------------------------------------------------------------
+-- Reset (orang tua lupa PIN): buat PIN acak BARU untuk satu siswa dan kembalikan sekali. PIN lama tidak berlaku lagi, kunci dibuka.
+create or replace function public.reset_pin_ortu(p_siswa_id bigint)
+returns text
+language sql
+as $$
+  select pin from public.buat_pin_acak_ortu(array[p_siswa_id]);
+$$;
+
+-- Wali kelas/admin menandai PIN sudah DIBERIKAN ke orang tua (tindakan eksplisit; tidak pernah otomatis).
+create or replace function public.tandai_pin_dibagikan(p_siswa_ids bigint[])
+returns integer
+language sql
+as $$
+  with u as (
+    update public.kunci_ortu set dibagikan_pada = now()
+    where siswa_id = any (p_siswa_ids) and pin_hash is not null and dibagikan_pada is null
+    returning 1
+  ) select count(*)::integer from u;
+$$;
+
+-- 9. HARI MENUNGGU DI REKAP (SQL) -----------------------------------------------------------------
+-- Pengajuan yang masih MENUNGGU membuat harinya tampil "Menunggu" dan TIDAK dihitung (bukan Alpha) sampai diputuskan.
+-- Catatan nyata menang: Hadir/Terlambat/Izin/Sakit pada hari itu tetap dihitung; hanya baris Alpha / hari tanpa catatan yang tertunda.
+-- Aturan yang sama dipakai TypeScript (utils/rekap-siswa.ts). Ditolak/dibatalkan -> hari kembali ke aturan baseline.
+
+create or replace function public.tanggal_menunggu(p_siswa_ids bigint[], p_dari date, p_sampai date)
+returns table (siswa_id bigint, tanggal date)
+language sql
+stable
+as $$
+  select h.siswa_id, h.tanggal
+  from public.pengajuan_izin_hari h
+  join public.pengajuan_izin p on p.id = h.pengajuan_id
+  where p.status = 'menunggu' and h.aktif
+    and h.siswa_id = any (p_siswa_ids)
+    and h.tanggal between p_dari and p_sampai;
+$$;
+
+-- Hari sekolah tanpa catatan siswa (dipakai mode A "Aktifkan Kembali" untuk mengisi Alpha): hari MENUNGGU tidak ditulis Alpha.
+create or replace function public.hari_belum_tercatat(p_siswa bigint, p_tapel text, p_dari date, p_sampai date)
+returns table (tanggal date, semester text)
+language sql
+stable
+as $$
+  select h.tanggal,
+         coalesce(
+           (select a2.semester from public.absensi a2
+             where a2.tapel = p_tapel and a2.tanggal = h.tanggal and a2.semester in ('ganjil', 'genap')
+             group by a2.semester order by count(*) desc, a2.semester limit 1),
+           case when extract(month from h.tanggal) >= 7 then 'ganjil' else 'genap' end)
+  from (
+    select distinct a.tanggal
+    from public.absensi a
+    where a.tapel = p_tapel
+      and a.tanggal >= p_dari
+      and a.tanggal <  p_sampai
+      and extract(isodow from a.tanggal) <> 7
+      and not exists (select 1 from public.hari_libur l where l.tanggal = a.tanggal)
+  ) h
+  where not exists (select 1 from public.absensi x where x.siswa_id = p_siswa and x.tanggal = h.tanggal)
+    and not exists (select 1 from public.tanggal_menunggu(array[p_siswa], h.tanggal, h.tanggal))
+  order by h.tanggal;
+$$;
+
+create or replace function public.hari_dihitung_siswa(p_tapel text, p_semester text, p_ids bigint[])
+returns table (siswa_id bigint, hari integer)
+language sql
+stable
+as $$
+  with hari as (
+    select distinct a.tanggal
+    from public.absensi a
+    where a.tapel = p_tapel
+      and a.semester = p_semester
+      and extract(isodow from a.tanggal) <> 7
+      and not exists (select 1 from public.hari_libur l where l.tanggal = a.tanggal)
+  ),
+  menunggu as (select m.siswa_id, m.tanggal from public.tanggal_menunggu(p_ids, '0001-01-01', '9999-12-31') m)
+  select r.siswa_id, count(h.tanggal)::integer
+  from public.riwayat_kelas r
+  cross join hari h
+  left join menunggu mg on mg.siswa_id = r.siswa_id and mg.tanggal = h.tanggal
+  where r.tapel = p_tapel
+    and r.siswa_id = any (p_ids)
+    and (r.nonaktif_pada is null or h.tanggal < r.nonaktif_pada)
+    and not exists (
+      select 1 from public.riwayat_status_siswa g
+      where g.siswa_id = r.siswa_id and g.tapel = p_tapel
+        and g.mode = 'kembali_setelah_jeda'
+        and h.tanggal >= g.pindah_pada and h.tanggal < g.kembali_pada
+    )
+    -- hari MENUNGGU tidak dihitung, kecuali siswa punya catatan nyata (selain Alpha) pada hari itu (scan menang)
+    and (mg.tanggal is null
+         or exists (select 1 from public.absensi x where x.siswa_id = r.siswa_id and x.tanggal = h.tanggal and x.status <> 'alpha'))
+  group by r.siswa_id;
+$$;
+
+create or replace function public.rekap_history_siswa(p_tapel text, p_semester text, p_ids bigint[])
+returns table (siswa_id bigint, status text, jumlah integer)
+language sql
+stable
+as $$
+  with menunggu as (select m.siswa_id, m.tanggal from public.tanggal_menunggu(p_ids, '0001-01-01', '9999-12-31') m)
+  select a.siswa_id, a.status, count(*)::integer as jumlah
+  from public.absensi a
+  left join public.riwayat_kelas r on r.siswa_id = a.siswa_id and r.tapel = p_tapel
+  left join public.riwayat_status_siswa g
+         on g.siswa_id = a.siswa_id and g.tapel = p_tapel and g.mode = 'kembali_setelah_jeda'
+        and a.tanggal >= g.pindah_pada and a.tanggal < g.kembali_pada
+  left join menunggu mg on mg.siswa_id = a.siswa_id and mg.tanggal = a.tanggal
+  where a.tapel = p_tapel
+    and a.semester = p_semester
+    and a.siswa_id = any (p_ids)
+    and extract(isodow from a.tanggal) <> 7
+    and not exists (select 1 from public.hari_libur h where h.tanggal = a.tanggal)
+    and (r.nonaktif_pada is null or a.tanggal < r.nonaktif_pada)
+    and g.id is null
+    and not (a.status = 'alpha' and mg.tanggal is not null)   -- Alpha pada hari MENUNGGU belum dihitung
+  group by a.siswa_id, a.status;
+$$;
+
+-- 10. HAK AKSES -----------------------------------------------------------------------------------
 
 revoke all on function public.hari_sekolah_rentang(date, date)                                          from public, anon, authenticated;
 revoke all on function public.ajukan_pengajuan_izin(bigint, text, date, date, text, text)              from public, anon, authenticated;
@@ -585,21 +704,29 @@ revoke all on function public.evaluasi_alpha_pengajuan(bigint, text)            
 revoke all on function public.batalkan_pengajuan_izin(bigint, bigint)                                   from public, anon, authenticated;
 revoke all on function public.putuskan_pengajuan_izin(bigint, text, date[], text, bigint, text)         from public, anon, authenticated;
 revoke all on function public.terapkan_rencana_pengajuan(date)                                          from public, anon, authenticated;
-revoke all on function public.pin_bawaan_ortu()                                                         from public, anon, authenticated;
 revoke all on function public.pin_terlalu_mudah(text)                                                   from public, anon, authenticated;
 revoke all on function public.verifikasi_pin_ortu(bigint, text)                                         from public, anon, authenticated;
 revoke all on function public.atur_pin_ortu(bigint, text, text, boolean)                                from public, anon, authenticated;
 revoke all on function public.reset_pin_ortu(bigint)                                                    from public, anon, authenticated;
 revoke all on function public.buat_pin_acak_ortu(bigint[])                                              from public, anon, authenticated;
+revoke all on function public.tandai_pin_dibagikan(bigint[])                                            from public, anon, authenticated;
+revoke all on function public.tanggal_menunggu(bigint[], date, date)                                    from public, anon, authenticated;
+revoke all on function public.hari_belum_tercatat(bigint, text, date, date)                             from public, anon, authenticated;
+revoke all on function public.hari_dihitung_siswa(text, text, bigint[])                                 from public, anon, authenticated;
+revoke all on function public.rekap_history_siswa(text, text, bigint[])                                 from public, anon, authenticated;
 grant execute on function public.hari_sekolah_rentang(date, date)                                       to service_role;
 grant execute on function public.ajukan_pengajuan_izin(bigint, text, date, date, text, text)           to service_role;
 grant execute on function public.evaluasi_alpha_pengajuan(bigint, text)                                 to service_role;
 grant execute on function public.batalkan_pengajuan_izin(bigint, bigint)                                to service_role;
 grant execute on function public.putuskan_pengajuan_izin(bigint, text, date[], text, bigint, text)      to service_role;
 grant execute on function public.terapkan_rencana_pengajuan(date)                                       to service_role;
-grant execute on function public.pin_bawaan_ortu()                                                      to service_role;
 grant execute on function public.pin_terlalu_mudah(text)                                                to service_role;
 grant execute on function public.verifikasi_pin_ortu(bigint, text)                                      to service_role;
 grant execute on function public.atur_pin_ortu(bigint, text, text, boolean)                             to service_role;
 grant execute on function public.reset_pin_ortu(bigint)                                                 to service_role;
 grant execute on function public.buat_pin_acak_ortu(bigint[])                                           to service_role;
+grant execute on function public.tandai_pin_dibagikan(bigint[])                                         to service_role;
+grant execute on function public.tanggal_menunggu(bigint[], date, date)                                 to service_role;
+grant execute on function public.hari_belum_tercatat(bigint, text, date, date)                          to service_role;
+grant execute on function public.hari_dihitung_siswa(text, text, bigint[])                              to service_role;
+grant execute on function public.rekap_history_siswa(text, text, bigint[])                              to service_role;

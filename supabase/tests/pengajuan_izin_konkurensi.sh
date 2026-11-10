@@ -48,6 +48,7 @@ cek "paling banyak 3 pengajuan Menunggu" "$([ "$(Q -c "select count(*) from peng
 
 echo "--- 3. 16 tebakan PIN salah serentak (transaksi ditahan 0,5 dtk agar TUMPANG TINDIH sungguhan)"
 S3=$(id 3)
+Q -c "select atur_pin_ortu($S3, '482916', null, true)" >/dev/null   # PIN ada dulu (tanpa PIN bawaan, siswa tanpa PIN tak bisa ditebak)
 for i in $(seq 1 16); do ( printf "begin; select verifikasi_pin_ortu($S3, '9000%02d'); select pg_sleep(0.5); commit;" $i | $PSQL -X -q -At -d "$DB" >/tmp/pk_out_$i 2>&1 ) & done; wait
 # tebakan yang BENAR-BENAR dievaluasi = jawaban PIN_SALAH + jawaban yang memicu kunci ("menit"). Penghitung harus SAMA dengan itu
 # (tanpa kunci baris, pembaruan hilang: penghitung < jumlah tebakan) dan jumlahnya tepat 5 (sisanya ditolak TERKUNCI).
@@ -58,7 +59,7 @@ cek "tepat 5 tebakan dievaluasi lalu terkunci (percobaan paralel tidak menyelina
 cek "siswa terkunci" "$([ "$(Q -c "select (terkunci_sampai > now()) from kunci_ortu where siswa_id=$S3")" = t ] && echo 1 || echo 0)"
 LOCKED=$(( $(cat $(seq -f '/tmp/pk_out_%g' 1 16) | grep -c '"kode": "TERKUNCI"') - $(cat $(seq -f '/tmp/pk_out_%g' 1 16) | grep -c '"menit"') ))
 cek "11 sesi lain (16 - 5 yang dievaluasi) mendapat TERKUNCI (terhitung: $LOCKED)" "$([ "$LOCKED" = 11 ] && echo 1 || echo 0)"
-cek "PIN yang benar pun ditolak selama terkunci" "$(Q -c "select (verifikasi_pin_ortu($S3,'123456') ->> 'kode') = 'TERKUNCI'" | sed 's/t/1/;s/f/0/')"
+cek "PIN yang benar pun ditolak selama terkunci" "$(Q -c "select (verifikasi_pin_ortu($S3,'482916') ->> 'kode') = 'TERKUNCI'" | sed 's/t/1/;s/f/0/')"
 
 echo "--- 4. keputusan dan pembatalan SERENTAK pada pengajuan yang sama"
 S4=$(id 4); D4=$(depan 3)

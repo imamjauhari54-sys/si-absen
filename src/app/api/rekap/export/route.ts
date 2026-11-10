@@ -43,6 +43,8 @@ export async function GET(req: NextRequest) {
       // Libur dan "belum tercatat" (sebelum catatan pertama siswa) juga TIDAK diekspor sebagai Alpha (aturan baseline).
       const labelStatus = r.libur
         ? "Libur"
+        : r.menunggu
+          ? "Menunggu persetujuan"
         : r.belumTercatat
           ? "Belum tercatat"
           : r.tidakDihitung
@@ -72,12 +74,12 @@ export async function GET(req: NextRequest) {
       const cells = tglList.map((t) => {
         const st = row.d[t];
         // "kosong" = hari ini/mendatang yang belum punya catatan: dikosongkan, BUKAN Alpha (dulu terekspor "A" dan ikut dihitung).
-        return st === "libur" ? "L" : st === "nonaktif" ? "-" : st === "kosong" ? "" : st.charAt(0).toUpperCase();
+        return st === "libur" ? "L" : st === "nonaktif" ? "-" : st === "menunggu" ? "M" : st === "kosong" ? "" : st.charAt(0).toUpperCase();
       });
       const sum = { H: 0, T: 0, I: 0, S: 0, A: 0 };
       for (const c of cells) if (c in sum) sum[c as keyof typeof sum]++;
       // "-" = tidak dihitung (pindah/jeda), BUKAN alpha: dijelaskan di kolom Catatan supaya tidak disangka data hilang.
-      const catatan = [row.labelKeluar, row.jedaLabel].filter(Boolean).join("; ");
+      const catatan = [row.labelKeluar, row.jedaLabel, row.menunggu > 0 ? `${row.menunggu} hari menunggu persetujuan (M)` : ""].filter(Boolean).join("; ");
       csv += toCsvLine([row.nama, row.kelas, ...cells, sum.H, sum.T, sum.I, sum.S, sum.A, catatan]);
     }
   }

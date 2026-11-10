@@ -130,3 +130,37 @@ describe("konsistensi kartu atas dan Rekap Bulanan", () => {
     expect(des.d["2026-12-31"]).toBe("kosong");
   });
 });
+
+describe("status Menunggu (pengajuan izin/sakit orang tua belum diputuskan)", () => {
+  const menunggu = new Set(["2026-10-12", "2026-10-13"]);
+  it("hari lampau tanpa catatan: Menunggu (bukan Alpha bawaan)", () => {
+    expect(statusHariSiswa("2026-10-12", dasar({ menunggu }))).toBe("menunggu");
+  });
+  it("hari ini dan mendatang yang menunggu juga tampil Menunggu (bukan kosong)", () => {
+    expect(statusHariSiswa(TODAY, dasar({ menunggu: new Set([TODAY]) }))).toBe("menunggu");
+    expect(statusHariSiswa("2026-10-25", dasar({ menunggu: new Set(["2026-10-25"]) }))).toBe("menunggu");
+  });
+  it("baris Alpha pada hari Menunggu belum dihitung (Alpha tercatat maupun bawaan)", () => {
+    expect(statusHariSiswa("2026-10-12", dasar({ menunggu, absensi: new Map([["2026-10-12", "alpha"]]) }))).toBe("menunggu");
+  });
+  it("catatan NYATA menang: Hadir/Terlambat/Izin/Sakit pada hari Menunggu tetap dihitung (scan menang)", () => {
+    for (const st of ["hadir", "terlambat", "izin", "sakit"]) {
+      expect(statusHariSiswa("2026-10-12", dasar({ menunggu, absensi: new Map([["2026-10-12", st]]) })), st).toBe(st);
+    }
+  });
+  it("libur, pindah, jeda, dan sebelum catatan pertama mengalahkan Menunggu", () => {
+    expect(statusHariSiswa("2026-10-12", dasar({ menunggu, libur: new Set(["2026-10-12"]) }))).toBe("libur");
+    expect(statusHariSiswa("2026-10-12", dasar({ menunggu, nonaktifPada: "2026-10-10" }))).toBe("nonaktif");
+    expect(statusHariSiswa("2026-10-12", dasar({ menunggu, jeda: [{ dari: "2026-10-05", sampai: "2026-10-20" }] }))).toBe("nonaktif");
+    expect(statusHariSiswa("2026-10-12", dasar({ menunggu, mulai: "2026-10-14" }))).toBe("kosong");
+  });
+  it("ditolak/dibatalkan = tidak lagi Menunggu: hari kembali ke baseline (lampau tanpa catatan = Alpha)", () => {
+    expect(statusHariSiswa("2026-10-12", dasar({ menunggu: new Set() }))).toBe("alpha");
+    expect(statusHariSiswa("2026-10-12", dasar())).toBe("alpha");
+  });
+  it("hitungRekapSiswa: Menunggu dihitung terpisah dan TIDAK masuk hariDihitung maupun Alpha", () => {
+    const r = hitungRekapSiswa(daftarTanggalRentang("2026-10-12", "2026-10-14"), dasar({ menunggu, absensi: new Map([["2026-10-14", "hadir"]]) }));
+    expect(r).toMatchObject({ menunggu: 2, alpha: 0, hadir: 1, hariDihitung: 1 });
+    expect(r.d["2026-10-12"]).toBe("menunggu");
+  });
+});
