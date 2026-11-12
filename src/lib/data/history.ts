@@ -134,6 +134,8 @@ export async function getChartTren6Bulan(siswaId: number): Promise<ChartBulanan[
   const today = todayJakarta();
   const bulanIni = today.slice(0, 7);
   const awalJendela = `${geserBulan(bulanIni, -(JENDELA_BULAN_GRAFIK - 1))}-01`;
+  const [yIni, mIni] = bulanIni.split("-").map(Number);
+  const akhirBulanIni = new Date(Date.UTC(yIni, mIni, 0)).toISOString().slice(0, 10); // hari TERAKHIR yang sah (bukan "-31")
 
   // Dipaginasi + urut stabil (PostgREST memotong diam-diam di 1000 baris; siswa lama bisa punya >1000 catatan).
   const [baris, liburSet, batasPindah, jeda, menungguMap] = await Promise.all([
@@ -149,7 +151,7 @@ export async function getChartTren6Bulan(siswaId: number): Promise<ChartBulanan[
     getLiburSet(),
     ambilBatasPindahSiswa(siswaId),
     ambilJedaSiswa(siswaId),
-    ambilMenungguBanyak([siswaId], awalJendela, `${bulanIni}-31`),
+    ambilMenungguBanyak([siswaId], awalJendela, akhirBulanIni),
   ]);
 
   // Telusuri mundur dari bulan ini sampai terkumpul 6 bulan yang punya hari dihitung (atau jendela habis).

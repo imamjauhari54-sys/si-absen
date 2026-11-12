@@ -101,10 +101,18 @@ function pasang(opsi: { batasBaris?: number } = {}) {
   fake = buatFakeSupabase(db, {
     ...opsi,
     rpc: {
-      tanggal_menunggu: (a) =>
-        (db.pengajuan_menunggu as { siswa_id: number; tanggal: string }[]).filter(
+      tanggal_menunggu: (a) => {
+        // seperti Postgres: tanggal yang tidak ada di kalender (mis. "2026-11-31") adalah GALAT, bukan diabaikan
+        for (const k of ["p_dari", "p_sampai"]) {
+          const v = a[k] as string;
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) !== v) {
+            throw new Error(`date/time field value out of range: "${v}"`);
+          }
+        }
+        return (db.pengajuan_menunggu as { siswa_id: number; tanggal: string }[]).filter(
           (r) => (a.p_siswa_ids as number[]).includes(r.siswa_id) && r.tanggal >= (a.p_dari as string) && r.tanggal <= (a.p_sampai as string)
-        ),
+        );
+      },
       awal_catatan_siswa: (a) => {
         const per = new Map<number, string>();
         for (const r of db.absensi as { siswa_id: number; tanggal: string; tapel: string }[]) {
@@ -354,5 +362,24 @@ describe("Pengajuan izin/sakit MENUNGGU (Siti: 16 Okt Alpha lama, 17 Okt sudah H
     const data = await getChartTren6Bulan(3);
     const a = hitungRekapSiswa(bulanTgl("2026-10"), acuan(db, SISWA[2], "2026-10-01"));
     expect(data.at(-1)).toMatchObject({ label: "Okt 2026", hadir: a.hadir + a.terlambat, alpha: a.alpha });
+  });
+});
+
+describe("bulan berumur 30 hari (November): tanggal akhir bulan harus sah", () => {
+  it("grafik tren dan semua loader jalan di November tanpa galat tanggal (regresi: pernah memakai '-31')", async () => {
+    pasang();
+    vi.setSystemTime(new Date("2026-11-12T05:00:00Z"));
+    try {
+      const { getChartTren6Bulan } = await import("./history");
+      const { getRekapBulananSiswa, getRekapBulanan } = await import("./rekap");
+      await expect(getChartTren6Bulan(3)).resolves.toBeDefined();
+      await expect(getRekapBulananSiswa(3, "2026-11", liburMap)).resolves.toBeDefined();
+      await expect(getRekapBulanan("2026-11", "", liburMap)).resolves.toBeDefined();
+      for (const bulan of ["2026-02", "2027-02", "2026-04", "2026-06", "2026-09", "2026-11"]) {
+        await expect(getRekapBulananSiswa(3, bulan, liburMap), bulan).resolves.toBeDefined();
+      }
+    } finally {
+      vi.setSystemTime(new Date("2026-10-20T05:00:00Z"));
+    }
   });
 });

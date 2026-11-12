@@ -70,7 +70,11 @@ export function buatFakeSupabase(db: Db, opsi: OpsiFake = {}) {
         log.rpc.push(nama);
         const fn = opsi.rpc?.[nama];
         if (!fn) return { data: null, error: { message: `rpc ${nama} tidak disediakan di fake`, code: "PGRST202" } };
-        return { data: fn(args), error: null };
+        try {
+          return { data: fn(args), error: null };
+        } catch (e) {
+          return { data: null, error: { message: e instanceof Error ? e.message : String(e), code: "22008" } };
+        }
       },
     },
   };
