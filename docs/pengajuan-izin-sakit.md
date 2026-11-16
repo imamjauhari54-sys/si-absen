@@ -89,7 +89,7 @@ Bagian **Pengajuan Izin / Sakit** ada di dashboard portal (`/portal-siswa/dashbo
 
 ## Halaman persetujuan dan PIN (Tahap 4)
 
-**Menu baru** (admin dan wali kelas): *Pengajuan Izin* (`/pengajuan`) dan *PIN Orang Tua* (`/pin-ortu`).
+**Menu baru** (admin dan wali kelas): *Pengajuan Izin* (`/pengajuan`). Halaman *PIN Orang Tua* (`/pin-ortu`) tidak punya menu sendiri; dibuka lewat tombol "PIN Orang Tua" di halaman Pengajuan Izin (menu Pengajuan Izin tetap menyala di sana).
 
 ### /pengajuan
 - Daftar: filter **Menunggu** (terlama di atas) atau **Semua**; admin dapat memfilter kelas. Guru SELALU dibatasi ke kelas walinya dari DB (query `?kelas=` diabaikan).

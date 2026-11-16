@@ -75,7 +75,6 @@ export default function AppShell({
     { href: "/rekap", icon: "fa-calendar-days", label: "Rekap Absensi" },
     // Izin/sakit dari portal orang tua + PIN. Admin & wali kelas (guru dibatasi ke kelasnya di server).
     { href: "/pengajuan", icon: "fa-envelope-open-text", label: "Pengajuan Izin", jumlah: pengajuanMenunggu },
-    { href: "/pin-ortu", icon: "fa-key", label: "PIN Orang Tua" },
     // Admin: semua kelas. Guru (wali kelas): hanya siswa kelasnya — dibatasi di server.
     { href: "/scan-absen", icon: "fa-qrcode", label: "Scan QR", badge: "SCAN" },
     ...(isAdmin
@@ -98,7 +97,13 @@ export default function AppShell({
   ];
 
   const semuaHalaman = navItems.flatMap((item) => (isNavGroup(item) ? item.children : [item]));
+  // Halaman yang tidak punya menu sendiri (dibuka dari halaman induknya).
+  const HALAMAN_TANPA_MENU: Record<string, { label: string; induk: string }> = {
+    "/pin-ortu": { label: "PIN Orang Tua", induk: "/pengajuan" },
+  };
+  const tanpaMenu = Object.entries(HALAMAN_TANPA_MENU).find(([h]) => pathname === h || pathname?.startsWith(h + "/"))?.[1];
   const pageTitle =
+    tanpaMenu?.label ??
     semuaHalaman.find((i) => pathname === i.href || pathname?.startsWith(i.href + "/"))?.label ?? "SI-ABSEN";
 
   const [manualOpenGroups, setManualOpenGroups] = useState<Record<string, boolean>>({});
@@ -214,7 +219,7 @@ export default function AppShell({
               );
             }
 
-            const active = pathname === item.href || pathname?.startsWith(item.href + "/");
+            const active = pathname === item.href || pathname?.startsWith(item.href + "/") || tanpaMenu?.induk === item.href;
             return (
               <Link
                 key={item.href}
