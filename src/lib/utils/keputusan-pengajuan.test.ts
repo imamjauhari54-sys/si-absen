@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { susunPratinjauHari, parsePutuskan } from "./pengajuan";
-import { bangunBodyPutuskan, kalimatAkibat, keteranganPratinjau, MAKS_CATATAN, ringkasAkibat, validasiKeputusan } from "./keputusan-pengajuan";
+import { PENJELASAN_MODE, bangunBodyPutuskan, kalimatAkibat, keteranganPratinjau, MAKS_CATATAN, ringkasAkibat, validasiKeputusan } from "./keputusan-pengajuan";
 
 const HARI_INI = "2026-11-13";
 const H = ["2026-11-11", "2026-11-12", "2026-11-16"]; // lampau, lampau, mendatang
@@ -69,5 +69,14 @@ describe("keteranganPratinjau", () => {
     expect(k.setuju).toMatch(/tidak diubah/);
     expect(k.tidak).toBe("Tidak berubah");
     expect(keteranganPratinjau(pratinjau[0])).toMatchObject({ ada: null, setuju: "Dicatat sekarang", tidak: "Dicatat Alpha" });
+  });
+});
+
+describe("PENJELASAN_MODE", () => {
+  it("ada untuk setiap pilihan dan menyebut akibat Alpha pada pilihan yang bisa menimbulkannya", () => {
+    for (const m of ["semua", "sebagian", "tolak"] as const) expect(PENJELASAN_MODE[m].isi.length).toBeGreaterThan(40);
+    expect(PENJELASAN_MODE.semua.isi).not.toMatch(/Alpha/);
+    expect(PENJELASAN_MODE.sebagian.isi).toMatch(/Alpha/);
+    expect(PENJELASAN_MODE.tolak.isi).toMatch(/Alpha/);
   });
 });

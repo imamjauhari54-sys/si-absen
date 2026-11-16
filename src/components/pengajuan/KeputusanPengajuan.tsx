@@ -9,7 +9,9 @@ import {
   bangunBodyPutuskan,
   kalimatAkibat,
   keteranganPratinjau,
+  CATATAN_WA,
   MAKS_CATATAN,
+  PENJELASAN_MODE,
   ringkasAkibat,
   validasiKeputusan,
   type ModeKeputusan,
@@ -80,6 +82,8 @@ export default function KeputusanPengajuan({ id, pratinjau }: { id: number; prat
             type="button"
             role="radio"
             aria-checked={mode === m.nilai}
+            aria-describedby="penjelasan-mode"
+            title={PENJELASAN_MODE[m.nilai].isi}
             onClick={() => ganti(m.nilai)}
             disabled={sibuk}
             className={`rounded-xl border px-3 py-2.5 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${
@@ -95,11 +99,17 @@ export default function KeputusanPengajuan({ id, pratinjau }: { id: number; prat
         ))}
       </div>
 
-      {mode === "sebagian" && (
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Centang hari yang disetujui. Hari yang tidak dicentang <strong>tidak</strong> otomatis menjadi izin/sakit.
-        </p>
-      )}
+      <div
+        id="penjelasan-mode"
+        data-testid="penjelasan-mode"
+        aria-live="polite"
+        className="rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-900/40 px-3 py-2.5 text-xs text-indigo-900 dark:text-indigo-100"
+      >
+        <div className="font-extrabold mb-0.5">{PENJELASAN_MODE[mode].judul}</div>
+        <p>{PENJELASAN_MODE[mode].isi}</p>
+        {mode === "sebagian" && <p className="mt-1 font-semibold">Centang hari yang disetujui pada daftar di bawah.</p>}
+        <p className="mt-1 text-indigo-700/80 dark:text-indigo-200/70">{CATATAN_WA}</p>
+      </div>
 
       <ul className="divide-y divide-gray-100 dark:divide-gray-700/50 text-sm rounded-xl border border-gray-100 dark:border-gray-700/50" data-testid="pratinjau-hari">
         {pratinjau.map((h) => {

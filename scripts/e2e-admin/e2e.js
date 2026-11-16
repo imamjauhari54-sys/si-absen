@@ -28,7 +28,7 @@ async function sesi(browser, cookie, lebar = 1100) {
   cek("1a daftar Menunggu: 3 pengajuan (admin lihat semua kelas)", (await page.locator('[data-testid="daftar-pengajuan"] li').count()) === 3);
   cek("1b menu sidebar memuat Pengajuan Izin & PIN Orang Tua", (await page.getByRole("link", { name: "Pengajuan Izin" }).count()) > 0 && (await page.getByRole("link", { name: "PIN Orang Tua" }).count()) > 0);
 
-  cek("1c penanda menu admin = 3 pengajuan menunggu", (await page.locator('[data-testid="penanda-pengajuan"]').first().innerText()).trim() === "3");
+  { const t1c = (await page.locator('[data-testid="penanda-pengajuan"]').first().innerText()).trim(); cek("1c penanda menu admin = 3 pengajuan menunggu", t1c === "3", t1c); }
 
   // 2. Detail + setujui sebagian
   await page.goto(B + "/pengajuan/10");
@@ -38,7 +38,9 @@ async function sesi(browser, cookie, lebar = 1100) {
   cek("2b lampiran https dibuka di tab baru dengan noopener", (await page.locator('a[href*="cloudinary"][rel="noopener noreferrer"][target=_blank]').count()) === 1);
   cek("2c pratinjau 3 hari", (await page.locator('[data-testid="pratinjau-hari"] li').count()) === 3);
   cek("2d hari yang sudah hadir dijelaskan tidak diubah", (await page.locator('li[data-tanggal="2026-11-11"]').innerText()).includes("Hadir"));
+  cek("2d2 penjelasan pilihan tampil (bawaan: Setujui semua) + tooltip di tombol", /Semua hari dalam pengajuan disetujui/.test(await page.locator('[data-testid="penjelasan-mode"]').innerText()) && /Alpha/.test((await page.getByRole("radio", { name: /Tolak/ }).getAttribute("title")) || ""));
   await page.getByRole("radio", { name: /Setujui sebagian/ }).click();
+  cek("2d3 penjelasan berganti mengikuti pilihan", /Anda memilih sendiri hari/.test(await page.locator('[data-testid="penjelasan-mode"]').innerText()));
   await page.getByLabel(/Setujui .*12 Nov/).uncheck();
   const ring = await page.locator('[data-testid="ringkasan-akibat"]').innerText();
   cek("2e ringkasan akibat berubah (2 disetujui)", /2 hari disetujui/.test(ring), ring);

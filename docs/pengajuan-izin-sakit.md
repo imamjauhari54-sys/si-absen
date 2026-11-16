@@ -94,6 +94,7 @@ Bagian **Pengajuan Izin / Sakit** ada di dashboard portal (`/portal-siswa/dashbo
 ### /pengajuan
 - Daftar: filter **Menunggu** (terlama di atas) atau **Semua**; admin dapat memfilter kelas. Guru SELALU dibatasi ke kelas walinya dari DB (query `?kelas=` diabaikan).
 - Detail `/pengajuan/[id]`: alasan (ditampilkan sebagai teks), lampiran (hanya `https`, tab baru, `noopener`), dan **pratinjau per hari**: catatan absensi yang sudah ada serta akibat bila disetujui / tidak disetujui.
+- Di bawah tombol keputusan ada kotak penjelasan yang berganti mengikuti pilihan (`PENJELASAN_MODE`), dan tombol punya tooltip (`title`) berisi penjelasan yang sama.
 - Keputusan: **Setujui semua**, **Setujui sebagian** (centang hari; yang tidak dicentang tidak otomatis jadi izin/sakit), **Tolak**; catatan opsional (maks. 300). Memilih semua hari pada "sebagian" dikirim sebagai setujui penuh (status *Disetujui*).
 - Pratinjau dan ringkasan akibat hanya penjelasan; yang memutuskan tetap `putuskan_pengajuan_izin` (SQL). Hasil dihitung dari `pratinjauHariDisetujui/TidakDisetujui`, yang dijaga kesamaannya dengan SQL oleh matriks 36 kasus.
 - Akses: guru yang membuka pengajuan kelas lain melihat halaman "tidak ditemukan" yang sama dengan ID tidak ada. Catatan: karena `loading.tsx`, status HTTP sudah 200 saat halaman dialirkan; isi halaman tetap "tidak ditemukan" tanpa data.
@@ -124,4 +125,4 @@ Bagian **Pengajuan Izin / Sakit** ada di dashboard portal (`/portal-siswa/dashbo
 - Dihitung di layout dengan cache 30 detik (`hitungPenandaPengajuan`) dan dibuang segera saat ada pengajuan baru, dibatalkan, atau diputuskan (`segarkanPenandaPengajuan`). Tidak pernah melempar: bila migrasi 027 belum ada, lencana tidak tampil dan halaman tetap normal.
 
 ### Uji
-`pesan-keputusan.test.ts`, `notifikasi-keputusan.test.ts` (termasuk privasi dan tiap jalur gagal), `penanda-pengajuan.test.ts`, pembaruan `pengajuan-api.test.ts`; `scripts/e2e-admin` kini 45 pemeriksaan (gateway WA tiruan di port 54399 menangkap pesan sungguhan dari aplikasi).
+`pesan-keputusan.test.ts`, `notifikasi-keputusan.test.ts` (termasuk privasi dan tiap jalur gagal), `penanda-pengajuan.test.ts`, pembaruan `pengajuan-api.test.ts`; `scripts/e2e-admin` kini 47 pemeriksaan (gateway WA tiruan di port 54399 menangkap pesan sungguhan dari aplikasi).

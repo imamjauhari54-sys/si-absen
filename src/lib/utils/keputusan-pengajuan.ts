@@ -7,6 +7,24 @@ import type { HariPratinjau, StatusAbsensiAda } from "./pengajuan";
 
 export const MAKS_CATATAN = 300;
 
+/** Penjelasan tiap pilihan keputusan (tooltip + keterangan di bawah tombol). Harus sejalan dengan aturan putuskan_pengajuan_izin. */
+export const PENJELASAN_MODE: Record<ModeKeputusan, { judul: string; isi: string }> = {
+  semua: {
+    judul: "Setujui semua",
+    isi: "Semua hari dalam pengajuan disetujui sesuai jenisnya (izin/sakit). Hari yang sudah lewat langsung dicatat. Hari ini dan hari ke depan dicatat otomatis saat harinya tiba, dan bila siswa ternyata scan masuk, catatan hadirnya yang berlaku. Hari yang sudah punya catatan lain tidak diubah.",
+  },
+  sebagian: {
+    judul: "Setujui sebagian",
+    isi: "Anda memilih sendiri hari yang disetujui (centang di daftar). Hari yang tidak dicentang tidak menjadi izin/sakit: bila sudah lewat dan belum ada catatan, dicatat Alpha; hari ini dan ke depan tidak diubah. Cocok bila hanya sebagian hari yang masuk akal diizinkan.",
+  },
+  tolak: {
+    judul: "Tolak",
+    isi: "Tidak ada hari yang disetujui. Hari yang sudah lewat dan belum punya catatan dicatat Alpha; hari ini dan ke depan tidak diubah. Isi catatan supaya orang tua tahu alasannya.",
+  },
+};
+
+export const CATATAN_WA = "Orang tua otomatis diberi tahu lewat WhatsApp (bila notifikasi WA aktif).";
+
 export type ModeKeputusan = "semua" | "sebagian" | "tolak";
 
 export const LABEL_ABSENSI: Record<NonNullable<StatusAbsensiAda>, string> = {
