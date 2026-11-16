@@ -38,7 +38,7 @@ export default async function DetailPengajuanPage({ params }: { params: Promise<
   const lampiranAman = p.lampiran && /^https:\/\//i.test(p.lampiran) ? p.lampiran : null;
 
   return (
-    <div className="w-full px-4 pt-2 mb-14 max-w-3xl">
+    <div className="w-full px-4 pt-2 mb-14">
       <div className="mb-4"><Link href="/pengajuan" className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"><i className="fas fa-arrow-left mr-1" aria-hidden="true" />Kembali ke daftar</Link></div>
       <div className="mb-6 reveal flex flex-wrap items-start justify-between gap-3">
         <PageTitle icon="fa-envelope-open-text" title={p.siswa.name}>
