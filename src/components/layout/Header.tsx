@@ -20,6 +20,8 @@ export default function Header({ namaSekolah, initialDark }: HeaderProps) {
     { href: "/dashboard", label: "Dashboard" },
     { href: "/siswa", label: "Data Siswa" },
     { href: "/rekap", label: "Rekap Absensi" },
+    { href: "/pengajuan", label: "Pengajuan Izin" },
+    { href: "/pin-ortu", label: "PIN Orang Tua" },
     { href: "/scan-absen", label: "Scan QR" },
     { href: "/setting", label: "Pengaturan" },
   ];

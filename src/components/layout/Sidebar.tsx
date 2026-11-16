@@ -26,6 +26,9 @@ export default function Sidebar({ isAdmin }: SidebarProps) {
     { href: "/dashboard", icon: "fa-house", label: "Dashboard" },
     { href: "/siswa", icon: "fa-users", label: "Data Siswa" },
     { href: "/rekap", icon: "fa-calendar-days", label: "Rekap Absensi" },
+    // Izin/sakit dari portal orang tua + PIN. Admin & wali kelas (guru dibatasi ke kelasnya di server).
+    { href: "/pengajuan", icon: "fa-envelope-open-text", label: "Pengajuan Izin" },
+    { href: "/pin-ortu", icon: "fa-key", label: "PIN Orang Tua" },
     // Admin: semua kelas. Guru (wali kelas): hanya siswa kelasnya — dibatasi di server.
     { href: "/scan-absen", icon: "fa-qrcode", label: "Scan QR", badge: "SCAN" },
     { href: "/setting", icon: "fa-gear", label: "Pengaturan" },

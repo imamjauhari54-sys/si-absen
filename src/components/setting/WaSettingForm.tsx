@@ -118,7 +118,7 @@ export default function WaSettingForm({
               </div>
               <button
                 type="button"
-                onClick={() => setNotifPilih({ hadir: false, terlambat: false, pulang: false, alpha: false })}
+                onClick={() => setNotifPilih(Object.fromEntries(JENIS_NOTIF.map((j) => [j.kunci, false])) as PengaturanNotif)}
                 className="shrink-0 text-[10px] font-bold text-rose-500 hover:text-rose-600 underline underline-offset-2"
               >
                 Nonaktifkan semua

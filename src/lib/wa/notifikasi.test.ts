@@ -66,13 +66,13 @@ beforeEach(() => {
 });
 
 describe("getWaConfig: bawaan di sisi server", () => {
-  it("tanpa pengaturan notifikasi tersimpan → hanya Alpha aktif", async () => {
-    expect((await getWaConfig()).notif).toEqual({ hadir: false, terlambat: false, pulang: false, alpha: true });
+  it("tanpa pengaturan notifikasi tersimpan → hanya Alpha dan Keputusan aktif", async () => {
+    expect((await getWaConfig()).notif).toEqual({ hadir: false, terlambat: false, pulang: false, alpha: true, keputusan: true });
   });
 
   it("membaca pengaturan yang tersimpan", async () => {
     atur({ wa_notif_hadir: "true", wa_notif_alpha: "false" });
-    expect((await getWaConfig()).notif).toEqual({ hadir: true, terlambat: false, pulang: false, alpha: false });
+    expect((await getWaConfig()).notif).toEqual({ hadir: true, terlambat: false, pulang: false, alpha: false, keputusan: true });
   });
 
   it("di-cache sampai resetWaConfigCache() dipanggil", async () => {
@@ -229,7 +229,7 @@ describe("kirimNotifAlphaMassal (Fonnte: batch)", () => {
     batch.mockResolvedValue({ ok: false, error: "Kuota pesan gateway tidak cukup (insufficient quota)" });
     await kirimNotifAlphaMassal(daftar, "2026-10-12");
     const baris = logBanyak.mock.calls[0][0];
-    const kirimGagal = baris.filter((b) => [1, 2].includes(b.siswaId));
+    const kirimGagal = baris.filter((b) => b.siswaId !== null && [1, 2].includes(b.siswaId));
     expect(kirimGagal.every((b) => b.status === "gagal" && b.errorMessage?.includes("Kuota"))).toBe(true);
   });
 

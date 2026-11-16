@@ -21,6 +21,8 @@ create function pg_temp.depan(n int) returns date language sql as $$
 
 -- data contoh migrasi 001 (absensi tapel 2025/2026 bertanggal RELATIF terhadap hari DB dibuat) bisa jatuh di rentang tanggal uji
 delete from students where nisn like '00912345%';
+-- hari libur contoh migrasi 001 juga bertanggal relatif dan bisa jatuh di rentang uji (mis. A12); aman: transaksi ini di-ROLLBACK
+delete from hari_libur where tanggal between pg_temp.hari() - 40 and pg_temp.hari() + 60;
 delete from absensi_setting;
 insert into absensi_setting (tapel, semester)
   select case when extract(month from pg_temp.hari()) >= 7

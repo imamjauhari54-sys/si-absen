@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase/server";
 
-export type TipeWaLog = "absen" | "alpha";
+export type TipeWaLog = "absen" | "alpha" | "keputusan";
 
 export interface WaLogRow {
   id: number;
@@ -20,7 +20,8 @@ export interface WaLogRow {
  * biar ketauan di server log.
  */
 export interface WaLogInput {
-  siswaId: number;
+  /** null bila siswa tidak diketahui (mis. pengajuan gagal dimuat); kolomnya memang boleh kosong. */
+  siswaId: number | null;
   namaSiswa: string;
   nomorHp: string | null;
   tipe: TipeWaLog;

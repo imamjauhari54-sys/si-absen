@@ -13,7 +13,7 @@ const PAGE_SIZE = 10;
 export const metadata: Metadata = { title: "Log Notifikasi WA" };
 export const dynamic = "force-dynamic";
 
-const TIPE_LABEL: Record<string, string> = { absen: "Absen", alpha: "Alpha" };
+const TIPE_LABEL: Record<string, string> = { absen: "Absen", alpha: "Alpha", keputusan: "Keputusan izin" };
 
 export default async function LogWaPage({
   searchParams,

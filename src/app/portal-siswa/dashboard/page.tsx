@@ -23,6 +23,8 @@ import RekapBulananSiswaCard from "@/components/history/RekapBulananSiswaCard";
 import "@/components/history/history.css";
 import "@/components/rekap/rekap.css";
 import DevFooter from "@/components/layout/DevFooter";
+import PengajuanPortal from "@/components/portal/PengajuanPortal";
+import { muatPengajuanPortal } from "@/lib/data/pengajuan";
 
 export const metadata: Metadata = { title: "Absensi Saya" };
 export const dynamic = "force-dynamic";
@@ -63,13 +65,15 @@ export default async function PortalSiswaDashboardPage({
   // supaya siswa selalu lihat bulan ini duluan tanpa perlu pilih apa-apa).
   const bulanRekap = filter.bulan || todayJakarta().slice(0, 7);
 
-  const [rows, listTapel, chartData, liburMap, kelasPadaTapel, riwayatKelas] = await Promise.all([
+  const [rows, listTapel, chartData, liburMap, kelasPadaTapel, riwayatKelas, dataPengajuan] = await Promise.all([
     getRiwayatAbsensi(siswaId, filter),
     getListTapel(),
     getChartTren6Bulan(siswaId),
     getHariLiburMap(),
     getKelasSiswaPadaTapel(siswaId, filter.tapel),
     getRiwayatKelasSiswa(siswaId),
+    // Tidak pernah melempar: bila fitur pengajuan bermasalah, halaman absensi tetap tampil.
+    muatPengajuanPortal(siswaId),
   ]);
   // Kelas pada tapel yang sedang dilihat (bisa beda dari kelas sekarang kalau sudah naik).
   const kelasTampil = kelasPadaTapel ?? siswa.class;
@@ -105,7 +109,7 @@ export default async function PortalSiswaDashboardPage({
           </div>
           <div>
             <div className="text-sm font-extrabold text-gray-800 dark:text-white leading-tight">Portal Siswa</div>
-            <div className="text-[11px] text-gray-400 leading-tight">Absensi Saya (read-only)</div>
+            <div className="text-[11px] text-gray-400 leading-tight">Absensi Saya</div>
           </div>
         </div>
         <form action={logoutSiswaAction}>
@@ -167,6 +171,21 @@ export default async function PortalSiswaDashboardPage({
             </div>
           </div>
         </div>
+
+        {/* PENGAJUAN IZIN / SAKIT (orang tua; wajib PIN dari wali kelas) */}
+        {dataPengajuan.status === "ok" && (
+          <PengajuanPortal
+            pengajuan={dataPengajuan.pengajuan}
+            pin={dataPengajuan.pin}
+            hariIni={todayJakarta()}
+            liburTanggal={[...liburMap.keys()]}
+          />
+        )}
+        {dataPengajuan.status === "galat" && (
+          <p className="section-card p-4 mb-6 text-xs text-gray-500 dark:text-gray-400" role="note">
+            <i className="fas fa-circle-info mr-1.5" /> Pengajuan izin/sakit sedang tidak dapat dimuat. Muat ulang halaman beberapa saat lagi.
+          </p>
+        )}
 
         {/* FILTER */}
         <div className="section-card p-4 sm:p-5 mb-6 reveal shadow-sm">

@@ -185,6 +185,7 @@ describe("penjaga baseline: tidak ada rumus ganda", () => {
     "lib/data/dashboard.ts", // filter .neq("status","alpha") untuk statistik hari ini
     "lib/data/wa-log.ts", // tipe log WA
     "app/api/absen/auto-alpha/route.ts", // MENULIS baris Alpha (cron), bukan menghitung rekap
+    "lib/utils/pengajuan.ts", // pratinjau apa yang DITULIS putuskan_pengajuan_izin (cermin SQL, dibuktikan pengajuan.matriks.test.ts); tidak menghitung rekap/status tampilan
     "app/api/rekap/export/route.ts", // label ekspor harian hari ini yang belum scan
   ]);
   it("literal \"alpha\" di lapisan data/util/API hanya di file yang diizinkan (bukan sekadar satu bentuk rumus)", () => {

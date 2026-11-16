@@ -3,7 +3,7 @@
  * Modul murni (tanpa akses database) supaya bisa dipakai di server MAUPUN form klien.
  */
 
-export type JenisNotif = "hadir" | "terlambat" | "pulang" | "alpha";
+export type JenisNotif = "hadir" | "terlambat" | "pulang" | "alpha" | "keputusan";
 export type PengaturanNotif = Record<JenisNotif, boolean>;
 
 export interface InfoJenisNotif {
@@ -44,13 +44,20 @@ export const JENIS_NOTIF: InfoJenisNotif[] = [
     kapan: "Saat siswa ditetapkan tidak hadir (setelah auto-alpha selesai)",
     keterangan: "Orang tua mendapat informasi bahwa anak tercatat tidak hadir hari itu.",
   },
+  {
+    kunci: "keputusan",
+    settingKey: "wa_notif_keputusan",
+    label: "Keputusan izin/sakit",
+    kapan: "Saat wali kelas/admin menyetujui, menyetujui sebagian, atau menolak pengajuan dari portal",
+    keterangan: "Orang tua yang mengajukan langsung mendapat jawabannya. Alasan dan lampiran pengajuan tidak pernah ikut dikirim.",
+  },
 ];
 
 /**
  * Bawaan di sisi SERVER: dipakai kalau pengaturan belum pernah disimpan, jadi sistem tetap aman
  * (tidak membanjiri orang tua dengan pesan) walaupun tabel settings masih kosong.
  */
-export const DEFAULT_NOTIF: PengaturanNotif = { hadir: false, terlambat: false, pulang: false, alpha: true };
+export const DEFAULT_NOTIF: PengaturanNotif = { hadir: false, terlambat: false, pulang: false, alpha: true, keputusan: true };
 
 /** Ubah nilai mentah dari tabel settings ("true"/"false"/kosong) menjadi pengaturan; yang tidak jelas → bawaan. */
 export function parseNotif(mentah: Partial<Record<JenisNotif, string | null | undefined>>): PengaturanNotif {

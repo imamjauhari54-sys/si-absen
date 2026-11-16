@@ -11,6 +11,7 @@ import {
 } from "@/lib/utils/whatsapp";
 import { catatWaLog, catatWaLogBanyak, type WaLogInput } from "@/lib/data/wa-log";
 import { JENIS_NOTIF, parseNotif, type PengaturanNotif } from "@/lib/wa/jenis-notifikasi";
+import { statusKeputusanValid, susunPesanKeputusan, type HariKeputusan } from "@/lib/wa/pesan-keputusan";
 
 export interface WaConfig {
   enabled: boolean;
@@ -170,6 +171,58 @@ export async function kirimNotifAlpha(siswaId: number, namaSiswa: string, kelas:
       status: "gagal",
       errorMessage: e instanceof Error ? e.message : "Error tidak diketahui.",
     });
+  }
+}
+
+/**
+ * Beri tahu orang tua hasil keputusan pengajuan izin/sakit. Dipanggil di after() SETELAH putuskan_pengajuan_izin sukses
+ * (SQL hanya mengizinkan satu keputusan per pengajuan, jadi satu pengajuan = paling banyak satu pesan).
+ * Isi pesan dibangun dari data TERSIMPAN di database (bukan dari input permintaan), jadi selalu sama dengan yang tercatat.
+ * Fail-safe: tidak pernah melempar; setiap percobaan dicatat di wa_log (tipe "keputusan"). Alasan/lampiran tidak ikut dikirim.
+ */
+export async function kirimNotifKeputusan(pengajuanId: number): Promise<void> {
+  let siswaId: number | null = null;
+  let namaSiswa = "";
+  let nomor: string | null = null;
+  try {
+    const cfg = await getWaConfig();
+    if (!cfg.enabled || !cfg.gatewayUrl || !cfg.apiKey) return;
+    if (!cfg.notif.keputusan) return;
+
+    const { data, error } = await supabaseAdmin
+      .from("pengajuan_izin")
+      .select("jenis, status, catatan_keputusan, students!inner(id, name, class, no_hp_ortu), pengajuan_izin_hari(tanggal, disetujui, aktif, hasil)")
+      .eq("id", pengajuanId)
+      .maybeSingle();
+    if (error || !data) throw new Error(error?.message ?? "Pengajuan tidak ditemukan.");
+    if (!statusKeputusanValid(data.status)) return; // belum/tidak diputuskan: tidak ada yang diberitahukan
+
+    const siswa = (Array.isArray(data.students) ? data.students[0] : data.students) as { id: number; name: string; class: string; no_hp_ortu: string | null };
+    siswaId = siswa.id;
+    namaSiswa = siswa.name;
+    nomor = siswa.no_hp_ortu ?? null;
+    if (!nomor) {
+      await catatWaLog({ siswaId, namaSiswa, nomorHp: null, tipe: "keputusan", status: "gagal", errorMessage: "Nomor HP orang tua belum diisi." });
+      return;
+    }
+
+    const hari: HariKeputusan[] = ((data.pengajuan_izin_hari ?? []) as { tanggal: string; disetujui: boolean | null; aktif: boolean; hasil: string | null }[])
+      .filter((h) => h.aktif !== false)
+      .map((h) => ({ tanggal: h.tanggal, disetujui: h.disetujui, hasil: h.hasil }));
+    const namaSekolah = await getSettingValue("nama_sekolah", "Sekolah");
+    const pesan = susunPesanKeputusan({
+      namaSiswa,
+      kelas: siswa.class,
+      jenis: data.jenis === "sakit" ? "sakit" : "izin",
+      status: data.status,
+      hari,
+      catatan: data.catatan_keputusan ?? null,
+      namaSekolah,
+    });
+    const hasil = await kirimWhatsApp(cfg.gatewayUrl, cfg.apiKey, nomor, pesan);
+    await catatWaLog({ siswaId, namaSiswa, nomorHp: nomor, tipe: "keputusan", status: hasil.ok ? "terkirim" : "gagal", errorMessage: hasil.ok ? undefined : hasil.error });
+  } catch (e) {
+    await catatWaLog({ siswaId, namaSiswa: namaSiswa || `Pengajuan #${pengajuanId}`, nomorHp: nomor, tipe: "keputusan", status: "gagal", errorMessage: e instanceof Error ? e.message : "Error tidak diketahui." });
   }
 }
 

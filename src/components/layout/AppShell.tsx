@@ -15,6 +15,8 @@ interface NavItem {
   icon: string;
   label: string;
   badge?: string;
+  /** Jumlah (mis. pengajuan menunggu); tidak tampil bila 0. */
+  jumlah?: number;
 }
 
 interface NavGroup {
@@ -38,6 +40,7 @@ export default function AppShell({
   guruUsername,
   guruNip,
   initialDark,
+  pengajuanMenunggu = 0,
   children,
 }: {
   namaSekolah: string;
@@ -48,6 +51,7 @@ export default function AppShell({
   guruUsername: string;
   guruNip: string | null;
   initialDark: boolean;
+  pengajuanMenunggu?: number;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -69,6 +73,9 @@ export default function AppShell({
     { href: "/dashboard", icon: "fa-house", label: "Dashboard" },
     { href: "/siswa", icon: "fa-users", label: "Data Siswa" },
     { href: "/rekap", icon: "fa-calendar-days", label: "Rekap Absensi" },
+    // Izin/sakit dari portal orang tua + PIN. Admin & wali kelas (guru dibatasi ke kelasnya di server).
+    { href: "/pengajuan", icon: "fa-envelope-open-text", label: "Pengajuan Izin", jumlah: pengajuanMenunggu },
+    { href: "/pin-ortu", icon: "fa-key", label: "PIN Orang Tua" },
     // Admin: semua kelas. Guru (wali kelas): hanya siswa kelasnya — dibatasi di server.
     { href: "/scan-absen", icon: "fa-qrcode", label: "Scan QR", badge: "SCAN" },
     ...(isAdmin
@@ -221,6 +228,15 @@ export default function AppShell({
                 {item.badge && (
                   <span className={`text-[9px] font-black px-1.5 py-0.5 rounded bg-emerald-500 text-white ${hideInRail}`}>
                     {item.badge}
+                  </span>
+                )}
+                {!!item.jumlah && item.jumlah > 0 && (
+                  <span
+                    data-testid="penanda-pengajuan"
+                    aria-label={`${item.jumlah} pengajuan menunggu`}
+                    className={`text-[10px] font-black min-w-5 text-center px-1.5 py-0.5 rounded-full bg-amber-500 text-white ${hideInRail}`}
+                  >
+                    {item.jumlah > 99 ? "99+" : item.jumlah}
                   </span>
                 )}
               </Link>
